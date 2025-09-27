@@ -36,6 +36,7 @@
       </select><br/>
       <button id="registerBtn">Kayıt Ol</button>
     </section>
+
     <!-- QC -->
     <section id="view-qc" class="view hidden">
       <h2>🔍 QC – Kontrol</h2>
@@ -52,7 +53,13 @@
           <button id="stopQCScanBtn" class="btn-light">⛔ Durdur</button>
           <div class="flex-1">
             <table id="tbl-qc-lines">
-              <thead><tr><th>#</th><th>Kod</th><th>Ürün</th><th>İstenen</th><th>Toplanan</th><th>Kontrol</th><th>Eksik</th></tr></thead>
+              <thead>
+                <tr>
+                  <th>#</th><th>Kod</th><th>Ürün</th>
+                  <th>İstenen</th><th>Toplanan</th>
+                  <th>Kontrol</th><th>Eksik</th>
+                </tr>
+              </thead>
               <tbody></tbody>
             </table>
             <button id="finishQCBtn" class="success">Kontrolü Bitir</button>
@@ -61,6 +68,7 @@
       </div>
     </section>
   </main>
+
   <script src="https://unpkg.com/html5-qrcode@2.3.10/minified/html5-qrcode.min.js"></script>
   <script type="module" src="./firebase.js"></script>
   <script type="module" src="./app.js"></script>
