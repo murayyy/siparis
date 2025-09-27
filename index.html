@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Depo Otomasyonu • Full (Step1+Step2)</title>
+  <title>Depo Otomasyonu • Step3 (Paletleme)</title>
   <link rel="stylesheet" href="style.css"/>
 </head>
 <body>
@@ -14,6 +14,7 @@
       <button data-view="view-manager" class="btn-light">Yönetici</button>
       <button data-view="view-picker" class="btn-light">Toplayıcı</button>
       <button data-view="view-qc" class="btn-light">QC</button>
+      <button data-view="view-palet" class="btn-light">Paletleme</button>
       <button data-view="view-login" id="logoutBtn" class="danger hidden">Çıkış</button>
     </nav>
   </header>
@@ -33,6 +34,7 @@
         <option value="yonetici">Yönetici</option>
         <option value="toplayici">Toplayıcı</option>
         <option value="qc">QC</option>
+        <option value="palet">Palet</option>
       </select><br/>
       <button id="registerBtn">Kayıt Ol</button>
     </section>
@@ -107,8 +109,32 @@
         </div>
       </div>
     </section>
+
+    <!-- Paletleme -->
+    <section id="view-palet" class="view hidden">
+      <h2>📦 Paletleme</h2>
+      <div class="row">
+        <button id="refreshPaletBtn" class="btn-light">Yenile</button>
+        <select id="paletOrders"></select>
+        <button id="openPaletBtn">Aç</button>
+      </div>
+      <div id="paletArea" class="card hidden">
+        <h3 id="paletTitle">Sipariş:</h3>
+        <table id="tbl-palet-lines">
+          <thead><tr><th>#</th><th>Kod</th><th>Ürün</th><th>Miktar</th></tr></thead>
+          <tbody></tbody>
+        </table>
+        <button id="createPaletBtn" class="success">Palet Oluştur</button>
+        <div id="paletResult" class="hidden">
+          <h4>Palet No: <span id="paletNo"></span></h4>
+          <div id="paletQr"></div>
+          <button id="printPaletBtn">Etiket Yazdır</button>
+        </div>
+      </div>
+    </section>
   </main>
 
+  <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
   <script src="https://unpkg.com/html5-qrcode@2.3.10/minified/html5-qrcode.min.js"></script>
   <script type="module" src="./firebase.js"></script>
   <script type="module" src="./app.js"></script>
