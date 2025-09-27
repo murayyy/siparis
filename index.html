@@ -31,19 +31,25 @@
       </select><br/>
       <button id="registerBtn">Kayıt Ol</button>
     </section>
-    
+
     <!-- Şube Sipariş Girişi -->
     <section id="view-branch" class="view hidden">
       <h2>🏪 Şube – Sipariş Oluştur</h2>
       <input type="text" id="order-name" placeholder="Sipariş Adı"/><br/>
+
+      <!-- Ürün Seçme -->
+      <select id="productSelect"></select>
+      <input type="number" id="productQty" placeholder="Miktar"/>
+      <button id="addProductBtn">Ekle</button>
+
+      <!-- Sipariş Satırları -->
       <table id="tbl-order-lines">
         <thead>
-          <tr><th>Barkod</th><th>Miktar</th></tr>
+          <tr><th>Kod</th><th>Ürün</th><th>Miktar</th></tr>
         </thead>
-        <tbody>
-          <tr><td class="td-barcode">12345</td><td class="td-qty" contenteditable="true">10</td></tr>
-        </tbody>
+        <tbody></tbody>
       </table>
+
       <button id="saveOrderBtn">Kaydet</button>
     </section>
 
@@ -73,11 +79,11 @@
       <p>Kullanıcılar ve siparişler buradan yönetilecek.</p>
 
       <h3>Excel'den Ürün Yükle</h3>
-<input type="file" id="excelProducts" accept=".xlsx">
-<button id="uploadProductsBtn">Yükle</button>
+      <input type="file" id="excelProducts" accept=".xlsx">
+      <button id="uploadProductsBtn">Yükle</button>
     </section>
   </main>
-  
+
   <!-- Scriptler sırası ÖNEMLİ -->
   <script type="module" src="./firebase.js"></script>
   <script type="module" src="./app.js"></script>
