@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Depo Otomasyonu • Step3 (Paletleme)</title>
+  <title>Depo Otomasyonu • Full</title>
   <link rel="stylesheet" href="style.css"/>
 </head>
 <body>
@@ -15,6 +15,7 @@
       <button data-view="view-picker" class="btn-light">Toplayıcı</button>
       <button data-view="view-qc" class="btn-light">QC</button>
       <button data-view="view-palet" class="btn-light">Paletleme</button>
+      <button data-view="view-dashboard" class="btn-light">Dashboard</button>
       <button data-view="view-login" id="logoutBtn" class="danger hidden">Çıkış</button>
     </nav>
   </header>
@@ -35,6 +36,7 @@
         <option value="toplayici">Toplayıcı</option>
         <option value="qc">QC</option>
         <option value="palet">Palet</option>
+        <option value="admin">Admin</option>
       </select><br/>
       <button id="registerBtn">Kayıt Ol</button>
     </section>
@@ -132,8 +134,38 @@
         </div>
       </div>
     </section>
+
+    <!-- Dashboard -->
+    <section id="view-dashboard" class="view hidden">
+      <h2>📊 Dashboard</h2>
+      <div class="row">
+        <div class="card flex-1">
+          <h3>Toplam Sipariş</h3>
+          <p id="statTotalOrders">0</p>
+        </div>
+        <div class="card flex-1">
+          <h3>Tamamlanan Sipariş</h3>
+          <p id="statCompletedOrders">0</p>
+        </div>
+        <div class="card flex-1">
+          <h3>Bekleyen Sipariş</h3>
+          <p id="statPendingOrders">0</p>
+        </div>
+        <div class="card flex-1">
+          <h3>Palet Sayısı</h3>
+          <p id="statPallets">0</p>
+        </div>
+      </div>
+      <div class="card">
+        <canvas id="chartOrders"></canvas>
+      </div>
+      <div class="card">
+        <canvas id="chartDaily"></canvas>
+      </div>
+    </section>
   </main>
 
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
   <script src="https://unpkg.com/html5-qrcode@2.3.10/minified/html5-qrcode.min.js"></script>
   <script type="module" src="./firebase.js"></script>
