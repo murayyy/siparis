@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Depo Otomasyonu • Step 2 (QC)</title>
+  <title>Depo Otomasyonu • Full (Step1+Step2)</title>
   <link rel="stylesheet" href="style.css"/>
 </head>
 <body>
@@ -35,6 +35,46 @@
         <option value="qc">QC</option>
       </select><br/>
       <button id="registerBtn">Kayıt Ol</button>
+    </section>
+
+    <!-- Şube -->
+    <section id="view-branch" class="view hidden">
+      <h2>🏪 Şube Siparişi</h2>
+      <input id="orderName" placeholder="Sipariş Adı"/>
+      <button id="createOrderBtn">Sipariş Oluştur</button>
+      <table id="branchOrders">
+        <thead><tr><th>ID</th><th>Ad</th><th>Durum</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </section>
+
+    <!-- Yönetici -->
+    <section id="view-manager" class="view hidden">
+      <h2>👨‍💼 Yönetici Paneli</h2>
+      <button id="refreshOrdersBtn">Yenile</button>
+      <table id="tbl-orders">
+        <thead><tr><th>ID</th><th>Ad</th><th>Durum</th><th>İşlem</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </section>
+
+    <!-- Toplayıcı -->
+    <section id="view-picker" class="view hidden">
+      <h2>🧺 Toplayıcı</h2>
+      <button id="refreshAssignedBtn">Yenile</button>
+      <select id="assignedOrders"></select>
+      <button id="openAssignedBtn">Aç</button>
+      <div id="pickerArea" class="hidden">
+        <h3 id="pickerTitle">Sipariş:</h3>
+        <div id="reader"></div>
+        <button id="startScanBtn">📷 Başlat</button>
+        <button id="stopScanBtn" class="btn-light">⛔ Durdur</button>
+        <table id="tbl-picker-lines">
+          <thead><tr><th>#</th><th>Kod</th><th>Ürün</th><th>İstenen</th><th>Toplanan</th></tr></thead>
+          <tbody></tbody>
+        </table>
+        <button id="finishPickBtn" class="success">Toplamayı Bitir</button>
+      </div>
     </section>
 
     <!-- QC -->
