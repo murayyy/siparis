@@ -17,6 +17,7 @@
       <button data-view="view-palet" class="btn-light">Paletleme</button>
       <button data-view="view-dashboard" class="btn-light">Dashboard</button>
       <button data-view="view-stock" class="btn-light">Stok Yönetimi</button>
+      <button data-view="view-products" class="btn-light">Ürünler</button>
       <button data-view="view-login" id="logoutBtn" class="danger hidden">Çıkış</button>
     </nav>
   </header>
@@ -46,8 +47,26 @@
     <!-- Şube -->
     <section id="view-branch" class="view hidden">
       <h2>🏪 Şube Siparişi</h2>
-      <input id="orderName" placeholder="Sipariş Adı"/>
-      <button id="createOrderBtn">Sipariş Oluştur</button>
+
+      <div class="card">
+        <h3>📥 Satır Ekle</h3>
+        <div class="row">
+          <select id="branchProduct" class="input"></select>
+          <input id="branchQty" class="input" type="number" placeholder="Miktar" min="1" value="1"/>
+          <button id="addLineBtn" class="btn-light">Satır Ekle</button>
+        </div>
+        <table id="tbl-branch-lines">
+          <thead><tr><th>#</th><th>Kod</th><th>Ürün</th><th>Miktar</th><th>Barkod</th><th>Reyon</th><th>Sil</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <div class="row">
+        <input id="orderName" class="input" placeholder="Sipariş Adı"/>
+        <button id="createOrderBtn" class="success">Siparişi Oluştur</button>
+      </div>
+
+      <h3>🧾 Siparişlerim</h3>
       <table id="branchOrders">
         <thead><tr><th>ID</th><th>Ad</th><th>Durum</th></tr></thead>
         <tbody></tbody>
@@ -57,7 +76,7 @@
     <!-- Yönetici -->
     <section id="view-manager" class="view hidden">
       <h2>👨‍💼 Yönetici Paneli</h2>
-      <button id="refreshOrdersBtn">Yenile</button>
+      <button id="refreshOrdersBtn" class="btn-light">Yenile</button>
       <table id="tbl-orders">
         <thead><tr><th>ID</th><th>Ad</th><th>Durum</th><th>İşlem</th></tr></thead>
         <tbody></tbody>
@@ -67,7 +86,7 @@
     <!-- Toplayıcı -->
     <section id="view-picker" class="view hidden">
       <h2>🧺 Toplayıcı</h2>
-      <button id="refreshAssignedBtn">Yenile</button>
+      <button id="refreshAssignedBtn" class="btn-light">Yenile</button>
       <select id="assignedOrders"></select>
       <button id="openAssignedBtn">Aç</button>
       <div id="pickerArea" class="card hidden">
@@ -141,35 +160,17 @@
     <section id="view-dashboard" class="view hidden">
       <h2>📊 Dashboard</h2>
       <div class="row">
-        <div class="card flex-1">
-          <h3>Toplam Sipariş</h3>
-          <p id="statTotalOrders">0</p>
-        </div>
-        <div class="card flex-1">
-          <h3>Tamamlanan Sipariş</h3>
-          <p id="statCompletedOrders">0</p>
-        </div>
-        <div class="card flex-1">
-          <h3>Bekleyen Sipariş</h3>
-          <p id="statPendingOrders">0</p>
-        </div>
-        <div class="card flex-1">
-          <h3>Palet Sayısı</h3>
-          <p id="statPallets">0</p>
-        </div>
+        <div class="card flex-1"><h3>Toplam Sipariş</h3><p id="statTotalOrders">0</p></div>
+        <div class="card flex-1"><h3>Tamamlanan Sipariş</h3><p id="statCompletedOrders">0</p></div>
+        <div class="card flex-1"><h3>Bekleyen Sipariş</h3><p id="statPendingOrders">0</p></div>
+        <div class="card flex-1"><h3>Palet Sayısı</h3><p id="statPallets">0</p></div>
       </div>
-      <div class="card">
-        <canvas id="chartOrders"></canvas>
-      </div>
-      <div class="card">
-        <canvas id="chartDaily"></canvas>
-      </div>
+      <div class="card"><canvas id="chartOrders"></canvas></div>
+      <div class="card"><canvas id="chartDaily"></canvas></div>
       <div class="card">
         <h3>📦 Stok Durumu</h3>
         <table id="tbl-stocks">
-          <thead>
-            <tr><th>Kod</th><th>Ürün</th><th>Miktar</th></tr>
-          </thead>
+          <thead><tr><th>Kod</th><th>Ürün</th><th>Miktar</th></tr></thead>
           <tbody></tbody>
         </table>
       </div>
@@ -179,16 +180,31 @@
     <section id="view-stock" class="view hidden">
       <h2>📦 Stok Yönetimi</h2>
       <div class="row">
-        <input id="stockCode" placeholder="Ürün Kodu"/>
-        <input id="stockName" placeholder="Ürün Adı"/>
-        <input id="stockQty" type="number" placeholder="Miktar"/>
+        <input id="stockCode" class="input" placeholder="Ürün Kodu"/>
+        <input id="stockName" class="input" placeholder="Ürün Adı"/>
+        <input id="stockQty" class="input" type="number" placeholder="Miktar"/>
         <button id="btnStockIn" class="success">Stok Girişi</button>
         <button id="btnStockOut" class="danger">Stok Çıkışı</button>
       </div>
       <table id="tbl-stock-manage">
-        <thead>
-          <tr><th>Kod</th><th>Ad</th><th>Miktar</th></tr>
-        </thead>
+        <thead><tr><th>Kod</th><th>Ad</th><th>Miktar</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </section>
+
+    <!-- Ürünler (Katalog & Excel Yükleme) -->
+    <section id="view-products" class="view hidden">
+      <h2>🗂 Ürün Kataloğu</h2>
+      <div class="card">
+        <h3>Excel’den Ürün Yükle (.xlsx)</h3>
+        <div class="row">
+          <input type="file" id="excelProducts" accept=".xlsx"/>
+          <button id="uploadProductsBtn" class="btn-light">Yükle</button>
+        </div>
+        <p class="muted">Beklenen sütun başlıkları: <b>code, name</b> (opsiyonel: barcode, reyon)</p>
+      </div>
+      <table id="tbl-products">
+        <thead><tr><th>Kod</th><th>Ad</th><th>Barkod</th><th>Reyon</th></tr></thead>
         <tbody></tbody>
       </table>
     </section>
