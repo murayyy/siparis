@@ -138,10 +138,34 @@ async function openAssigned() {
   });
 }
 
+// ==== STOK AZALTMA FONKSİYONU ====
+async function decreaseStock(code, qty) {
+  const ref = doc(db, "stocks", code);
+  const snap = await getDoc(ref);
+  if (snap.exists()) {
+    let newQty = snap.data().qty - qty;
+    if (newQty < 0) newQty = 0;
+    await updateDoc(ref, { qty: newQty });
+    if (newQty < 5) {
+      alert(`⚠️ Dikkat! ${code} stok azaldı. (Mevcut: ${newQty})`);
+    }
+  } else {
+    alert(`Stok bulunamadı: ${code}`);
+  }
+}
+
 document.getElementById("finishPickBtn").addEventListener("click", async () => {
   const id = document.getElementById("assignedOrders").value;
+
+  // Sipariş ürünlerini oku ve stoktan düş
+  document.querySelectorAll("#tbl-picker-lines tbody tr").forEach(row => {
+    const code = row.children[1].innerText;
+    const qty = parseInt(row.children[4].innerText) || 0;
+    if (qty > 0) decreaseStock(code, qty);
+  });
+
   await updateDoc(doc(db, "orders", id), { status: "Toplandı" });
-  alert("Toplama bitti!");
+  alert("Toplama bitti ve stok güncellendi!");
 });
 
 // Barkod scanner başlat
@@ -235,6 +259,16 @@ async function createPalet() {
 }
 
 // ================== DASHBOARD ==================
+async function loadStocks() {
+  const snap = await getDocs(collection(db, "stocks"));
+  const tbody = document.querySelector("#tbl-stocks tbody");
+  tbody.innerHTML = "";
+  snap.forEach(docu => {
+    const d = docu.data();
+    tbody.innerHTML += `<tr><td>${d.code}</td><td>${d.name}</td><td>${d.qty}</td></tr>`;
+  });
+}
+
 async function loadDashboard() {
   const ordersSnap = await getDocs(collection(db, "orders"));
   const palletsSnap = await getDocs(collection(db, "pallets"));
@@ -270,6 +304,8 @@ async function loadDashboard() {
       datasets:[{label:"Sipariş",data:[3,5]}]
     }
   });
+
+  await loadStocks();
 }
 
 setInterval(()=>{
