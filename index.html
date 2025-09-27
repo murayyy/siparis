@@ -31,7 +31,7 @@
       </select><br/>
       <button id="registerBtn">Kayıt Ol</button>
     </section>
-
+    
     <!-- Şube Sipariş Girişi -->
     <section id="view-branch" class="view hidden">
       <h2>🏪 Şube – Sipariş Oluştur</h2>
@@ -71,9 +71,13 @@
     <section id="view-dashboard" class="view hidden">
       <h2>🛠 Admin Paneli</h2>
       <p>Kullanıcılar ve siparişler buradan yönetilecek.</p>
+
+      <h3>Excel'den Ürün Yükle</h3>
+<input type="file" id="excelProducts" accept=".xlsx">
+<button id="uploadProductsBtn">Yükle</button>
     </section>
   </main>
-
+  
   <!-- Scriptler sırası ÖNEMLİ -->
   <script type="module" src="./firebase.js"></script>
   <script type="module" src="./app.js"></script>
