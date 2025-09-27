@@ -16,9 +16,11 @@
       <button data-view="view-qc" class="btn-light">QC</button>
       <button data-view="view-palet" class="btn-light">Paletleme</button>
       <button data-view="view-dashboard" class="btn-light">Dashboard</button>
+      <button data-view="view-stock" class="btn-light">Stok Yönetimi</button>
       <button data-view="view-login" id="logoutBtn" class="danger hidden">Çıkış</button>
     </nav>
   </header>
+
   <main>
     <!-- Login -->
     <section id="view-login" class="view">
@@ -68,7 +70,7 @@
       <button id="refreshAssignedBtn">Yenile</button>
       <select id="assignedOrders"></select>
       <button id="openAssignedBtn">Aç</button>
-      <div id="pickerArea" class="hidden">
+      <div id="pickerArea" class="card hidden">
         <h3 id="pickerTitle">Sipariş:</h3>
         <div id="reader"></div>
         <button id="startScanBtn">📷 Başlat</button>
@@ -162,12 +164,42 @@
       <div class="card">
         <canvas id="chartDaily"></canvas>
       </div>
+      <div class="card">
+        <h3>📦 Stok Durumu</h3>
+        <table id="tbl-stocks">
+          <thead>
+            <tr><th>Kod</th><th>Ürün</th><th>Miktar</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Stok Yönetimi -->
+    <section id="view-stock" class="view hidden">
+      <h2>📦 Stok Yönetimi</h2>
+      <div class="row">
+        <input id="stockCode" placeholder="Ürün Kodu"/>
+        <input id="stockName" placeholder="Ürün Adı"/>
+        <input id="stockQty" type="number" placeholder="Miktar"/>
+        <button id="btnStockIn" class="success">Stok Girişi</button>
+        <button id="btnStockOut" class="danger">Stok Çıkışı</button>
+      </div>
+      <table id="tbl-stock-manage">
+        <thead>
+          <tr><th>Kod</th><th>Ad</th><th>Miktar</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
     </section>
   </main>
 
+  <!-- Libs -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
   <script src="https://unpkg.com/html5-qrcode@2.3.10/minified/html5-qrcode.min.js"></script>
+
+  <!-- App -->
   <script type="module" src="./firebase.js"></script>
   <script type="module" src="./app.js"></script>
 </body>
