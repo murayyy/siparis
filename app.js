@@ -3,6 +3,7 @@ import {
   signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged,
   collection, doc, setDoc, getDoc, getDocs, query, where, addDoc, updateDoc, serverTimestamp, orderBy
 } from './firebase.js';
+import * as XLSX from "https://cdn.sheetjs.com/xlsx-0.19.3/package/xlsx.mjs";
 
 const $ = s => document.querySelector(s);
 const $$ = s => Array.from(document.querySelectorAll(s));
@@ -16,6 +17,31 @@ document.addEventListener("DOMContentLoaded", () => {
   bindLogin();
   bindBranch();
   bindManager();
+  document.getElementById("uploadProductsBtn")?.addEventListener("click", () => {
+  const file = document.getElementById("excelProducts").files[0];
+  if (!file) return alert("Excel dosyası seç!");
+
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    const data = new Uint8Array(e.target.result);
+    const workbook = XLSX.read(data, { type: "array" });
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const json = XLSX.utils.sheet_to_json(sheet);
+
+    for (const row of json) {
+      if (!row.code || !row.name) continue;
+      await setDoc(doc(db, "products", row.code), {
+        code: row.code,
+        name: row.name,
+        barcode: row.barcode || "",
+        reyon: row.reyon || ""
+      });
+    }
+    alert("Excel ürünleri Firestore’a yüklendi!");
+  };
+  reader.readAsArrayBuffer(file);
+});
+
   bindPicker();
   onAuthStateChanged(auth, onAuthChange);
 });
