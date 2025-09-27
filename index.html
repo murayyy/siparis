@@ -3,19 +3,24 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Depo Otomasyonu • Full (Web)</title>
+  <title>Depo Otomasyonu • Step 1</title>
   <link rel="stylesheet" href="style.css"/>
 </head>
 <body>
   <header>
     <h1>📦 Depo Otomasyonu</h1>
-    <button id="logoutBtn" class="hidden">Çıkış Yap</button>
+    <nav>
+      <button data-view="view-branch" class="btn-light">Şube</button>
+      <button data-view="view-manager" class="btn-light">Yönetici</button>
+      <button data-view="view-picker" class="btn-light">Toplayıcı</button>
+      <button data-view="view-login" id="logoutBtn" class="danger hidden">Çıkış</button>
+    </nav>
   </header>
 
   <main>
-    <!-- Login Ekranı -->
+    <!-- Login -->
     <section id="view-login" class="view">
-      <h2>🔑 Giriş Yap</h2>
+      <h2>🔑 Giriş</h2>
       <input type="email" id="login-email" placeholder="Email"/><br/>
       <input type="password" id="login-pass" placeholder="Şifre"/><br/>
       <button id="loginBtn">Giriş</button>
@@ -27,64 +32,94 @@
         <option value="sube">Şube</option>
         <option value="yonetici">Yönetici</option>
         <option value="toplayici">Toplayıcı</option>
-        <option value="admin">Admin</option>
       </select><br/>
       <button id="registerBtn">Kayıt Ol</button>
     </section>
 
-    <!-- Şube Sipariş Girişi -->
+    <!-- Branch -->
     <section id="view-branch" class="view hidden">
       <h2>🏪 Şube – Sipariş Oluştur</h2>
       <input type="text" id="order-name" placeholder="Sipariş Adı"/><br/>
 
-      <!-- Ürün Seçme -->
-      <select id="productSelect"></select>
-      <input type="number" id="productQty" placeholder="Miktar"/>
-      <button id="addProductBtn">Ekle</button>
+      <div class="row">
+        <input list="productsList" id="productSearch" placeholder="Kod veya ürün adı yaz"/>
+        <datalist id="productsList"></datalist>
+        <input type="number" id="productQty" min="1" value="1" placeholder="Miktar"/>
+        <button id="addProductBtn">Ekle</button>
+        <button id="clearLinesBtn" class="btn-light">Temizle</button>
+      </div>
 
-      <!-- Sipariş Satırları -->
       <table id="tbl-order-lines">
         <thead>
-          <tr><th>Kod</th><th>Ürün</th><th>Miktar</th></tr>
+          <tr><th>#</th><th>Kod</th><th>Ürün</th><th>Miktar</th><th>Sil</th></tr>
         </thead>
         <tbody></tbody>
       </table>
 
-      <button id="saveOrderBtn">Kaydet</button>
+      <div class="row">
+        <button id="saveOrderBtn" class="success">Kaydet</button>
+      </div>
     </section>
 
-    <!-- Yönetici -->
+    <!-- Manager -->
     <section id="view-manager" class="view hidden">
       <h2>👨‍💼 Yönetici – Siparişler</h2>
-      <select id="assignUser"></select>
-      <button id="assignBtn">Toplayıcıya Ata</button>
+      <div class="row">
+        <button id="refreshOrdersBtn" class="btn-light">Yenile</button>
+        <select id="assignUser"></select>
+        <button id="assignBtn">Toplayıcıya Ata</button>
+        <button id="moveToQCBtn" class="btn-light">Kontrole Gönder</button>
+        <button id="markDoneBtn" class="btn-light">Seçileni Tamamla</button>
+      </div>
       <table id="tbl-orders">
         <thead>
-          <tr><th>Seç</th><th>ID</th><th>Adı</th><th>Şube</th><th>Durum</th><th>Atanan</th></tr>
+          <tr><th>Seç</th><th>ID</th><th>Adı</th><th>Şube</th><th>Durum</th><th>Atanan</th><th>Satır</th><th>Oluşturma</th></tr>
         </thead>
         <tbody></tbody>
       </table>
     </section>
 
-    <!-- Toplayıcı -->
+    <!-- Picker -->
     <section id="view-picker" class="view hidden">
-      <h2>👷 Toplayıcı – Siparişlerim</h2>
-      <select id="myOrders"></select>
-      <button id="completeBtn">Tamamlandı</button>
-    </section>
+      <h2>👷 Toplayıcı – Sipariş Toplama</h2>
+      <div class="row">
+        <button id="refreshMyBtn" class="btn-light">Yenile</button>
+        <select id="myOrders"></select>
+        <button id="openOrderBtn">Aç</button>
+        <button id="exportCsvBtn" class="btn-light">CSV</button>
+      </div>
 
-    <!-- Admin -->
-    <section id="view-dashboard" class="view hidden">
-      <h2>🛠 Admin Paneli</h2>
-      <p>Kullanıcılar ve siparişler buradan yönetilecek.</p>
-
-      <h3>Excel'den Ürün Yükle</h3>
-      <input type="file" id="excelProducts" accept=".xlsx">
-      <button id="uploadProductsBtn">Yükle</button>
+      <div id="pickingArea" class="card hidden">
+        <h3 id="pickTitle">Sipariş:</h3>
+        <div class="row wrap">
+          <div>
+            <h4>Barkod</h4>
+            <div id="reader"></div>
+            <div class="row">
+              <button id="startScanBtn">📷 Başlat</button>
+              <button id="stopScanBtn" class="btn-light">⛔ Durdur</button>
+            </div>
+            <div class="row">
+              <input id="manualBarcode" placeholder="Manuel barkod"/>
+              <button id="manualAddBtn" class="btn-light">Ekle</button>
+            </div>
+          </div>
+          <div class="flex-1">
+            <h4>Satırlar</h4>
+            <table id="tbl-pick-lines">
+              <thead><tr><th>#</th><th>Kod</th><th>Ürün</th><th>Reyon</th><th>İstenen</th><th>Toplanan</th><th>Eksik</th><th>+ / -</th></tr></thead>
+              <tbody></tbody>
+            </table>
+            <div class="row">
+              <button id="completeBtn" class="success">Toplamayı Bitir</button>
+            </div>
+          </div>
+        </div>
+      </div>
     </section>
   </main>
 
-  <!-- Scriptler sırası ÖNEMLİ -->
+  <script src="https://unpkg.com/html5-qrcode@2.3.10/minified/html5-qrcode.min.js"></script>
   <script type="module" src="./firebase.js"></script>
   <script type="module" src="./app.js"></script>
 </body>
