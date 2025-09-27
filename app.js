@@ -16,7 +16,6 @@ function showView(id) {
   document.querySelectorAll(".view").forEach(v => v.classList.add("hidden"));
   document.getElementById(id).classList.remove("hidden");
 }
-
 document.querySelectorAll("nav button[data-view]").forEach(btn => {
   btn.addEventListener("click", () => showView(btn.dataset.view));
 });
@@ -60,7 +59,8 @@ onAuthStateChanged(auth, async (user) => {
     else if (role === "toplayici") showView("view-picker");
     else if (role === "qc") showView("view-qc");
     else if (role === "palet") showView("view-palet");
-    else showView("view-dashboard");
+    else if (role === "admin") showView("view-dashboard");
+    else showView("view-login");
   } else {
     currentUser = null;
     document.getElementById("logoutBtn").classList.add("hidden");
@@ -106,7 +106,6 @@ async function loadAllOrders() {
       </tr>`;
   });
 }
-
 window.assignOrder = async function(id) {
   await updateDoc(doc(db, "orders", id), { status: "Atandı" });
   loadAllOrders();
@@ -115,6 +114,9 @@ window.assignOrder = async function(id) {
 // ================== TOPLAYICI ==================
 document.getElementById("refreshAssignedBtn").addEventListener("click", loadAssignedOrders);
 document.getElementById("openAssignedBtn").addEventListener("click", openAssigned);
+document.getElementById("startScanBtn").addEventListener("click", startPickerScanner);
+document.getElementById("stopScanBtn").addEventListener("click", stopPickerScanner);
+document.getElementById("finishPickBtn").addEventListener("click", finishPick);
 
 async function loadAssignedOrders() {
   const q = query(collection(db, "orders"), where("status", "==", "Atandı"));
@@ -128,62 +130,61 @@ async function openAssigned() {
   const id = document.getElementById("assignedOrders").value;
   if (!id) return;
   document.getElementById("pickerArea").classList.remove("hidden");
-  document.getElementById("pickerTitle").innerText = "Sipariş: " + id;
+  document.getElementById("pickerTitle").textContent = "Sipariş: " + id;
 
   const tbody = document.querySelector("#tbl-picker-lines tbody");
   tbody.innerHTML = "";
-  // DEMO ürünler
+  // DEMO satırlar (ürün yönetimi eklenince Firestore'dan beslenebilir)
   ["U001","U002"].forEach((c,i)=>{
     tbody.innerHTML += `<tr><td>${i+1}</td><td>${c}</td><td>Ürün ${c}</td><td>10</td><td contenteditable>0</td></tr>`;
   });
 }
 
-// ==== STOK AZALTMA FONKSİYONU ====
+async function startPickerScanner() {
+  if (scanner) await stopPickerScanner();
+  scanner = new Html5Qrcode("reader");
+  await scanner.start({facingMode:"environment"},{fps:10,qrbox:250}, code=>{
+    alert("Okutulan barkod: "+code);
+  });
+}
+function stopPickerScanner() {
+  if (!scanner) return;
+  return scanner.stop().then(()=>{ scanner.clear(); scanner=null; });
+}
+
+// stoktan düşme
 async function decreaseStock(code, qty) {
   const ref = doc(db, "stocks", code);
   const snap = await getDoc(ref);
   if (snap.exists()) {
-    let newQty = snap.data().qty - qty;
+    let newQty = (snap.data().qty || 0) - qty;
     if (newQty < 0) newQty = 0;
     await updateDoc(ref, { qty: newQty });
-    if (newQty < 5) {
-      alert(`⚠️ Dikkat! ${code} stok azaldı. (Mevcut: ${newQty})`);
-    }
+    if (newQty < 5) alert(`⚠️ Dikkat! ${code} stoğu kritik seviyede (${newQty})`);
   } else {
+    // yoksa bilgi ver
     alert(`Stok bulunamadı: ${code}`);
   }
 }
 
-document.getElementById("finishPickBtn").addEventListener("click", async () => {
+async function finishPick() {
   const id = document.getElementById("assignedOrders").value;
-
-  // Sipariş ürünlerini oku ve stoktan düş
+  // tabloda toplanan miktarları düş
   document.querySelectorAll("#tbl-picker-lines tbody tr").forEach(row => {
     const code = row.children[1].innerText;
     const qty = parseInt(row.children[4].innerText) || 0;
     if (qty > 0) decreaseStock(code, qty);
   });
-
   await updateDoc(doc(db, "orders", id), { status: "Toplandı" });
   alert("Toplama bitti ve stok güncellendi!");
-});
-
-// Barkod scanner başlat
-document.getElementById("startScanBtn").addEventListener("click", () => {
-  if (!scanner) {
-    scanner = new Html5Qrcode("reader");
-    scanner.start({facingMode:"environment"},{fps:10,qrbox:250}, code=>{
-      alert("Okutulan barkod: "+code);
-    });
-  }
-});
-document.getElementById("stopScanBtn").addEventListener("click", () => {
-  if (scanner) { scanner.stop(); scanner.clear(); scanner=null; }
-});
+}
 
 // ================== QC ==================
 document.getElementById("refreshQCBtn").addEventListener("click", loadQCOrders);
 document.getElementById("openQCBtn").addEventListener("click", openQC);
+document.getElementById("startQCScanBtn").addEventListener("click", startQCScanner);
+document.getElementById("stopQCScanBtn").addEventListener("click", stopQCScanner);
+document.getElementById("finishQCBtn").addEventListener("click", finishQC);
 
 async function loadQCOrders() {
   const q = query(collection(db, "orders"), where("status", "==", "Toplandı"));
@@ -197,7 +198,7 @@ async function openQC() {
   const id = document.getElementById("qcOrders").value;
   if (!id) return;
   document.getElementById("qcArea").classList.remove("hidden");
-  document.getElementById("qcTitle").innerText = "Sipariş: " + id;
+  document.getElementById("qcTitle").textContent = "Sipariş: " + id;
 
   const tbody = document.querySelector("#tbl-qc-lines tbody");
   tbody.innerHTML = `
@@ -207,29 +208,29 @@ async function openQC() {
     </tr>`;
 }
 
-document.getElementById("finishQCBtn").addEventListener("click", async () => {
+async function startQCScanner() {
+  if (qcScanner) await stopQCScanner();
+  qcScanner = new Html5Qrcode("qcReader");
+  await qcScanner.start({facingMode:"environment"},{fps:10,qrbox:250}, code=>{
+    alert("QC Barkod: "+code);
+  });
+}
+function stopQCScanner() {
+  if (!qcScanner) return;
+  return qcScanner.stop().then(()=>{ qcScanner.clear(); qcScanner=null; });
+}
+
+async function finishQC() {
   const id = document.getElementById("qcOrders").value;
   await updateDoc(doc(db, "orders", id), { status: "Kontrol Tamam" });
   alert("QC bitti!");
-});
-
-// QC scanner
-document.getElementById("startQCScanBtn").addEventListener("click", () => {
-  if (!qcScanner) {
-    qcScanner = new Html5Qrcode("qcReader");
-    qcScanner.start({facingMode:"environment"},{fps:10,qrbox:250}, code=>{
-      alert("QC Barkod: "+code);
-    });
-  }
-});
-document.getElementById("stopQCScanBtn").addEventListener("click", () => {
-  if (qcScanner) { qcScanner.stop(); qcScanner.clear(); qcScanner=null; }
-});
+}
 
 // ================== PALET ==================
 document.getElementById("refreshPaletBtn").addEventListener("click", loadPaletOrders);
 document.getElementById("openPaletBtn").addEventListener("click", openPalet);
 document.getElementById("createPaletBtn").addEventListener("click", createPalet);
+document.getElementById("printPaletBtn")?.addEventListener("click", () => window.print());
 
 async function loadPaletOrders() {
   const q = query(collection(db, "orders"), where("status", "==", "Kontrol Tamam"));
@@ -243,7 +244,7 @@ async function openPalet() {
   const id = document.getElementById("paletOrders").value;
   if (!id) return;
   document.getElementById("paletArea").classList.remove("hidden");
-  document.getElementById("paletTitle").innerText = "Sipariş: " + id;
+  document.getElementById("paletTitle").textContent = "Sipariş: " + id;
 
   const tbody = document.querySelector("#tbl-palet-lines tbody");
   tbody.innerHTML = `<tr><td>1</td><td>U001</td><td>Ürün 1</td><td>10</td></tr>`;
@@ -254,14 +255,15 @@ async function createPalet() {
   const paletNo = "PLT-" + Date.now();
   await addDoc(collection(db, "pallets"), { orderId:id, paletNo, createdAt:serverTimestamp() });
   document.getElementById("paletResult").classList.remove("hidden");
-  document.getElementById("paletNo").innerText = paletNo;
+  document.getElementById("paletNo").textContent = paletNo;
   QRCode.toCanvas(document.getElementById("paletQr"), paletNo, err=>{ if(err)console.error(err); });
 }
 
 // ================== DASHBOARD ==================
-async function loadStocks() {
+async function loadStocksTable() {
   const snap = await getDocs(collection(db, "stocks"));
   const tbody = document.querySelector("#tbl-stocks tbody");
+  if (!tbody) return;
   tbody.innerHTML = "";
   snap.forEach(docu => {
     const d = docu.data();
@@ -281,34 +283,86 @@ async function loadDashboard() {
     else pending++;
   });
 
-  document.getElementById("statTotalOrders").innerText=total;
-  document.getElementById("statCompletedOrders").innerText=completed;
-  document.getElementById("statPendingOrders").innerText=pending;
-  document.getElementById("statPallets").innerText=palletsSnap.size;
+  document.getElementById("statTotalOrders").textContent = total;
+  document.getElementById("statCompletedOrders").textContent = completed;
+  document.getElementById("statPendingOrders").textContent = pending;
+  document.getElementById("statPallets").textContent = palletsSnap.size;
 
-  // Grafikler
-  const ctx1=document.getElementById("chartOrders");
-  new Chart(ctx1,{
-    type:"pie",
-    data:{
-      labels:["Tamamlanan","Bekleyen"],
-      datasets:[{data:[completed,pending],backgroundColor:["#16a34a","#f87171"]}]
-    }
-  });
+  // Grafikler (id yoksa çizme)
+  const ctx1 = document.getElementById("chartOrders");
+  if (ctx1) {
+    new Chart(ctx1,{
+      type:"pie",
+      data:{
+        labels:["Tamamlanan","Bekleyen"],
+        datasets:[{data:[completed,pending],backgroundColor:["#16a34a","#f87171"]}]
+      }
+    });
+  }
+  const ctx2 = document.getElementById("chartDaily");
+  if (ctx2) {
+    new Chart(ctx2,{
+      type:"bar",
+      data:{
+        labels:["Gün1","Gün2","Gün3","Gün4","Gün5","Gün6","Gün7"],
+        datasets:[{label:"Sipariş",data:[3,5,2,7,4,6,3]}]
+      }
+    });
+  }
 
-  const ctx2=document.getElementById("chartDaily");
-  new Chart(ctx2,{
-    type:"bar",
-    data:{
-      labels:["Gün1","Gün2"],
-      datasets:[{label:"Sipariş",data:[3,5]}]
-    }
-  });
-
-  await loadStocks();
+  await loadStocksTable();
 }
 
+// dashboard açıkken periyodik yenile
 setInterval(()=>{
   const v=document.getElementById("view-dashboard");
   if(v && !v.classList.contains("hidden")) loadDashboard();
 },5000);
+
+// ================== STOK YÖNETİMİ (manuel) ==================
+async function loadStockManage() {
+  const snap = await getDocs(collection(db, "stocks"));
+  const tbody = document.querySelector("#tbl-stock-manage tbody");
+  if (!tbody) return;
+  tbody.innerHTML = "";
+  snap.forEach(docu => {
+    const d = docu.data();
+    tbody.innerHTML += `<tr><td>${d.code}</td><td>${d.name}</td><td>${d.qty}</td></tr>`;
+  });
+}
+// view-stock tuşu tıklanınca tabloyu yükle
+document.querySelector("button[data-view='view-stock']").addEventListener("click", loadStockManage);
+
+document.getElementById("btnStockIn").addEventListener("click", async () => {
+  const code = document.getElementById("stockCode").value.trim();
+  const name = document.getElementById("stockName").value.trim();
+  const qty  = parseInt(document.getElementById("stockQty").value,10);
+  if (!code || !qty) return alert("Kod ve miktar gerekli!");
+  const ref = doc(db, "stocks", code);
+  const snap = await getDoc(ref);
+  if (snap.exists()) {
+    await updateDoc(ref, { qty: (snap.data().qty || 0) + qty, name: name || snap.data().name || "" });
+  } else {
+    await setDoc(ref, { code, name: name || code, qty });
+  }
+  alert("Stok girişi yapıldı.");
+  loadStockManage();
+});
+
+document.getElementById("btnStockOut").addEventListener("click", async () => {
+  const code = document.getElementById("stockCode").value.trim();
+  const qty  = parseInt(document.getElementById("stockQty").value,10);
+  if (!code || !qty) return alert("Kod ve miktar gerekli!");
+  const ref = doc(db, "stocks", code);
+  const snap = await getDoc(ref);
+  if (snap.exists()) {
+    let newQty = (snap.data().qty || 0) - qty;
+    if (newQty < 0) newQty = 0;
+    await updateDoc(ref, { qty: newQty });
+    if (newQty < 5) alert(`⚠️ Dikkat! ${code} stoğu kritik seviyede (${newQty})`);
+  } else {
+    alert("Stok bulunamadı.");
+  }
+  alert("Stok çıkışı yapıldı.");
+  loadStockManage();
+});
