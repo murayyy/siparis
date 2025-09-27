@@ -1,363 +1,278 @@
-// Firebase importları
-import {
+// ================= FIREBASE IMPORT =================
+import { 
   auth, db,
   signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged,
-  collection, doc, setDoc, getDoc, getDocs, query, where, addDoc, updateDoc
-} from './firebase.js';
+  collection, doc, setDoc, getDoc, getDocs, updateDoc, addDoc,
+  query, where, orderBy, serverTimestamp
+} from "./firebase.js";
 
-import { Html5Qrcode } from "https://unpkg.com/html5-qrcode@2.3.10/minified/html5-qrcode.min.js";
-
-// Global değişkenler
+// ================== GLOBAL ==================
 let currentUser = null;
-let currentRole = null;
-let pickerScanner = null;
+let scanner = null;
 let qcScanner = null;
-let pickerOrder = null;
-let qcOrder = null;
-let paletOrder = null;
 
-// Görünüm kontrol
+// ================== VIEW DEĞİŞTİR ==================
 function showView(id) {
   document.querySelectorAll(".view").forEach(v => v.classList.add("hidden"));
   document.getElementById(id).classList.remove("hidden");
 }
 
-// =====================
-// LOGIN & REGISTER
-// =====================
-document.getElementById("loginBtn")?.addEventListener("click", async () => {
+document.querySelectorAll("nav button[data-view]").forEach(btn => {
+  btn.addEventListener("click", () => showView(btn.dataset.view));
+});
+
+// ================== AUTH ==================
+document.getElementById("loginBtn").addEventListener("click", async () => {
   const email = document.getElementById("login-email").value;
   const pass = document.getElementById("login-pass").value;
   try {
     await signInWithEmailAndPassword(auth, email, pass);
-  } catch (e) {
-    alert("Giriş hatası: " + e.message);
+  } catch (err) {
+    alert("Giriş hatası: " + err.message);
   }
 });
 
-document.getElementById("registerBtn")?.addEventListener("click", async () => {
+document.getElementById("registerBtn").addEventListener("click", async () => {
   const email = document.getElementById("reg-email").value;
   const pass = document.getElementById("reg-pass").value;
   const role = document.getElementById("reg-role").value;
   try {
-    const cred = await createUserWithEmailAndPassword(auth, email, pass);
-    await setDoc(doc(db, "users", cred.user.uid), { email, role });
+    const userCred = await createUserWithEmailAndPassword(auth, email, pass);
+    await setDoc(doc(db, "users", userCred.user.uid), { email, role });
     alert("Kayıt başarılı!");
-  } catch (e) {
-    alert("Kayıt hatası: " + e.message);
+  } catch (err) {
+    alert("Kayıt hatası: " + err.message);
   }
 });
 
-document.getElementById("logoutBtn")?.addEventListener("click", async () => {
+document.getElementById("logoutBtn").addEventListener("click", async () => {
   await signOut(auth);
 });
 
-// Kullanıcı oturum durumu
 onAuthStateChanged(auth, async (user) => {
   if (user) {
     currentUser = user;
     const udoc = await getDoc(doc(db, "users", user.uid));
-    currentRole = udoc.exists() ? udoc.data().role : null;
+    const role = udoc.exists() ? udoc.data().role : "sube";
     document.getElementById("logoutBtn").classList.remove("hidden");
-    if (currentRole === "sube") showView("view-branch");
-    else if (currentRole === "yonetici") showView("view-manager");
-    else if (currentRole === "toplayici") showView("view-picker");
-    else if (currentRole === "qc") showView("view-qc");
-    else if (currentRole === "palet") showView("view-palet");
-    else showView("view-login");
+    if (role === "sube") showView("view-branch");
+    else if (role === "yonetici") showView("view-manager");
+    else if (role === "toplayici") showView("view-picker");
+    else if (role === "qc") showView("view-qc");
+    else if (role === "palet") showView("view-palet");
+    else showView("view-dashboard");
   } else {
     currentUser = null;
-    currentRole = null;
     document.getElementById("logoutBtn").classList.add("hidden");
     showView("view-login");
   }
 });
 
-// =====================
-// 🏪 ŞUBE
-// =====================
-document.getElementById("createOrderBtn")?.addEventListener("click", async () => {
+// ================== ŞUBE ==================
+document.getElementById("createOrderBtn").addEventListener("click", async () => {
   const name = document.getElementById("orderName").value;
   if (!name) return alert("Sipariş adı gir!");
   await addDoc(collection(db, "orders"), {
-    name,
-    status: "Yeni",
-    createdBy: currentUser.uid,
-    lines: [
-      { code: "URUN001", name: "Ürün 1", qty: 5, barcode: "111", picked: 0, qc: 0 },
-      { code: "URUN002", name: "Ürün 2", qty: 3, barcode: "222", picked: 0, qc: 0 }
-    ]
+    name, status: "Yeni", createdBy: currentUser.uid, createdAt: serverTimestamp()
   });
   alert("Sipariş oluşturuldu!");
   loadBranchOrders();
 });
 
 async function loadBranchOrders() {
+  const q = query(collection(db, "orders"), where("createdBy", "==", currentUser.uid));
+  const snap = await getDocs(q);
   const tbody = document.querySelector("#branchOrders tbody");
   tbody.innerHTML = "";
-  const qs = await getDocs(query(collection(db, "orders"), where("createdBy", "==", currentUser.uid)));
-  qs.forEach(d => {
-    const o = { id: d.id, ...d.data() };
-    const tr = document.createElement("tr");
-    tr.innerHTML = `<td>${o.id}</td><td>${o.name}</td><td>${o.status}</td>`;
-    tbody.appendChild(tr);
+  snap.forEach(docu => {
+    const d = docu.data();
+    tbody.innerHTML += `<tr><td>${docu.id}</td><td>${d.name}</td><td>${d.status}</td></tr>`;
   });
 }
-document.getElementById("view-branch")?.addEventListener("click", loadBranchOrders);
 
-// =====================
-// 👨‍💼 YÖNETİCİ
-// =====================
-document.getElementById("refreshOrdersBtn")?.addEventListener("click", loadManagerOrders);
+// ================== YÖNETİCİ ==================
+document.getElementById("refreshOrdersBtn").addEventListener("click", loadAllOrders);
 
-async function loadManagerOrders() {
+async function loadAllOrders() {
+  const snap = await getDocs(collection(db, "orders"));
   const tbody = document.querySelector("#tbl-orders tbody");
   tbody.innerHTML = "";
-  const qs = await getDocs(collection(db, "orders"));
-  qs.forEach(d => {
-    const o = { id: d.id, ...d.data() };
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td>${o.id}</td><td>${o.name}</td><td>${o.status}</td>
-      <td>
-        ${o.status === "Yeni" ? `<button onclick="assignToPicker('${o.id}')">Toplayıcıya Ata</button>` : ""}
-        ${o.status === "Toplandı" ? `<button onclick="sendToQC('${o.id}')">Kontrole Gönder</button>` : ""}
-      </td>`;
-    tbody.appendChild(tr);
+  snap.forEach(docu => {
+    const d = docu.data();
+    tbody.innerHTML += `
+      <tr>
+        <td>${docu.id}</td><td>${d.name}</td><td>${d.status}</td>
+        <td><button onclick="assignOrder('${docu.id}')">Ata</button></td>
+      </tr>`;
   });
 }
 
-window.assignToPicker = async (id) => {
-  await updateDoc(doc(db, "orders", id), { status: "Toplama" });
-  loadManagerOrders();
-};
-window.sendToQC = async (id) => {
-  await updateDoc(doc(db, "orders", id), { status: "Kontrol" });
-  loadManagerOrders();
+window.assignOrder = async function(id) {
+  await updateDoc(doc(db, "orders", id), { status: "Atandı" });
+  loadAllOrders();
 };
 
-// =====================
-// 🧺 TOPLAYICI
-// =====================
-document.getElementById("refreshAssignedBtn")?.addEventListener("click", refreshAssigned);
-document.getElementById("openAssignedBtn")?.addEventListener("click", openAssigned);
-document.getElementById("startScanBtn")?.addEventListener("click", startPickerScanner);
-document.getElementById("stopScanBtn")?.addEventListener("click", stopPickerScanner);
-document.getElementById("finishPickBtn")?.addEventListener("click", finishPick);
+// ================== TOPLAYICI ==================
+document.getElementById("refreshAssignedBtn").addEventListener("click", loadAssignedOrders);
+document.getElementById("openAssignedBtn").addEventListener("click", openAssigned);
 
-async function refreshAssigned() {
+async function loadAssignedOrders() {
+  const q = query(collection(db, "orders"), where("status", "==", "Atandı"));
+  const snap = await getDocs(q);
   const sel = document.getElementById("assignedOrders");
   sel.innerHTML = "";
-  const qs = await getDocs(query(collection(db, "orders"), where("status", "==", "Toplama")));
-  qs.forEach(d => {
-    const o = { id: d.id, ...d.data() };
-    const opt = document.createElement("option");
-    opt.value = o.id;
-    opt.textContent = `${o.id} - ${o.name}`;
-    sel.appendChild(opt);
-  });
+  snap.forEach(docu => sel.innerHTML += `<option value="${docu.id}">${docu.data().name}</option>`);
 }
 
 async function openAssigned() {
   const id = document.getElementById("assignedOrders").value;
   if (!id) return;
-  const ds = await getDoc(doc(db, "orders", id));
-  if (!ds.exists()) return;
-  pickerOrder = { id: ds.id, ...ds.data() };
-  pickerOrder.lines = pickerOrder.lines.map(l => ({ ...l, picked: l.picked || 0 }));
-  renderPickerLines();
-  document.getElementById("pickerTitle").textContent = `Sipariş: ${pickerOrder.name}`;
   document.getElementById("pickerArea").classList.remove("hidden");
-}
+  document.getElementById("pickerTitle").innerText = "Sipariş: " + id;
 
-function renderPickerLines() {
-  const tb = document.querySelector("#tbl-picker-lines tbody");
-  tb.innerHTML = "";
-  pickerOrder.lines.forEach((l, i) => {
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td>${i + 1}</td>
-      <td>${l.code}</td>
-      <td>${l.name}</td>
-      <td>${l.qty}</td>
-      <td>${l.picked}</td>
-    `;
-    tb.appendChild(tr);
+  const tbody = document.querySelector("#tbl-picker-lines tbody");
+  tbody.innerHTML = "";
+  // DEMO ürünler
+  ["U001","U002"].forEach((c,i)=>{
+    tbody.innerHTML += `<tr><td>${i+1}</td><td>${c}</td><td>Ürün ${c}</td><td>10</td><td contenteditable>0</td></tr>`;
   });
 }
 
-async function startPickerScanner() {
-  if (pickerScanner) await stopPickerScanner();
-  pickerScanner = new Html5Qrcode("reader");
-  await pickerScanner.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 }, onPickerScan);
-}
+document.getElementById("finishPickBtn").addEventListener("click", async () => {
+  const id = document.getElementById("assignedOrders").value;
+  await updateDoc(doc(db, "orders", id), { status: "Toplandı" });
+  alert("Toplama bitti!");
+});
 
-function stopPickerScanner() {
-  if (!pickerScanner) return;
-  return pickerScanner.stop().then(() => {
-    pickerScanner.clear();
-    pickerScanner = null;
-  });
-}
-
-function onPickerScan(code) {
-  const idx = pickerOrder.lines.findIndex(l => l.barcode === code || l.code === code);
-  if (idx === -1) {
-    alert("Barkod yok: " + code);
-    return;
+// Barkod scanner başlat
+document.getElementById("startScanBtn").addEventListener("click", () => {
+  if (!scanner) {
+    scanner = new Html5Qrcode("reader");
+    scanner.start({facingMode:"environment"},{fps:10,qrbox:250}, code=>{
+      alert("Okutulan barkod: "+code);
+    });
   }
-  pickerOrder.lines[idx].picked = (pickerOrder.lines[idx].picked || 0) + 1;
-  renderPickerLines();
-}
+});
+document.getElementById("stopScanBtn").addEventListener("click", () => {
+  if (scanner) { scanner.stop(); scanner.clear(); scanner=null; }
+});
 
-async function finishPick() {
-  await updateDoc(doc(db, "orders", pickerOrder.id), {
-    lines: pickerOrder.lines,
-    status: "Toplandı"
-  });
-  alert("Toplama tamamlandı!");
-}
+// ================== QC ==================
+document.getElementById("refreshQCBtn").addEventListener("click", loadQCOrders);
+document.getElementById("openQCBtn").addEventListener("click", openQC);
 
-// =====================
-// 🔍 QC
-// =====================
-document.getElementById("refreshQCBtn")?.addEventListener("click", refreshQCOrders);
-document.getElementById("openQCBtn")?.addEventListener("click", openQCOrder);
-document.getElementById("startQCScanBtn")?.addEventListener("click", startQCScanner);
-document.getElementById("stopQCScanBtn")?.addEventListener("click", stopQCScanner);
-document.getElementById("finishQCBtn")?.addEventListener("click", finishQC);
-
-async function refreshQCOrders() {
+async function loadQCOrders() {
+  const q = query(collection(db, "orders"), where("status", "==", "Toplandı"));
+  const snap = await getDocs(q);
   const sel = document.getElementById("qcOrders");
   sel.innerHTML = "";
-  const qs = await getDocs(query(collection(db, "orders"), where("status", "==", "Kontrol")));
-  qs.forEach(d => {
-    const o = { id: d.id, ...d.data() };
-    const opt = document.createElement("option");
-    opt.value = o.id;
-    opt.textContent = `${o.id} - ${o.name}`;
-    sel.appendChild(opt);
-  });
+  snap.forEach(docu => sel.innerHTML += `<option value="${docu.id}">${docu.data().name}</option>`);
 }
 
-async function openQCOrder() {
+async function openQC() {
   const id = document.getElementById("qcOrders").value;
   if (!id) return;
-  const ds = await getDoc(doc(db, "orders", id));
-  if (!ds.exists()) return;
-  qcOrder = { id: ds.id, ...ds.data() };
-  qcOrder.lines = qcOrder.lines.map(l => ({ ...l, qc: l.qc || 0 }));
-  renderQCLines();
-  document.getElementById("qcTitle").textContent = `Sipariş: ${qcOrder.name}`;
   document.getElementById("qcArea").classList.remove("hidden");
+  document.getElementById("qcTitle").innerText = "Sipariş: " + id;
+
+  const tbody = document.querySelector("#tbl-qc-lines tbody");
+  tbody.innerHTML = `
+    <tr>
+      <td>1</td><td>U001</td><td>Ürün 1</td><td>10</td><td>10</td>
+      <td><input type="checkbox"/></td><td><input type="checkbox"/></td>
+    </tr>`;
 }
 
-function renderQCLines() {
-  const tb = document.querySelector("#tbl-qc-lines tbody");
-  tb.innerHTML = "";
-  qcOrder.lines.forEach((l, i) => {
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td>${i + 1}</td>
-      <td>${l.code}</td>
-      <td>${l.name}</td>
-      <td>${l.qty}</td>
-      <td>${l.picked || 0}</td>
-      <td>${l.qc}</td>
-      <td>${Math.max(0, (l.picked || 0) - l.qc)}</td>
-    `;
-    tb.appendChild(tr);
-  });
-}
+document.getElementById("finishQCBtn").addEventListener("click", async () => {
+  const id = document.getElementById("qcOrders").value;
+  await updateDoc(doc(db, "orders", id), { status: "Kontrol Tamam" });
+  alert("QC bitti!");
+});
 
-async function startQCScanner() {
-  if (qcScanner) await stopQCScanner();
-  qcScanner = new Html5Qrcode("qcReader");
-  await qcScanner.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 }, onQCScan);
-}
-
-function stopQCScanner() {
-  if (!qcScanner) return;
-  return qcScanner.stop().then(() => {
-    qcScanner.clear();
-    qcScanner = null;
-  });
-}
-
-function onQCScan(code) {
-  const idx = qcOrder.lines.findIndex(l => l.barcode === code || l.code === code);
-  if (idx === -1) {
-    alert("Barkod yok: " + code);
-    return;
+// QC scanner
+document.getElementById("startQCScanBtn").addEventListener("click", () => {
+  if (!qcScanner) {
+    qcScanner = new Html5Qrcode("qcReader");
+    qcScanner.start({facingMode:"environment"},{fps:10,qrbox:250}, code=>{
+      alert("QC Barkod: "+code);
+    });
   }
-  qcOrder.lines[idx].qc = (qcOrder.lines[idx].qc || 0) + 1;
-  renderQCLines();
-}
+});
+document.getElementById("stopQCScanBtn").addEventListener("click", () => {
+  if (qcScanner) { qcScanner.stop(); qcScanner.clear(); qcScanner=null; }
+});
 
-async function finishQC() {
-  await updateDoc(doc(db, "orders", qcOrder.id), {
-    lines: qcOrder.lines,
-    status: "Tamamlandı"
-  });
-  alert("QC tamamlandı!");
-}
+// ================== PALET ==================
+document.getElementById("refreshPaletBtn").addEventListener("click", loadPaletOrders);
+document.getElementById("openPaletBtn").addEventListener("click", openPalet);
+document.getElementById("createPaletBtn").addEventListener("click", createPalet);
 
-// =====================
-// 📦 PALETLEME
-// =====================
-document.getElementById("refreshPaletBtn")?.addEventListener("click", refreshPaletOrders);
-document.getElementById("openPaletBtn")?.addEventListener("click", openPaletOrder);
-document.getElementById("createPaletBtn")?.addEventListener("click", createPalet);
-document.getElementById("printPaletBtn")?.addEventListener("click", () => window.print());
-
-async function refreshPaletOrders() {
+async function loadPaletOrders() {
+  const q = query(collection(db, "orders"), where("status", "==", "Kontrol Tamam"));
+  const snap = await getDocs(q);
   const sel = document.getElementById("paletOrders");
   sel.innerHTML = "";
-  const qs = await getDocs(query(collection(db, "orders"), where("status", "==", "Tamamlandı")));
-  qs.forEach(d => {
-    const o = { id: d.id, ...d.data() };
-    const opt = document.createElement("option");
-    opt.value = o.id;
-    opt.textContent = `${o.id} - ${o.name}`;
-    sel.appendChild(opt);
-  });
+  snap.forEach(docu => sel.innerHTML += `<option value="${docu.id}">${docu.data().name}</option>`);
 }
 
-async function openPaletOrder() {
+async function openPalet() {
   const id = document.getElementById("paletOrders").value;
   if (!id) return;
-  const ds = await getDoc(doc(db, "orders", id));
-  if (!ds.exists()) return;
-  paletOrder = { id: ds.id, ...ds.data() };
-  renderPaletLines();
-  document.getElementById("paletTitle").textContent = `Sipariş: ${paletOrder.name}`;
   document.getElementById("paletArea").classList.remove("hidden");
-}
+  document.getElementById("paletTitle").innerText = "Sipariş: " + id;
 
-function renderPaletLines() {
-  const tb = document.querySelector("#tbl-palet-lines tbody");
-  tb.innerHTML = "";
-  paletOrder.lines.forEach((l, i) => {
-    const tr = document.createElement("tr");
-    tr.innerHTML = `<td>${i + 1}</td><td>${l.code}</td><td>${l.name}</td><td>${l.qty}</td>`;
-    tb.appendChild(tr);
-  });
+  const tbody = document.querySelector("#tbl-palet-lines tbody");
+  tbody.innerHTML = `<tr><td>1</td><td>U001</td><td>Ürün 1</td><td>10</td></tr>`;
 }
 
 async function createPalet() {
-  const paletId = "PLT-" + Date.now();
-  await setDoc(doc(db, "pallets", paletId), {
-    id: paletId,
-    orderId: paletOrder.id,
-    createdAt: new Date(),
-    items: paletOrder.lines
-  });
-  document.getElementById("paletNo").textContent = paletId;
+  const id = document.getElementById("paletOrders").value;
+  const paletNo = "PLT-" + Date.now();
+  await addDoc(collection(db, "pallets"), { orderId:id, paletNo, createdAt:serverTimestamp() });
   document.getElementById("paletResult").classList.remove("hidden");
-  // QR üret
-  document.getElementById("paletQr").innerHTML = "";
-  QRCode.toCanvas(document.getElementById("paletQr"), paletId, { width: 128 }, (err) => {
-    if (err) console.error(err);
-  });
-  alert("Palet oluşturuldu: " + paletId);
+  document.getElementById("paletNo").innerText = paletNo;
+  QRCode.toCanvas(document.getElementById("paletQr"), paletNo, err=>{ if(err)console.error(err); });
 }
+
+// ================== DASHBOARD ==================
+async function loadDashboard() {
+  const ordersSnap = await getDocs(collection(db, "orders"));
+  const palletsSnap = await getDocs(collection(db, "pallets"));
+
+  let total=0, completed=0, pending=0;
+  ordersSnap.forEach(docu=>{
+    total++;
+    const st=docu.data().status;
+    if(st==="Kontrol Tamam") completed++;
+    else pending++;
+  });
+
+  document.getElementById("statTotalOrders").innerText=total;
+  document.getElementById("statCompletedOrders").innerText=completed;
+  document.getElementById("statPendingOrders").innerText=pending;
+  document.getElementById("statPallets").innerText=palletsSnap.size;
+
+  // Grafikler
+  const ctx1=document.getElementById("chartOrders");
+  new Chart(ctx1,{
+    type:"pie",
+    data:{
+      labels:["Tamamlanan","Bekleyen"],
+      datasets:[{data:[completed,pending],backgroundColor:["#16a34a","#f87171"]}]
+    }
+  });
+
+  const ctx2=document.getElementById("chartDaily");
+  new Chart(ctx2,{
+    type:"bar",
+    data:{
+      labels:["Gün1","Gün2"],
+      datasets:[{label:"Sipariş",data:[3,5]}]
+    }
+  });
+}
+
+setInterval(()=>{
+  const v=document.getElementById("view-dashboard");
+  if(v && !v.classList.contains("hidden")) loadDashboard();
+},5000);
