@@ -2,54 +2,29 @@
 <html lang="tr">
 <head>
   <meta charset="UTF-8">
-  <title>Depomax - Tuğlubey Depo Otomasyon Sistemi</title>
-  <style>
-    body { font-family: Arial, sans-serif; margin: 30px; }
-    h2 { color: green; }
-    input[type="text"], input[type="number"] { padding: 5px; margin: 5px; width: 140px; }
-    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-    table, th, td { border: 1px solid #ccc; text-align: center; }
-    th, td { padding: 10px; }
-    .toplandi { background-color: #d4fcd4; }
-    .eksik { background-color: #ffd6d6; }
-    .btn { padding: 6px 12px; margin: 5px; }
-    .sil-btn { background-color: #ff5c5c; color: white; border: none; padding: 5px 8px; cursor: pointer; }
-    #reader { width: 400px; margin-top: 20px; margin-bottom: 10px; }
-  </style>
+  <title>Depo Sayım Uygulaması</title>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <h2>Depomax - Tuğlubey Depo Otomasyon Sistemi</h2>
-
-  <h3>Excel'den Ürün Yükle</h3>
-  <input type="file" id="excelInput" accept=".xlsx">
-  <hr>
-
-  <h3>Manuel Ürün Ekle</h3>
-  <input type="text" id="kod" placeholder="Ürün Kodu">
-  <input type="text" id="isim" placeholder="Ürün Adı">
-  <input type="number" id="miktar" placeholder="Miktar">
-  <input type="text" id="aciklama" placeholder="Açıklama">
-  <input type="text" id="reyon" placeholder="Reyon">
-  <input type="text" id="barkod" placeholder="Barkod">
-  <button class="btn" onclick="urunEkle()">Ürün Ekle</button>
+  <h2>📦 Depo Sayım Uygulaması</h2>
 
   <h3>Barkod Okuma</h3>
+  <button class="btn" onclick="startScanner()">📷 Kamera Aç</button>
+  <button class="btn" onclick="stopScanner()">⛔ Durdur</button>
   <div id="reader"></div>
-  <button class="btn" onclick="startScanner()">Barkod Tarayıcıyı Başlat</button>
-  <button class="btn" onclick="stopScanner()">Durdur</button>
 
-  <h3>Ürün Listesi</h3>
-  <table id="urunler">
+  <h3>Manuel Giriş</h3>
+  <input type="text" id="barkod" placeholder="Barkod">
+  <input type="number" id="miktar" placeholder="Miktar">
+  <button class="btn" onclick="urunEkle()">Ekle</button>
+
+  <h3>Sayım Listesi</h3>
+  <table id="sayimTablosu">
     <thead>
       <tr>
-        <th>Ürün Kodu</th>
+        <th>Barkod</th>
         <th>Ürün Adı</th>
         <th>Miktar</th>
-        <th>Açıklama</th>
-        <th>Reyon</th>
-        <th>Barkod</th>
-        <th>Toplandı</th>
-        <th>Eksik</th>
         <th>Sil</th>
       </tr>
     </thead>
@@ -57,205 +32,8 @@
   </table>
   <br>
   <button class="btn" onclick="csvIndir()">Excel (CSV) İndir</button>
-  <button class="btn" onclick="xlsxIndir()">Excel (.XLSX) İndir</button>
-  <button class="btn" onclick="ekraniTemizle()">Ekranı Temizle</button>
 
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="https://unpkg.com/html5-qrcode@2.3.10/minified/html5-qrcode.min.js"></script>
-  <script>
-    let scanner = null;
-    let uploadedFileName = "depo_urunler.xlsx";
-
-    function startScanner() {
-      if (!scanner) {
-        scanner = new Html5Qrcode("reader");
-        scanner.start(
-          { facingMode: "environment" },
-          { fps: 10, qrbox: 250 },
-          barkod => barkodIsle(barkod),
-          error => {}
-        ).catch(err => {
-          alert("Kamera başlatılamadı: " + err);
-        });
-      }
-    }
-
-    function stopScanner() {
-      if (scanner) {
-        scanner.stop().then(() => {
-          scanner.clear();
-          scanner = null;
-        });
-      }
-    }
-
-    function barkodIsle(barkod) {
-      const rows = document.querySelectorAll("#urunler tbody tr");
-      let bulundu = false;
-      rows.forEach(row => {
-        const barkodHucre = row.children[5].innerText;
-        if (barkodHucre === barkod) {
-          bulundu = true;
-          let miktar = row.children[2];
-          let yeniMiktar = prompt("Mevcut miktar: " + miktar.innerText + "\nYeni miktar gir (boş bırak geç):");
-          if (yeniMiktar !== null && yeniMiktar.trim() !== "") {
-            miktar.innerText = yeniMiktar;
-          }
-          if (confirm("Bu ürün toplandı olarak işaretlensin mi?")) {
-            row.querySelector("td:nth-child(7) input").checked = true;
-            row.classList.add("toplandi");
-          }
-          row.scrollIntoView({ behavior: "smooth", block: "center" });
-        }
-      });
-      if (!bulundu) alert("Barkod bulunamadı: " + barkod);
-    }
-
-    function urunEkle(kod, isim, reyon, barkod, miktar, aciklama) {
-      const tbody = document.querySelector("#urunler tbody");
-      const row = document.createElement("tr");
-      row.innerHTML = `
-        <td>${kod || document.getElementById("kod").value}</td>
-        <td>${isim || document.getElementById("isim").value}</td>
-        <td contenteditable="true">${miktar || document.getElementById("miktar").value}</td>
-        <td>${aciklama || document.getElementById("aciklama").value}</td>
-        <td>${reyon || document.getElementById("reyon").value}</td>
-        <td>${barkod || document.getElementById("barkod").value}</td>
-        <td><input type="checkbox" onchange="this.closest('tr').classList.toggle('toplandi', this.checked)"></td>
-        <td><input type="checkbox" onchange="this.closest('tr').classList.toggle('eksik', this.checked)"></td>
-        <td><button class="sil-btn" onclick="silOnay(this)">X</button></td>
-      `;
-      tbody.appendChild(row);
-      if (!kod) {
-        document.querySelectorAll("input[type='text'], input[type='number']").forEach(input => input.value = "");
-      }
-      sortTableByReyon();
-    }
-
-    function silOnay(btn) {
-      if (confirm("Bu ürünü silmek istediğinize emin misiniz?")) {
-        btn.closest('tr').remove();
-        sortTableByReyon();
-      }
-    }
-
-    function sortTableByReyon() {
-      const tbody = document.querySelector("#urunler tbody");
-      const rows = Array.from(tbody.querySelectorAll("tr"));
-      function parseReyon(reyonStr) {
-        const match = reyonStr.match(/([A-Za-z]+)(\d+)\.(\d+)/);
-        if (match) return [match[1], parseInt(match[2]), parseInt(match[3])];
-        return [reyonStr, 0, 0];
-      }
-      rows.sort((a, b) => {
-        const aVal = a.children[4].innerText;
-        const bVal = b.children[4].innerText;
-        const [p1, n1, m1] = parseReyon(aVal);
-        const [p2, n2, m2] = parseReyon(bVal);
-        if (p1 !== p2) return p1.localeCompare(p2);
-        if (n1 !== n2) return n1 - n2;
-        return m1 - m2;
-      });
-      rows.forEach(row => tbody.appendChild(row));
-    }
-
-    function csvIndir() {
-      const rows = document.querySelectorAll("#urunler tbody tr");
-      for (const row of rows) {
-        const toplandi = row.querySelector("td:nth-child(7) input").checked;
-        const eksik = row.querySelector("td:nth-child(8) input").checked;
-        if (!toplandi && !eksik) {
-          alert("Tüm ürünler için 'Toplandı' veya 'Eksik' kutucuğu işaretlenmelidir.");
-          return;
-        }
-      }
-      let csv = [];
-      const allRows = document.querySelectorAll("table tr");
-      for (const row of allRows) {
-        let cols = Array.from(row.querySelectorAll("td, th"));
-        let rowData = cols.map((col, idx) => {
-          const text = col.innerText.trim();
-          if (col.querySelector("input[type='checkbox']")) {
-            return col.querySelector("input").checked ? "true" : "";
-          }
-          if (idx === 0 || idx === 1 || idx === 3 || idx === 4 || idx === 5) {
-            return `"${text}"`;
-          }
-          if (idx === 2) {
-            return text;
-          }
-          return text;
-        });
-        csv.push(rowData.join(";"));
-      }
-      const BOM = "\uFEFF";
-      const blob = new Blob([BOM + csv.join("\n")], { type: "text/csv;charset=utf-8;" });
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      const name = uploadedFileName.replace(".xlsx", "") + "_siparis_tamam.csv";
-      a.download = name;
-      a.click();
-    }
-
-    function xlsxIndir() {
-      const wb = XLSX.utils.book_new();
-      const ws_data = [];
-      const header = ["Ürün Kodu", "Ürün Adı", "Miktar", "Açıklama", "Reyon", "Barkod", "Toplandı", "Eksik"];
-      ws_data.push(header);
-      const rows = document.querySelectorAll("#urunler tbody tr");
-      for (const row of rows) {
-        const kod = row.children[0].innerText.trim();
-        const isim = row.children[1].innerText.trim();
-        const miktar = parseFloat(row.children[2].innerText.trim()) || 0;
-        const aciklama = row.children[3].innerText.trim();
-        const reyon = row.children[4].innerText.trim();
-        const barkod = row.children[5].innerText.trim();
-        const toplandi = row.children[6].querySelector("input").checked ? "Evet" : "";
-        const eksik = row.children[7].querySelector("input").checked ? "Evet" : "";
-        ws_data.push([kod, isim, miktar, aciklama, reyon, barkod, toplandi, eksik]);
-      }
-      const ws = XLSX.utils.aoa_to_sheet(ws_data);
-      const range = XLSX.utils.decode_range(ws['!ref']);
-      for (let R = 1; R <= range.e.r; ++R) {
-        const kodRef = XLSX.utils.encode_cell({ c: 0, r: R });
-        if (ws[kodRef]) {
-          ws[kodRef].t = 's';
-          ws[kodRef].z = '@';
-        }
-      }
-      XLSX.utils.book_append_sheet(wb, ws, "Ürünler");
-      const name = uploadedFileName.replace(".xlsx", "") + "_siparis_tamam.xlsx";
-      XLSX.writeFile(wb, name);
-    }
-
-    function ekraniTemizle() {
-      if (confirm("Tüm liste temizlenecek. Emin misiniz?")) {
-        document.querySelector("#urunler tbody").innerHTML = "";
-      }
-    }
-
-    window.addEventListener("beforeunload", function (e) {
-      e.preventDefault();
-      e.returnValue = "Sayfayı yenilemek istediğinize emin misiniz?";
-    });
-
-    document.getElementById("excelInput").addEventListener("change", function(e) {
-      const file = e.target.files[0];
-      uploadedFileName = file.name;
-      const reader = new FileReader();
-      reader.onload = function(event) {
-        const data = new Uint8Array(event.target.result);
-        const workbook = XLSX.read(data, { type: "array" });
-        const sheet = workbook.Sheets[workbook.SheetNames[0]];
-        const json = XLSX.utils.sheet_to_json(sheet, { header: 1 });
-        for (let i = 1; i < json.length; i++) {
-          const [kod, isim, miktar, aciklama, reyon, barkod] = json[i];
-          if (kod || isim) urunEkle(kod, isim, reyon, barkod, miktar, aciklama);
-        }
-        sortTableByReyon();
-      };
-      reader.readAsArrayBuffer(file);
-    });
-  </script>
+  <script src="script.js"></script>
 </body>
 </html>
