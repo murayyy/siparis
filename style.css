@@ -45,6 +45,25 @@ nav button {
   flex: 1;
 }
 
+/* Kart */
+.card {
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  padding: 12px;
+  background: #fff;
+  margin-top: 10px;
+}
+
+/* Başlıklar */
+h2 {
+  margin-top: 0;
+  color: #111827;
+}
+h3 {
+  margin: 10px 0;
+  color: #1f2937;
+}
+
 /* Butonlar */
 .btn-light {
   background: #eef2ff;
@@ -105,21 +124,14 @@ tr:nth-child(even) {
   background: #f9fafb;
 }
 
-/* Kart */
-.card {
-  border: 1px solid #d1d5db;
-  border-radius: 8px;
+/* Paletleme */
+#paletResult {
+  margin-top: 15px;
   padding: 12px;
-  background: #fff;
+  border: 2px dashed #2563eb;
+  border-radius: 8px;
+  background: #f0f9ff;
+}
+#paletQr {
   margin-top: 10px;
-}
-
-/* Başlıklar */
-h2 {
-  margin-top: 0;
-  color: #111827;
-}
-h3 {
-  margin: 10px 0;
-  color: #1f2937;
 }
