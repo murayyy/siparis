@@ -14,14 +14,17 @@ let pickerScanner = null;
 let qcScanner = null;
 let pickerOrder = null;
 let qcOrder = null;
+let paletOrder = null;
 
-// Sayfa kontrolü
+// Görünüm kontrol
 function showView(id) {
   document.querySelectorAll(".view").forEach(v => v.classList.add("hidden"));
   document.getElementById(id).classList.remove("hidden");
 }
 
-// Login işlemleri
+// =====================
+// LOGIN & REGISTER
+// =====================
 document.getElementById("loginBtn")?.addEventListener("click", async () => {
   const email = document.getElementById("login-email").value;
   const pass = document.getElementById("login-pass").value;
@@ -49,7 +52,7 @@ document.getElementById("logoutBtn")?.addEventListener("click", async () => {
   await signOut(auth);
 });
 
-// Kullanıcı durumu
+// Kullanıcı oturum durumu
 onAuthStateChanged(auth, async (user) => {
   if (user) {
     currentUser = user;
@@ -60,6 +63,7 @@ onAuthStateChanged(auth, async (user) => {
     else if (currentRole === "yonetici") showView("view-manager");
     else if (currentRole === "toplayici") showView("view-picker");
     else if (currentRole === "qc") showView("view-qc");
+    else if (currentRole === "palet") showView("view-palet");
     else showView("view-login");
   } else {
     currentUser = null;
@@ -69,10 +73,9 @@ onAuthStateChanged(auth, async (user) => {
   }
 });
 
-
-// ==========================
-// 📦 ŞUBE – Sipariş Girişi
-// ==========================
+// =====================
+// 🏪 ŞUBE
+// =====================
 document.getElementById("createOrderBtn")?.addEventListener("click", async () => {
   const name = document.getElementById("orderName").value;
   if (!name) return alert("Sipariş adı gir!");
@@ -80,7 +83,10 @@ document.getElementById("createOrderBtn")?.addEventListener("click", async () =>
     name,
     status: "Yeni",
     createdBy: currentUser.uid,
-    lines: []
+    lines: [
+      { code: "URUN001", name: "Ürün 1", qty: 5, barcode: "111", picked: 0, qc: 0 },
+      { code: "URUN002", name: "Ürün 2", qty: 3, barcode: "222", picked: 0, qc: 0 }
+    ]
   });
   alert("Sipariş oluşturuldu!");
   loadBranchOrders();
@@ -99,10 +105,9 @@ async function loadBranchOrders() {
 }
 document.getElementById("view-branch")?.addEventListener("click", loadBranchOrders);
 
-
-// ==========================
-// 👨‍💼 YÖNETİCİ – Sipariş Onay
-// ==========================
+// =====================
+// 👨‍💼 YÖNETİCİ
+// =====================
 document.getElementById("refreshOrdersBtn")?.addEventListener("click", loadManagerOrders);
 
 async function loadManagerOrders() {
@@ -124,19 +129,16 @@ async function loadManagerOrders() {
 
 window.assignToPicker = async (id) => {
   await updateDoc(doc(db, "orders", id), { status: "Toplama" });
-  alert("Toplayıcıya atandı!");
   loadManagerOrders();
 };
 window.sendToQC = async (id) => {
   await updateDoc(doc(db, "orders", id), { status: "Kontrol" });
-  alert("Kontrole gönderildi!");
   loadManagerOrders();
 };
 
-
-// ==========================
-// 🧺 TOPLAYICI – Sipariş Toplama
-// ==========================
+// =====================
+// 🧺 TOPLAYICI
+// =====================
 document.getElementById("refreshAssignedBtn")?.addEventListener("click", refreshAssigned);
 document.getElementById("openAssignedBtn")?.addEventListener("click", openAssigned);
 document.getElementById("startScanBtn")?.addEventListener("click", startPickerScanner);
@@ -216,10 +218,9 @@ async function finishPick() {
   alert("Toplama tamamlandı!");
 }
 
-
-// ==========================
-// 🔍 QC – Kontrol
-// ==========================
+// =====================
+// 🔍 QC
+// =====================
 document.getElementById("refreshQCBtn")?.addEventListener("click", refreshQCOrders);
 document.getElementById("openQCBtn")?.addEventListener("click", openQCOrder);
 document.getElementById("startQCScanBtn")?.addEventListener("click", startQCScanner);
@@ -299,4 +300,64 @@ async function finishQC() {
     status: "Tamamlandı"
   });
   alert("QC tamamlandı!");
+}
+
+// =====================
+// 📦 PALETLEME
+// =====================
+document.getElementById("refreshPaletBtn")?.addEventListener("click", refreshPaletOrders);
+document.getElementById("openPaletBtn")?.addEventListener("click", openPaletOrder);
+document.getElementById("createPaletBtn")?.addEventListener("click", createPalet);
+document.getElementById("printPaletBtn")?.addEventListener("click", () => window.print());
+
+async function refreshPaletOrders() {
+  const sel = document.getElementById("paletOrders");
+  sel.innerHTML = "";
+  const qs = await getDocs(query(collection(db, "orders"), where("status", "==", "Tamamlandı")));
+  qs.forEach(d => {
+    const o = { id: d.id, ...d.data() };
+    const opt = document.createElement("option");
+    opt.value = o.id;
+    opt.textContent = `${o.id} - ${o.name}`;
+    sel.appendChild(opt);
+  });
+}
+
+async function openPaletOrder() {
+  const id = document.getElementById("paletOrders").value;
+  if (!id) return;
+  const ds = await getDoc(doc(db, "orders", id));
+  if (!ds.exists()) return;
+  paletOrder = { id: ds.id, ...ds.data() };
+  renderPaletLines();
+  document.getElementById("paletTitle").textContent = `Sipariş: ${paletOrder.name}`;
+  document.getElementById("paletArea").classList.remove("hidden");
+}
+
+function renderPaletLines() {
+  const tb = document.querySelector("#tbl-palet-lines tbody");
+  tb.innerHTML = "";
+  paletOrder.lines.forEach((l, i) => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td>${i + 1}</td><td>${l.code}</td><td>${l.name}</td><td>${l.qty}</td>`;
+    tb.appendChild(tr);
+  });
+}
+
+async function createPalet() {
+  const paletId = "PLT-" + Date.now();
+  await setDoc(doc(db, "pallets", paletId), {
+    id: paletId,
+    orderId: paletOrder.id,
+    createdAt: new Date(),
+    items: paletOrder.lines
+  });
+  document.getElementById("paletNo").textContent = paletId;
+  document.getElementById("paletResult").classList.remove("hidden");
+  // QR üret
+  document.getElementById("paletQr").innerHTML = "";
+  QRCode.toCanvas(document.getElementById("paletQr"), paletId, { width: 128 }, (err) => {
+    if (err) console.error(err);
+  });
+  alert("Palet oluşturuldu: " + paletId);
 }
