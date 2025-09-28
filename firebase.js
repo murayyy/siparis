@@ -1,19 +1,34 @@
-// Firebase SDK importları (modüler)
+// ================= FIREBASE.JS =================
+// Firebase SDK importları (modüler CDN)
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
 import {
-  getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged
+  getAuth,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signOut,
+  onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
 import {
-  getFirestore, collection, doc, setDoc, getDoc, getDocs, updateDoc, addDoc,
-  query, where, orderBy, serverTimestamp
+  getFirestore,
+  collection,
+  doc,
+  setDoc,
+  getDoc,
+  getDocs,
+  updateDoc,
+  addDoc,
+  query,
+  where,
+  orderBy,
+  serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
-// 🔧 Senin config’in (gerekirse değiştir)
+// 🔧 Firebase config → Console’dan kopyala
 const firebaseConfig = {
   apiKey: "AIzaSyDcLQB4UggXlYA9x8AKw-XybJjcF6U_KA4",
   authDomain: "depo1-4668f.firebaseapp.com",
   projectId: "depo1-4668f",
-  storageBucket: "depo1-4668f.firebasestorage.app",
+  storageBucket: "depo1-4668f.appspot.com",   // ✅ doğru olan
   messagingSenderId: "1044254626353",
   appId: "1:1044254626353:web:148c57df2456cc3d9e3b10",
   measurementId: "G-DFGMVLK9XH"
@@ -24,12 +39,24 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-// Dışa aktar (app.js burada kullansın)
+// Dışa aktar (app.js kullanacak)
 export {
   app, auth, db,
   // Auth
-  signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signOut,
+  onAuthStateChanged,
   // Firestore
-  collection, doc, setDoc, getDoc, getDocs, updateDoc, addDoc,
-  query, where, orderBy, serverTimestamp
+  collection,
+  doc,
+  setDoc,
+  getDoc,
+  getDocs,
+  updateDoc,
+  addDoc,
+  query,
+  where,
+  orderBy,
+  serverTimestamp
 };
