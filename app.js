@@ -634,6 +634,233 @@ document.querySelector("button[data-view='view-palet']")?.addEventListener("clic
 showView("view-login");
 console.log("app.js (tamamlandı) ✓");
 
+/* -------------------------------------------
+   TOPLAYICI: kamera listesi + tarayıcı + elle toplama
+--------------------------------------------*/
+
+// Kamera listesini doldur
+async function populatePickerCameras() {
+  const sel = document.getElementById("pickerCamera");
+  if (!sel) return;
+  try {
+    const cams = await Html5Qrcode.getCameras(); // https şart
+    sel.innerHTML = "";
+    if (!cams || cams.length === 0) {
+      const opt = document.createElement("option");
+      opt.value = "";
+      opt.textContent = "Kamera bulunamadı";
+      sel.appendChild(opt);
+      return;
+    }
+    // Arka kamera öne
+    cams.sort((a, b) => {
+      const ad = (a.label || "").toLowerCase();
+      const bd = (b.label || "").toLowerCase();
+      const aBack = ad.includes("back") || ad.includes("arka") || ad.includes("rear");
+      const bBack = bd.includes("back") || bd.includes("arka") || bd.includes("rear");
+      if (aBack && !bBack) return -1;
+      if (!aBack && bBack) return 1;
+      return 0;
+    });
+    cams.forEach((c, i) => {
+      const opt = document.createElement("option");
+      opt.value = c.id;
+      opt.textContent = c.label || `Kamera ${i + 1}`;
+      sel.appendChild(opt);
+    });
+  } catch (e) {
+    sel.innerHTML = `<option value="">Kamera listelenemedi</option>`;
+    console.error("Kamera listesi hatası:", e);
+  }
+}
+
+// Sayfa ilk yüklendiğinde ve Toplayıcı görünümü açıldığında kamera listesini hazırla
+document.querySelector("button[data-view='view-picker']")?.addEventListener("click", populatePickerCameras);
+document.addEventListener("DOMContentLoaded", populatePickerCameras);
+
+// Tarayıcı başlat/durdur (kamera id ile)
+let lastScanAt = 0;
+async function startPickerScanner() {
+  try {
+    if (scanner) await stopPickerScanner();
+
+    const sel = document.getElementById("pickerCamera");
+    const camId = sel?.value || "";
+
+    const config = {
+      fps: 10,
+      qrbox: 250,
+      rememberLastUsedCamera: true,
+    };
+
+    // format desteği varsa ekle (bazı sürümlerde yok)
+    if (window.Html5QrcodeSupportedFormats) {
+      config.formatsToSupport = [
+        Html5QrcodeSupportedFormats.QR_CODE,
+        Html5QrcodeSupportedFormats.CODE_128,
+        Html5QrcodeSupportedFormats.CODE_39,
+        Html5QrcodeSupportedFormats.EAN_13,
+        Html5QrcodeSupportedFormats.EAN_8,
+        Html5QrcodeSupportedFormats.UPC_A,
+        Html5QrcodeSupportedFormats.UPC_E,
+      ];
+    }
+
+    scanner = new Html5Qrcode("reader");
+    const constraints = camId ? { deviceId: { exact: camId } } : { facingMode: "environment" };
+
+    await scanner.start(constraints, config, (text) => {
+      const now = Date.now();
+      if (now - lastScanAt < 1200) return; // debounce ~1.2s
+      lastScanAt = now;
+      handleScannedCode(text, /*askQty*/ true);
+    }, () => { /* frame error sessiz */ });
+
+  } catch (err) {
+    alert("Kamera başlatılamadı: " + err.message);
+    console.error(err);
+  }
+}
+
+function stopPickerScanner() {
+  if (!scanner) return;
+  return scanner.stop().then(() => { scanner.clear(); scanner = null; });
+}
+
+// Barkod/kod işlensin (isteğe bağlı miktar sor)
+async function handleScannedCode(codeOrBarcode, askQty = false) {
+  if (!pickerOrder) return alert("Önce bir sipariş açın.");
+  let qty = 1;
+  if (askQty) {
+    const v = prompt(`Okunan: ${codeOrBarcode}\nMiktar?`, "1");
+    qty = parseInt(v || "1", 10);
+    if (!qty || qty < 1) qty = 1;
+  }
+  await applyPickByCodeOrBarcode(codeOrBarcode, qty);
+}
+
+// Kod/barkod’a göre “Toplanan” arttır ya da satır ekle
+async function applyPickByCodeOrBarcode(codeOrBarcode, qty) {
+  // 1) Sipariş satırlarında ara (barkod ya da kod eşleşmesi)
+  let idx = pickerOrder.lines.findIndex(
+    l => (l.barcode && String(l.barcode) === String(codeOrBarcode)) || String(l.code) === String(codeOrBarcode)
+  );
+  if (idx !== -1) {
+    pickerOrder.lines[idx].picked = (pickerOrder.lines[idx].picked || 0) + qty;
+    renderPickerLines();
+    return;
+  }
+
+  // 2) Ürün kataloğunda ara
+  let found = null;
+  try {
+    // code eşleşmesi
+    const byCode = await getDoc(doc(db, "products", String(codeOrBarcode)));
+    if (byCode.exists()) {
+      found = byCode.data();
+    } else {
+      // barcode eşleşmesi
+      const qy = query(collection(db, "products"), where("barcode", "==", String(codeOrBarcode)));
+      const snap = await getDocs(qy);
+      snap.forEach(d => { if (!found) found = d.data(); });
+    }
+  } catch (e) {
+    console.warn("Ürün arama hatası:", e);
+  }
+
+  // 3) Bulduysan ekle, bulamadıysan adını boş geç (sonra düzenlenebilir)
+  const line = {
+    code: found?.code || String(codeOrBarcode),
+    name: found?.name || "(Ad yok)",
+    qty: found ? 0 : qty,     // istenen miktar bilinmiyorsa 0 bırak
+    picked: qty,
+    barcode: found?.barcode || "",
+    reyon: found?.reyon || ""
+  };
+  pickerOrder.lines.push(line);
+  renderPickerLines();
+}
+
+/* -------------------------------------------
+   Mevcut renderPickerLines() fonksiyonunu
+   elle düzenleme + +/- butonları ile genişlet
+--------------------------------------------*/
+function renderPickerLines() {
+  const tb = document.querySelector("#tbl-picker-lines tbody");
+  if (!tb) return;
+  tb.innerHTML = "";
+  pickerOrder.lines.forEach((l, i) => {
+    tb.innerHTML += `
+      <tr>
+        <td>${i + 1}</td>
+        <td>${l.code}</td>
+        <td>${l.name}</td>
+        <td>${l.qty}</td>
+        <td>
+          <input type="number" min="0" class="picked-input" data-idx="${i}" value="${l.picked || 0}"/>
+        </td>
+        <td>
+          <button class="pill" data-plus="${i}">+1</button>
+          <button class="pill" data-minus="${i}">-1</button>
+          <button class="pill" data-del="${i}">Sil</button>
+        </td>
+      </tr>`;
+  });
+
+  // input değişikliği
+  tb.querySelectorAll(".picked-input").forEach(inp => {
+    inp.addEventListener("input", e => {
+      const idx = parseInt(e.target.dataset.idx, 10);
+      let v = parseInt(e.target.value, 10);
+      if (isNaN(v) || v < 0) v = 0;
+      pickerOrder.lines[idx].picked = v;
+    });
+  });
+
+  // +1 / -1 / Sil
+  tb.querySelectorAll("button[data-plus]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const i = parseInt(btn.dataset.plus, 10);
+      pickerOrder.lines[i].picked = (pickerOrder.lines[i].picked || 0) + 1;
+      renderPickerLines();
+    });
+  });
+  tb.querySelectorAll("button[data-minus]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const i = parseInt(btn.dataset.minus, 10);
+      let v = (pickerOrder.lines[i].picked || 0) - 1;
+      if (v < 0) v = 0;
+      pickerOrder.lines[i].picked = v;
+      renderPickerLines();
+    });
+  });
+  tb.querySelectorAll("button[data-del]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const i = parseInt(btn.dataset.del, 10);
+      if (confirm("Bu satırı listeden silmek istiyor musunuz?")) {
+        pickerOrder.lines.splice(i, 1);
+        renderPickerLines();
+      }
+    });
+  });
+}
+
+/* -------------------------------------------
+   Elle toplama butonu
+--------------------------------------------*/
+document.getElementById("manualAddBtn")?.addEventListener("click", async () => {
+  const code = document.getElementById("manualScanCode")?.value.trim();
+  let qty = parseInt(document.getElementById("manualScanQty")?.value, 10);
+  if (!pickerOrder) return alert("Önce bir siparişi açın.");
+  if (!code) return alert("Kod veya barkod girin.");
+  if (!qty || qty < 1) qty = 1;
+
+  await applyPickByCodeOrBarcode(code, qty);
+
+  // temizle
+  document.getElementById("manualScanCode").value = "";
+  document.getElementById("manualScanQty").value = "1";
+});
 
 
 
