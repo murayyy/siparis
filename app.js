@@ -202,13 +202,11 @@ document.getElementById("addLineBtn")?.addEventListener("click", () => {
 
 document.getElementById("createOrderBtn")?.addEventListener("click", async () => {
   const name = document.getElementById("orderName").value.trim();
-  const warehouse = document.getElementById("branchWarehouse").value;
   if (!name) return alert("Sipariş adı gir!");
   if (orderDraft.length === 0) return alert("Sipariş satırı ekleyin!");
 
   await addDoc(collection(db, "orders"), {
     name,
-    warehouse,
     status: "Yeni",
     createdBy: currentUser.uid,
     createdAt: serverTimestamp(),
@@ -231,7 +229,7 @@ async function loadBranchOrders() {
   tbody.innerHTML = "";
   snap.forEach(docu => {
     const d = docu.data();
-    tbody.innerHTML += `<tr><td>${docu.id}</td><td>${d.name}</td><td>${d.warehouse || "-"}</td><td>${d.status}</td></tr>`;
+    tbody.innerHTML += `<tr><td>${docu.id}</td><td>${d.name}</td><td>${d.status}</td></tr>`;
   });
 }
 
@@ -239,38 +237,6 @@ document.querySelector("button[data-view='view-branch']")?.addEventListener("cli
   await refreshBranchProductSelect();
   await loadBranchOrders();
 });
-
-// ================== STOK AZALTMA ==================
-async function decreaseStock(code, qty, warehouse) {
-  const ref = doc(db, "stocks", `${warehouse}_${code}`);
-  const snap = await getDoc(ref);
-  if (snap.exists()) {
-    let newQty = (snap.data().qty || 0) - qty;
-    if (newQty < 0) newQty = 0;
-    await updateDoc(ref, { qty: newQty });
-    if (newQty < 5) alert(`⚠️ Dikkat! ${warehouse}/${code} stoğu kritik (${newQty})`);
-  } else {
-    alert(`Stok bulunamadı: ${warehouse} - ${code}`);
-  }
-}
-
-// ================== TOPLAYICI ==================
-// (picker scanner, finishPick fonksiyonları zaten tam)
-
-// ================== YÖNETİCİ ==================
-// (assignOrder, sendToQC doğru)
-
-// ================== QC ==================
-// (refreshQCOrders, finishQC doğru)
-
-// ================== PALET ==================
-// (refreshPaletOrders, createPalet doğru)
-
-// ================== DASHBOARD ==================
-// (loadDashboard, periyodik yenileme doğru)
-
-// ================== STOK YÖNETİMİ ==================
-// (stock giriş/çıkış doğru)
 
 // ================== TOPLAYICI ==================
 document.getElementById("refreshAssignedBtn")?.addEventListener("click", refreshAssigned);
@@ -283,12 +249,13 @@ async function refreshAssigned() {
   const sel = document.getElementById("assignedOrders");
   if (!sel) return;
   sel.innerHTML = "";
+  const
   const qs = await getDocs(query(collection(db, "orders"), where("status", "==", "Atandı")));
   qs.forEach(d => {
     const o = { id: d.id, ...d.data() };
     const opt = document.createElement("option");
     opt.value = o.id;
-    opt.textContent = `${o.id} - ${o.name} (${o.warehouse || "-"})`;
+    opt.textContent = `${o.id} - ${o.name}`;
     sel.appendChild(opt);
   });
 }
@@ -301,7 +268,7 @@ async function openAssigned() {
   pickerOrder = { id: ds.id, ...ds.data() };
   pickerOrder.lines = pickerOrder.lines.map(l => ({ ...l, picked: l.picked || 0 }));
   renderPickerLines();
-  document.getElementById("pickerTitle").textContent = `Sipariş: ${pickerOrder.name} (${pickerOrder.warehouse})`;
+  document.getElementById("pickerTitle").textContent = `Sipariş: ${pickerOrder.name}`;
   document.getElementById("pickerArea").classList.remove("hidden");
 }
 
@@ -330,35 +297,27 @@ function stopPickerScanner() {
   if (!scanner) return;
   return scanner.stop().then(() => { scanner.clear(); scanner = null; });
 }
-
 function onPickerScan(code) {
   if (!pickerOrder) return;
   const idx = pickerOrder.lines.findIndex(l => (l.barcode && l.barcode === code) || l.code === code);
   if (idx === -1) {
-    alert("Barkod/Kod bulunamadı: " + code);
+    alert("Barkod bulunamadı: " + code);
     return;
   }
   pickerOrder.lines[idx].picked = (pickerOrder.lines[idx].picked || 0) + 1;
   renderPickerLines();
 }
-
 async function finishPick() {
   if (!pickerOrder) return;
-  // depo bazlı stok düş
-  for (const l of pickerOrder.lines) {
-    const used = Math.min(l.picked || 0, l.qty || 0);
-    if (used > 0) await decreaseStock(l.code, used, pickerOrder.warehouse);
-  }
   await updateDoc(doc(db, "orders", pickerOrder.id), {
     lines: pickerOrder.lines,
     status: "Toplandı"
   });
-  alert("Toplama tamamlandı ve stok güncellendi!");
+  alert("Toplama tamamlandı!");
 }
 
 // ================== YÖNETİCİ ==================
 document.getElementById("refreshOrdersBtn")?.addEventListener("click", loadAllOrders);
-
 async function loadAllOrders() {
   const snap = await getDocs(collection(db, "orders"));
   const tbody = document.querySelector("#tbl-orders tbody");
@@ -370,7 +329,6 @@ async function loadAllOrders() {
       <tr>
         <td>${o.id}</td>
         <td>${o.name}</td>
-        <td>${o.warehouse || "-"}</td>
         <td>${o.status}</td>
         <td>
           ${o.status === "Yeni" ? `<button onclick="assignOrder('${o.id}')">Toplayıcıya Ata</button>` : ""}
@@ -404,7 +362,7 @@ async function refreshQCOrders() {
     const o = { id: d.id, ...d.data() };
     const opt = document.createElement("option");
     opt.value = o.id;
-    opt.textContent = `${o.id} - ${o.name} (${o.warehouse || "-"})`;
+    opt.textContent = `${o.id} - ${o.name}`;
     sel.appendChild(opt);
   });
 }
@@ -458,7 +416,6 @@ function onQCScan(code) {
   qcOrder.lines[idx].qc = (qcOrder.lines[idx].qc || 0) + 1;
   renderQCLines();
 }
-
 async function finishQC() {
   if (!qcOrder) return;
   await updateDoc(doc(db, "orders", qcOrder.id), {
@@ -524,116 +481,3 @@ async function createPalet() {
   });
   alert("Palet oluşturuldu: " + paletNo);
 }
-
-// ================== DASHBOARD ==================
-document.getElementById("dashboardWarehouse")?.addEventListener("change", loadDashboard);
-
-async function loadStocksTable() {
-  const tb = document.querySelector("#tbl-stocks tbody");
-  if (!tb) return;
-  const selectedWh = document.getElementById("dashboardWarehouse")?.value || "MERKEZ";
-  const snap = await getDocs(collection(db, "stocks"));
-  tb.innerHTML = "";
-  snap.forEach(docu => {
-    const d = docu.data();
-    if (d.warehouse === selectedWh) {
-      tb.innerHTML += `<tr><td>${d.code}</td><td>${d.name}</td><td>${d.qty}</td><td>${d.warehouse}</td></tr>`;
-    }
-  });
-}
-
-async function loadDashboard() {
-  const ordersSnap = await getDocs(collection(db, "orders"));
-  const palletsSnap = await getDocs(collection(db, "pallets"));
-
-  let total=0, completed=0, pending=0;
-  ordersSnap.forEach(docu=>{
-    total++;
-    const st=docu.data().status;
-    if(st==="Tamamlandı") completed++;
-    else pending++;
-  });
-
-  document.getElementById("statTotalOrders")?.innerText = total;
-  document.getElementById("statCompletedOrders")?.innerText = completed;
-  document.getElementById("statPendingOrders")?.innerText = pending;
-  document.getElementById("statPallets")?.innerText = palletsSnap.size;
-
-  const ctx1 = document.getElementById("chartOrders");
-  if (ctx1) {
-    new Chart(ctx1,{ type:"pie",
-      data:{ labels:["Tamamlanan","Bekleyen"],
-        datasets:[{ data:[completed,pending], backgroundColor:["#16a34a","#f87171"] }]}
-    });
-  }
-  const ctx2 = document.getElementById("chartDaily");
-  if (ctx2) {
-    new Chart(ctx2,{ type:"bar",
-      data:{ labels:["Gün1","Gün2","Gün3","Gün4","Gün5","Gün6","Gün7"],
-        datasets:[{ label:"Sipariş", data:[3,5,2,7,4,6,3] }]}
-    });
-  }
-  await loadStocksTable();
-}
-
-// Dashboard açıkken periyodik yenile
-setInterval(()=>{
-  const v=document.getElementById("view-dashboard");
-  if(v && !v.classList.contains("hidden")) loadDashboard();
-},5000);
-
-// ================== STOK YÖNETİMİ (manuel, çoklu depo) ==================
-document.querySelector("button[data-view='view-stock']")?.addEventListener("click", loadStockManage);
-document.getElementById("stockWarehouse")?.addEventListener("change", loadStockManage);
-
-async function loadStockManage() {
-  const tbody = document.querySelector("#tbl-stock-manage tbody");
-  if (!tbody) return;
-  const selectedWh = document.getElementById("stockWarehouse")?.value || "MERKEZ";
-  const snap = await getDocs(collection(db, "stocks"));
-  tbody.innerHTML = "";
-  snap.forEach(docu => {
-    const d = docu.data();
-    if (d.warehouse === selectedWh) {
-      tbody.innerHTML += `<tr><td>${d.code}</td><td>${d.name}</td><td>${d.qty}</td><td>${d.warehouse}</td></tr>`;
-    }
-  });
-}
-
-document.getElementById("btnStockIn")?.addEventListener("click", async () => {
-  const warehouse = document.getElementById("stockWarehouse").value;
-  const code = document.getElementById("stockCode").value.trim();
-  const name = document.getElementById("stockName").value.trim();
-  const qty  = parseInt(document.getElementById("stockQty").value,10);
-  if (!code || !qty) return alert("Kod ve miktar gerekli!");
-  const ref = doc(db, "stocks", `${warehouse}_${code}`);
-  const snap = await getDoc(ref);
-  if (snap.exists()) {
-    await updateDoc(ref, { qty: (snap.data().qty || 0) + qty, name: name || snap.data().name || "", warehouse });
-  } else {
-    await setDoc(ref, { code, name: name || code, qty, warehouse });
-  }
-  alert("Stok girişi yapıldı.");
-  loadStockManage();
-});
-
-document.getElementById("btnStockOut")?.addEventListener("click", async () => {
-  const warehouse = document.getElementById("stockWarehouse").value;
-  const code = document.getElementById("stockCode").value.trim();
-  const qty  = parseInt(document.getElementById("stockQty").value,10);
-  if (!code || !qty) return alert("Kod ve miktar gerekli!");
-  const ref = doc(db, "stocks", `${warehouse}_${code}`);
-  const snap = await getDoc(ref);
-  if (snap.exists()) {
-    let newQty = (snap.data().qty || 0) - qty;
-    if (newQty < 0) newQty = 0;
-    await updateDoc(ref, { qty: newQty });
-    if (newQty < 5) alert(`⚠️ Dikkat! ${warehouse}/${code} stoğu kritik (${newQty})`);
-  } else {
-    alert("Stok bulunamadı.");
-  }
-  alert("Stok çıkışı yapıldı.");
-  loadStockManage();
-});
-
-
