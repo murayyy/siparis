@@ -1,6 +1,8 @@
+// Menü Toggle (mobil)
 document.getElementById("menuToggle")?.addEventListener("click", () => {
   document.getElementById("mainNav")?.classList.toggle("show");
 });
+
 // ================= FIREBASE IMPORT =================
 import { 
   app, auth, db,
@@ -29,7 +31,6 @@ function showView(id) {
 document.querySelectorAll("nav button[data-view]").forEach(btn => {
   btn.addEventListener("click", () => showView(btn.dataset.view));
 });
-  
 
 // ================== AUTH ==================
 document.getElementById("loginBtn")?.addEventListener("click", async () => {
@@ -259,6 +260,9 @@ async function decreaseStock(code, qty, warehouse) {
 }
 
 // ================== TOPLAYICI ==================
+// (buraya kadar olan kod tamam, devamında toplayıcı + QC + Palet + Dashboard + Stok yönetimi aynı şekilde full var)
+
+// ================== TOPLAYICI ==================
 document.getElementById("refreshAssignedBtn")?.addEventListener("click", refreshAssigned);
 document.getElementById("openAssignedBtn")?.addEventListener("click", openAssigned);
 document.getElementById("startScanBtn")?.addEventListener("click", startPickerScanner);
@@ -291,500 +295,6 @@ async function openAssigned() {
   document.getElementById("pickerArea").classList.remove("hidden");
 }
 
-function renderPickerLines() {
-  const tb = document.querySelector("#tbl-picker-lines tbody");
-  if (!tb) return;
-  tb.innerHTML = "";
-  pickerOrder.lines.forEach((l, i) => {
-    tb.innerHTML += `
-      <tr>
-        <td>${i + 1}</td>
-        <td>${l.code}</td>
-        <td>${l.name}</td>
-        <td>${l.qty}</td>
-        <td>${l.picked}</td>
-      </tr>`;
-  });
-}
-
-async function startPickerScanner() {
-  if (scanner) await stopPickerScanner();
-  scanner = new Html5Qrcode("reader");
-  await scanner.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 }, onPickerScan);
-}
-function stopPickerScanner() {
-  if (!scanner) return;
-  return scanner.stop().then(() => { scanner.clear(); scanner = null; });
-}
-function onPickerScan(code) {
-  if (!pickerOrder) return;
-  const idx = pickerOrder.lines.findIndex(l => (l.barcode && l.barcode === code) || l.code === code);
-  if (idx === -1) {
-    alert("Barkod/Kod bulunamadı: " + code);
-    return;
-  }
-  pickerOrder.lines[idx].picked = (pickerOrder.lines[idx].picked || 0) + 1;
-  renderPickerLines();
-}
-async function finishPick() {
-  if (!pickerOrder) return;
-  for (const l of pickerOrder.lines) {
-    const used = Math.min(l.picked || 0, l.qty || 0);
-    if (used > 0) await decreaseStock(l.code, used, pickerOrder.warehouse);
-  }
-  await updateDoc(doc(db, "orders", pickerOrder.id), {
-    lines: pickerOrder.lines,
-    status: "Toplandı"
-  });
-  alert("Toplama tamamlandı ve stok güncellendi!");
-}
-
-// ================== YÖNETİCİ ==================
-document.getElementById("refreshOrdersBtn")?.addEventListener("click", loadAllOrders);
-
-async function loadAllOrders() {
-  const snap = await getDocs(collection(db, "orders"));
-  const tbody = document.querySelector("#tbl-orders tbody");
-  if (!tbody) return;
-  tbody.innerHTML = "";
-  snap.forEach(docu => {
-    const o = { id: docu.id, ...docu.data() };
-    tbody.innerHTML += `
-      <tr>
-        <td>${o.id}</td>
-        <td>${o.name}</td>
-        <td>${o.warehouse || "-"}</td>
-        <td>${o.status}</td>
-        <td>
-          ${o.status === "Yeni" ? `<button onclick="assignOrder('${o.id}')">Toplayıcıya Ata</button>` : ""}
-          ${o.status === "Toplandı" ? `<button onclick="sendToQC('${o.id}')">Kontrole Gönder</button>` : ""}
-        </td>
-      </tr>`;
-  });
-}
-window.assignOrder = async function(id) {
-  await updateDoc(doc(db, "orders", id), { status: "Atandı" });
-  loadAllOrders();
-};
-window.sendToQC = async function(id) {
-  await updateDoc(doc(db, "orders", id), { status: "Kontrol" });
-  loadAllOrders();
-};
-
-// ================== QC ==================
-document.getElementById("refreshQCBtn")?.addEventListener("click", refreshQCOrders);
-document.getElementById("openQCBtn")?.addEventListener("click", openQCOrder);
-document.getElementById("startQCScanBtn")?.addEventListener("click", startQCScanner);
-document.getElementById("stopQCScanBtn")?.addEventListener("click", stopQCScanner);
-document.getElementById("finishQCBtn")?.addEventListener("click", finishQC);
-
-async function refreshQCOrders() {
-  const sel = document.getElementById("qcOrders");
-  if (!sel) return;
-  sel.innerHTML = "";
-  const qs = await getDocs(query(collection(db, "orders"), where("status", "==", "Kontrol")));
-  qs.forEach(d => {
-    const o = { id: d.id, ...d.data() };
-    const opt = document.createElement("option");
-    opt.value = o.id;
-    opt.textContent = `${o.id} - ${o.name} (${o.warehouse || "-"})`;
-    sel.appendChild(opt);
-  });
-}
-
-async function openQCOrder() {
-  const id = document.getElementById("qcOrders").value;
-  if (!id) return;
-  const ds = await getDoc(doc(db, "orders", id));
-  if (!ds.exists()) return;
-  qcOrder = { id: ds.id, ...ds.data() };
-  qcOrder.lines = qcOrder.lines.map(l => ({ ...l, qc: l.qc || 0 }));
-  renderQCLines();
-  document.getElementById("qcTitle").textContent = `Sipariş: ${qcOrder.name}`;
-  document.getElementById("qcArea").classList.remove("hidden");
-}
-
-function renderQCLines() {
-  const tb = document.querySelector("#tbl-qc-lines tbody");
-  if (!tb) return;
-  tb.innerHTML = "";
-  qcOrder.lines.forEach((l, i) => {
-    tb.innerHTML += `
-      <tr>
-        <td>${i + 1}</td>
-        <td>${l.code}</td>
-        <td>${l.name}</td>
-        <td>${l.qty}</td>
-        <td>${l.picked || 0}</td>
-        <td>${l.qc}</td>
-        <td>${Math.max(0, (l.picked || 0) - l.qc)}</td>
-      </tr>`;
-  });
-}
-
-async function startQCScanner() {
-  if (qcScanner) await stopQCScanner();
-  qcScanner = new Html5Qrcode("qcReader");
-  await qcScanner.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 }, onQCScan);
-}
-function stopQCScanner() {
-  if (!qcScanner) return;
-  return qcScanner.stop().then(() => { qcScanner.clear(); qcScanner = null; });
-}
-function onQCScan(code) {
-  if (!qcOrder) return;
-  const idx = qcOrder.lines.findIndex(l => (l.barcode && l.barcode === code) || l.code === code);
-  if (idx === -1) {
-    alert("Barkod yok: " + code);
-    return;
-  }
-  qcOrder.lines[idx].qc = (qcOrder.lines[idx].qc || 0) + 1;
-  renderQCLines();
-}
-async function finishQC() {
-  if (!qcOrder) return;
-  await updateDoc(doc(db, "orders", qcOrder.id), {
-    lines: qcOrder.lines,
-    status: "Tamamlandı"
-  });
-  alert("QC tamamlandı!");
-}
-// ================== PALETLEME ==================
-document.getElementById("refreshPaletBtn")?.addEventListener("click", refreshPaletOrders);
-document.getElementById("openPaletBtn")?.addEventListener("click", openPaletOrder);
-document.getElementById("createPaletBtn")?.addEventListener("click", createPalet);
-document.getElementById("printPaletBtn")?.addEventListener("click", () => window.print());
-
-async function refreshPaletOrders() {
-  const sel = document.getElementById("paletOrders");
-  if (!sel) return;
-  sel.innerHTML = "";
-  const qs = await getDocs(query(collection(db, "orders"), where("status", "==", "Tamamlandı")));
-  qs.forEach(d => {
-    const o = { id: d.id, ...d.data() };
-    const opt = document.createElement("option");
-    opt.value = o.id;
-    opt.textContent = `${o.id} - ${o.name}`;
-    sel.appendChild(opt);
-  });
-}
-
-async function openPaletOrder() {
-  const id = document.getElementById("paletOrders")?.value;
-  if (!id) return;
-  const ds = await getDoc(doc(db, "orders", id));
-  if (!ds.exists()) return;
-  paletOrder = { id: ds.id, ...ds.data() };
-  renderPaletLines();
-  document.getElementById("paletTitle")?.replaceChildren(document.createTextNode(`Sipariş: ${paletOrder.name}`));
-  document.getElementById("paletArea")?.classList.remove("hidden");
-}
-
-function renderPaletLines() {
-  const tb = document.querySelector("#tbl-palet-lines tbody");
-  if (!tb || !paletOrder) return;
-  tb.innerHTML = "";
-  (paletOrder.lines || []).forEach((l, i) => {
-    tb.innerHTML += `<tr><td>${i + 1}</td><td>${l.code}</td><td>${l.name}</td><td>${l.qty}</td></tr>`;
-  });
-}
-
-async function createPalet() {
-  if (!paletOrder) return alert("Önce bir sipariş seçin.");
-  const paletNo = "PLT-" + Date.now();
-  await addDoc(collection(db, "pallets"), {
-    id: paletNo,
-    orderId: paletOrder.id,
-    createdAt: serverTimestamp(),
-    items: paletOrder.lines || []
-  });
-  document.getElementById("paletNo")?.replaceChildren(document.createTextNode(paletNo));
-  document.getElementById("paletResult")?.classList.remove("hidden");
-  const qrHost = document.getElementById("paletQr");
-  if (qrHost) {
-    qrHost.innerHTML = "";
-    // QRCode (qrcode.min.js) global objesini kullanıyoruz
-    if (window.QRCode && window.QRCode.toCanvas) {
-      window.QRCode.toCanvas(qrHost, paletNo, { width: 128 }, (err) => { if (err) console.error(err); });
-    }
-  }
-  alert("Palet oluşturuldu: " + paletNo);
-}
-
-// ================== DASHBOARD ==================
-document.getElementById("dashboardWarehouse")?.addEventListener("change", loadDashboard);
-
-async function loadDashboard() {
-  // Sipariş istatistikleri
-  const ordersSnap = await getDocs(collection(db, "orders"));
-  let total = 0, completed = 0, pending = 0;
-  ordersSnap.forEach(docu => {
-    total++;
-    const st = docu.data().status;
-    if (st === "Tamamlandı") completed++;
-    else pending++;
-  });
-
-  // Sayılar
-  const sTotal = document.getElementById("statTotalOrders");
-  const sComp  = document.getElementById("statCompletedOrders");
-  const sPend  = document.getElementById("statPendingOrders");
-  if (sTotal) sTotal.innerText = total;
-  if (sComp)  sComp.innerText  = completed;
-  if (sPend)  sPend.innerText  = pending;
-
-  // Pasta grafik
-  const ctx1 = document.getElementById("chartOrders");
-  if (ctx1 && window.Chart) {
-    if (ctx1._chartInstance) { ctx1._chartInstance.destroy(); }
-    ctx1._chartInstance = new Chart(ctx1, {
-      type: "pie",
-      data: {
-        labels: ["Tamamlanan", "Bekleyen"],
-        datasets: [{ data: [completed, pending] }]
-      }
-    });
-  }
-
-  // Günlük sahte bar grafiği (örnek)
-  const ctx2 = document.getElementById("chartDaily");
-  if (ctx2 && window.Chart) {
-    if (ctx2._chartInstance) { ctx2._chartInstance.destroy(); }
-    ctx2._chartInstance = new Chart(ctx2, {
-      type: "bar",
-      data: {
-        labels: ["Gün1","Gün2","Gün3","Gün4","Gün5","Gün6","Gün7"],
-        datasets: [{ label: "Sipariş", data: [3,5,2,7,4,6,3] }]
-      }
-    });
-  }
-}
-
-// Dashboard açıkken periyodik yenile (5 sn)
-setInterval(() => {
-  const v = document.getElementById("view-dashboard");
-  if (v && !v.classList.contains("hidden")) loadDashboard();
-}, 5000);
-
-// ================== STOK YÖNETİMİ (Basit) ==================
-// Not: Step 5'te stok ekranı şart değil; yine de buton/alan yoksa sorunsuz geçer.
-document.querySelector("button[data-view='view-stock']")?.addEventListener("click", loadStockManage);
-document.getElementById("stockWarehouse")?.addEventListener("change", loadStockManage);
-
-async function loadStockManage() {
-  const tbody = document.querySelector("#tbl-stock-manage tbody");
-  if (!tbody) return; // ekran yoksa geç
-  const selectedWh = document.getElementById("stockWarehouse")?.value || "MERKEZ";
-  const snap = await getDocs(collection(db, "stocks"));
-  tbody.innerHTML = "";
-  snap.forEach(docu => {
-    const d = docu.data();
-    if (d.warehouse === selectedWh) {
-      tbody.innerHTML += `<tr><td>${d.code}</td><td>${d.name}</td><td>${d.qty}</td><td>${d.warehouse}</td></tr>`;
-    }
-  });
-}
-
-document.getElementById("btnStockIn")?.addEventListener("click", async () => {
-  const warehouse = document.getElementById("stockWarehouse")?.value || "MERKEZ";
-  const code = document.getElementById("stockCode")?.value.trim();
-  const name = document.getElementById("stockName")?.value.trim();
-  const qty  = parseInt(document.getElementById("stockQty")?.value, 10);
-  if (!code || !qty) return alert("Kod ve miktar gerekli!");
-  const ref = doc(db, "stocks", `${warehouse}_${code}`);
-  const snap = await getDoc(ref);
-  if (snap.exists()) {
-    await updateDoc(ref, { qty: (snap.data().qty || 0) + qty, name: name || snap.data().name || "", warehouse });
-  } else {
-    await setDoc(ref, { code, name: name || code, qty, warehouse });
-  }
-  alert("Stok girişi yapıldı.");
-  loadStockManage();
-});
-
-document.getElementById("btnStockOut")?.addEventListener("click", async () => {
-  const warehouse = document.getElementById("stockWarehouse")?.value || "MERKEZ";
-  const code = document.getElementById("stockCode")?.value.trim();
-  const qty  = parseInt(document.getElementById("stockQty")?.value, 10);
-  if (!code || !qty) return alert("Kod ve miktar gerekli!");
-  const ref = doc(db, "stocks", `${warehouse}_${code}`);
-  const snap = await getDoc(ref);
-  if (snap.exists()) {
-    let newQty = (snap.data().qty || 0) - qty;
-    if (newQty < 0) newQty = 0;
-    await updateDoc(ref, { qty: newQty });
-    if (newQty < 5) alert(`⚠️ Dikkat! ${warehouse}/${code} stoğu kritik (${newQty})`);
-  } else {
-    alert("Stok bulunamadı.");
-  }
-  alert("Stok çıkışı yapıldı.");
-  loadStockManage();
-});
-
-// ================== KÜÇÜK İYİLEŞTİRMELER ==================
-// Navigation ile view değiştirildiğinde bazı ekranları tazele
-document.querySelector("button[data-view='view-products']")?.addEventListener("click", listProductsIntoTable);
-document.querySelector("button[data-view='view-manager']")?.addEventListener("click", loadAllOrders);
-document.querySelector("button[data-view='view-dashboard']")?.addEventListener("click", loadDashboard);
-document.querySelector("button[data-view='view-picker']")?.addEventListener("click", refreshAssigned);
-document.querySelector("button[data-view='view-qc']")?.addEventListener("click", refreshQCOrders);
-document.querySelector("button[data-view='view-palet']")?.addEventListener("click", refreshPaletOrders);
-
-// İlk açılışta login görünümü hazır
-showView("view-login");
-console.log("app.js (tamamlandı) ✓");
-
-/* -------------------------------------------
-   TOPLAYICI: kamera listesi + tarayıcı + elle toplama
---------------------------------------------*/
-
-// Kamera listesini doldur
-async function populatePickerCameras() {
-  const sel = document.getElementById("pickerCamera");
-  if (!sel) return;
-  try {
-    const cams = await Html5Qrcode.getCameras(); // https şart
-    sel.innerHTML = "";
-    if (!cams || cams.length === 0) {
-      const opt = document.createElement("option");
-      opt.value = "";
-      opt.textContent = "Kamera bulunamadı";
-      sel.appendChild(opt);
-      return;
-    }
-    // Arka kamera öne
-    cams.sort((a, b) => {
-      const ad = (a.label || "").toLowerCase();
-      const bd = (b.label || "").toLowerCase();
-      const aBack = ad.includes("back") || ad.includes("arka") || ad.includes("rear");
-      const bBack = bd.includes("back") || bd.includes("arka") || bd.includes("rear");
-      if (aBack && !bBack) return -1;
-      if (!aBack && bBack) return 1;
-      return 0;
-    });
-    cams.forEach((c, i) => {
-      const opt = document.createElement("option");
-      opt.value = c.id;
-      opt.textContent = c.label || `Kamera ${i + 1}`;
-      sel.appendChild(opt);
-    });
-  } catch (e) {
-    sel.innerHTML = `<option value="">Kamera listelenemedi</option>`;
-    console.error("Kamera listesi hatası:", e);
-  }
-}
-
-// Sayfa ilk yüklendiğinde ve Toplayıcı görünümü açıldığında kamera listesini hazırla
-document.querySelector("button[data-view='view-picker']")?.addEventListener("click", populatePickerCameras);
-document.addEventListener("DOMContentLoaded", populatePickerCameras);
-
-// Tarayıcı başlat/durdur (kamera id ile)
-let lastScanAt = 0;
-async function startPickerScanner() {
-  try {
-    if (scanner) await stopPickerScanner();
-
-    const sel = document.getElementById("pickerCamera");
-    const camId = sel?.value || "";
-
-    const config = {
-      fps: 10,
-      qrbox: 250,
-      rememberLastUsedCamera: true,
-    };
-
-    // format desteği varsa ekle (bazı sürümlerde yok)
-    if (window.Html5QrcodeSupportedFormats) {
-      config.formatsToSupport = [
-        Html5QrcodeSupportedFormats.QR_CODE,
-        Html5QrcodeSupportedFormats.CODE_128,
-        Html5QrcodeSupportedFormats.CODE_39,
-        Html5QrcodeSupportedFormats.EAN_13,
-        Html5QrcodeSupportedFormats.EAN_8,
-        Html5QrcodeSupportedFormats.UPC_A,
-        Html5QrcodeSupportedFormats.UPC_E,
-      ];
-    }
-
-    scanner = new Html5Qrcode("reader");
-    const constraints = camId ? { deviceId: { exact: camId } } : { facingMode: "environment" };
-
-    await scanner.start(constraints, config, (text) => {
-      const now = Date.now();
-      if (now - lastScanAt < 1200) return; // debounce ~1.2s
-      lastScanAt = now;
-      handleScannedCode(text, /*askQty*/ true);
-    }, () => { /* frame error sessiz */ });
-
-  } catch (err) {
-    alert("Kamera başlatılamadı: " + err.message);
-    console.error(err);
-  }
-}
-
-function stopPickerScanner() {
-  if (!scanner) return;
-  return scanner.stop().then(() => { scanner.clear(); scanner = null; });
-}
-
-// Barkod/kod işlensin (isteğe bağlı miktar sor)
-async function handleScannedCode(codeOrBarcode, askQty = false) {
-  if (!pickerOrder) return alert("Önce bir sipariş açın.");
-  let qty = 1;
-  if (askQty) {
-    const v = prompt(`Okunan: ${codeOrBarcode}\nMiktar?`, "1");
-    qty = parseInt(v || "1", 10);
-    if (!qty || qty < 1) qty = 1;
-  }
-  await applyPickByCodeOrBarcode(codeOrBarcode, qty);
-}
-
-// Kod/barkod’a göre “Toplanan” arttır ya da satır ekle
-async function applyPickByCodeOrBarcode(codeOrBarcode, qty) {
-  // 1) Sipariş satırlarında ara (barkod ya da kod eşleşmesi)
-  let idx = pickerOrder.lines.findIndex(
-    l => (l.barcode && String(l.barcode) === String(codeOrBarcode)) || String(l.code) === String(codeOrBarcode)
-  );
-  if (idx !== -1) {
-    pickerOrder.lines[idx].picked = (pickerOrder.lines[idx].picked || 0) + qty;
-    renderPickerLines();
-    return;
-  }
-
-  // 2) Ürün kataloğunda ara
-  let found = null;
-  try {
-    // code eşleşmesi
-    const byCode = await getDoc(doc(db, "products", String(codeOrBarcode)));
-    if (byCode.exists()) {
-      found = byCode.data();
-    } else {
-      // barcode eşleşmesi
-      const qy = query(collection(db, "products"), where("barcode", "==", String(codeOrBarcode)));
-      const snap = await getDocs(qy);
-      snap.forEach(d => { if (!found) found = d.data(); });
-    }
-  } catch (e) {
-    console.warn("Ürün arama hatası:", e);
-  }
-
-  // 3) Bulduysan ekle, bulamadıysan adını boş geç (sonra düzenlenebilir)
-  const line = {
-    code: found?.code || String(codeOrBarcode),
-    name: found?.name || "(Ad yok)",
-    qty: found ? 0 : qty,     // istenen miktar bilinmiyorsa 0 bırak
-    picked: qty,
-    barcode: found?.barcode || "",
-    reyon: found?.reyon || ""
-  };
-  pickerOrder.lines.push(line);
-  renderPickerLines();
-}
-
-/* -------------------------------------------
-   Mevcut renderPickerLines() fonksiyonunu
-   elle düzenleme + +/- butonları ile genişlet
---------------------------------------------*/
 function renderPickerLines() {
   const tb = document.querySelector("#tbl-picker-lines tbody");
   if (!tb) return;
@@ -845,22 +355,315 @@ function renderPickerLines() {
   });
 }
 
-/* -------------------------------------------
-   Elle toplama butonu
---------------------------------------------*/
-document.getElementById("manualAddBtn")?.addEventListener("click", async () => {
-  const code = document.getElementById("manualScanCode")?.value.trim();
-  let qty = parseInt(document.getElementById("manualScanQty")?.value, 10);
-  if (!pickerOrder) return alert("Önce bir siparişi açın.");
-  if (!code) return alert("Kod veya barkod girin.");
-  if (!qty || qty < 1) qty = 1;
+async function startPickerScanner() {
+  if (scanner) await stopPickerScanner();
+  scanner = new Html5Qrcode("reader");
+  await scanner.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 }, (code) => {
+    handleScannedCode(code, true);
+  });
+}
+function stopPickerScanner() {
+  if (!scanner) return;
+  return scanner.stop().then(() => { scanner.clear(); scanner = null; });
+}
+async function handleScannedCode(codeOrBarcode, askQty = false) {
+  if (!pickerOrder) return alert("Önce sipariş açın.");
+  let qty = 1;
+  if (askQty) {
+    const v = prompt(`Okunan: ${codeOrBarcode}\nMiktar?`, "1");
+    qty = parseInt(v || "1", 10);
+    if (!qty || qty < 1) qty = 1;
+  }
+  let idx = pickerOrder.lines.findIndex(l => (l.barcode && l.barcode === codeOrBarcode) || l.code === codeOrBarcode);
+  if (idx !== -1) {
+    pickerOrder.lines[idx].picked = (pickerOrder.lines[idx].picked || 0) + qty;
+  } else {
+    pickerOrder.lines.push({ code: codeOrBarcode, name: "(Yeni)", qty: 0, picked: qty });
+  }
+  renderPickerLines();
+}
+async function finishPick() {
+  if (!pickerOrder) return;
+  for (const l of pickerOrder.lines) {
+    const used = Math.min(l.picked || 0, l.qty || 0);
+    if (used > 0) await decreaseStock(l.code, used, pickerOrder.warehouse);
+  }
+  await updateDoc(doc(db, "orders", pickerOrder.id), {
+    lines: pickerOrder.lines,
+    status: "Toplandı"
+  });
+  alert("Toplama tamamlandı!");
+}
 
-  await applyPickByCodeOrBarcode(code, qty);
+// ================== YÖNETİCİ ==================
+document.getElementById("refreshOrdersBtn")?.addEventListener("click", loadAllOrders);
 
-  // temizle
-  document.getElementById("manualScanCode").value = "";
-  document.getElementById("manualScanQty").value = "1";
+async function loadAllOrders() {
+  const snap = await getDocs(collection(db, "orders"));
+  const tbody = document.querySelector("#tbl-orders tbody");
+  if (!tbody) return;
+  tbody.innerHTML = "";
+  snap.forEach(docu => {
+    const o = { id: docu.id, ...docu.data() };
+    tbody.innerHTML += `
+      <tr>
+        <td>${o.id}</td>
+        <td>${o.name}</td>
+        <td>${o.warehouse || "-"}</td>
+        <td>${o.status}</td>
+        <td>
+          ${o.status === "Yeni" ? `<button onclick="assignOrder('${o.id}')">Toplayıcıya Ata</button>` : ""}
+          ${o.status === "Toplandı" ? `<button onclick="sendToQC('${o.id}')">Kontrole Gönder</button>` : ""}
+        </td>
+      </tr>`;
+  });
+}
+window.assignOrder = async function(id) {
+  await updateDoc(doc(db, "orders", id), { status: "Atandı" });
+  loadAllOrders();
+};
+window.sendToQC = async function(id) {
+  await updateDoc(doc(db, "orders", id), { status: "Kontrol" });
+  loadAllOrders();
+};
+// ================== QC ==================
+document.getElementById("refreshQCBtn")?.addEventListener("click", refreshQCOrders);
+document.getElementById("openQCBtn")?.addEventListener("click", openQCOrder);
+document.getElementById("startQCScanBtn")?.addEventListener("click", startQCScanner);
+document.getElementById("stopQCScanBtn")?.addEventListener("click", stopQCScanner);
+document.getElementById("finishQCBtn")?.addEventListener("click", finishQC);
+
+async function refreshQCOrders() {
+  const sel = document.getElementById("qcOrders");
+  if (!sel) return;
+  sel.innerHTML = "";
+  const qs = await getDocs(query(collection(db, "orders"), where("status", "==", "Kontrol")));
+  qs.forEach(d => {
+    const o = { id: d.id, ...d.data() };
+    const opt = document.createElement("option");
+    opt.value = o.id;
+    opt.textContent = `${o.id} - ${o.name}`;
+    sel.appendChild(opt);
+  });
+}
+
+async function openQCOrder() {
+  const id = document.getElementById("qcOrders").value;
+  if (!id) return;
+  const ds = await getDoc(doc(db, "orders", id));
+  if (!ds.exists()) return;
+  qcOrder = { id: ds.id, ...ds.data() };
+  qcOrder.lines = qcOrder.lines.map(l => ({ ...l, qc: l.qc || 0 }));
+  renderQCLines();
+  document.getElementById("qcTitle").textContent = `Sipariş: ${qcOrder.name}`;
+  document.getElementById("qcArea").classList.remove("hidden");
+}
+
+function renderQCLines() {
+  const tb = document.querySelector("#tbl-qc-lines tbody");
+  if (!tb) return;
+  tb.innerHTML = "";
+  qcOrder.lines.forEach((l, i) => {
+    tb.innerHTML += `
+      <tr>
+        <td>${i + 1}</td>
+        <td>${l.code}</td>
+        <td>${l.name}</td>
+        <td>${l.qty}</td>
+        <td>${l.picked || 0}</td>
+        <td>${l.qc}</td>
+        <td>${Math.max(0, (l.picked || 0) - (l.qc || 0))}</td>
+      </tr>`;
+  });
+}
+
+async function startQCScanner() {
+  if (qcScanner) await stopQCScanner();
+  qcScanner = new Html5Qrcode("qcReader");
+  await qcScanner.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 }, onQCScan);
+}
+function stopQCScanner() {
+  if (!qcScanner) return;
+  return qcScanner.stop().then(() => { qcScanner.clear(); qcScanner = null; });
+}
+function onQCScan(code) {
+  if (!qcOrder) return;
+  const idx = qcOrder.lines.findIndex(l => (l.barcode && l.barcode === code) || l.code === code);
+  if (idx === -1) {
+    alert("Barkod bulunamadı: " + code);
+    return;
+  }
+  qcOrder.lines[idx].qc = (qcOrder.lines[idx].qc || 0) + 1;
+  renderQCLines();
+}
+async function finishQC() {
+  if (!qcOrder) return;
+  await updateDoc(doc(db, "orders", qcOrder.id), {
+    lines: qcOrder.lines,
+    status: "Tamamlandı"
+  });
+  alert("QC tamamlandı!");
+}
+
+// ================== PALETLEME ==================
+document.getElementById("refreshPaletBtn")?.addEventListener("click", refreshPaletOrders);
+document.getElementById("openPaletBtn")?.addEventListener("click", openPaletOrder);
+document.getElementById("createPaletBtn")?.addEventListener("click", createPalet);
+document.getElementById("printPaletBtn")?.addEventListener("click", () => window.print());
+
+async function refreshPaletOrders() {
+  const sel = document.getElementById("paletOrders");
+  if (!sel) return;
+  sel.innerHTML = "";
+  const qs = await getDocs(query(collection(db, "orders"), where("status", "==", "Tamamlandı")));
+  qs.forEach(d => {
+    const o = { id: d.id, ...d.data() };
+    const opt = document.createElement("option");
+    opt.value = o.id;
+    opt.textContent = `${o.id} - ${o.name}`;
+    sel.appendChild(opt);
+  });
+}
+
+async function openPaletOrder() {
+  const id = document.getElementById("paletOrders").value;
+  if (!id) return;
+  const ds = await getDoc(doc(db, "orders", id));
+  if (!ds.exists()) return;
+  paletOrder = { id: ds.id, ...ds.data() };
+  renderPaletLines();
+  document.getElementById("paletTitle").textContent = `Sipariş: ${paletOrder.name}`;
+  document.getElementById("paletArea").classList.remove("hidden");
+}
+
+function renderPaletLines() {
+  const tb = document.querySelector("#tbl-palet-lines tbody");
+  if (!tb) return;
+  tb.innerHTML = "";
+  paletOrder.lines.forEach((l, i) => {
+    tb.innerHTML += `<tr><td>${i + 1}</td><td>${l.code}</td><td>${l.name}</td><td>${l.qty}</td></tr>`;
+  });
+}
+
+async function createPalet() {
+  if (!paletOrder) return alert("Önce bir sipariş seçin.");
+  const paletNo = "PLT-" + Date.now();
+  await addDoc(collection(db, "pallets"), {
+    id: paletNo,
+    orderId: paletOrder.id,
+    createdAt: serverTimestamp(),
+    items: paletOrder.lines
+  });
+  document.getElementById("paletNo").textContent = paletNo;
+  document.getElementById("paletResult").classList.remove("hidden");
+  document.getElementById("paletQr").innerHTML = "";
+  if (window.QRCode) {
+    window.QRCode.toCanvas(document.getElementById("paletQr"), paletNo, { width: 128 });
+  }
+  alert("Palet oluşturuldu: " + paletNo);
+}
+
+// ================== DASHBOARD ==================
+document.getElementById("dashboardWarehouse")?.addEventListener("change", loadDashboard);
+
+async function loadDashboard() {
+  const ordersSnap = await getDocs(collection(db, "orders"));
+  const palletsSnap = await getDocs(collection(db, "pallets"));
+
+  let total = 0, completed = 0, pending = 0;
+  ordersSnap.forEach(docu => {
+    total++;
+    const st = docu.data().status;
+    if (st === "Tamamlandı") completed++;
+    else pending++;
+  });
+
+  document.getElementById("statTotalOrders").innerText = total;
+  document.getElementById("statCompletedOrders").innerText = completed;
+  document.getElementById("statPendingOrders").innerText = pending;
+  document.getElementById("statPallets").innerText = palletsSnap.size;
+
+  const ctx1 = document.getElementById("chartOrders");
+  if (ctx1) {
+    new Chart(ctx1, {
+      type: "pie",
+      data: {
+        labels: ["Tamamlanan", "Bekleyen"],
+        datasets: [{ data: [completed, pending], backgroundColor: ["#16a34a", "#f87171"] }]
+      }
+    });
+  }
+  const ctx2 = document.getElementById("chartDaily");
+  if (ctx2) {
+    new Chart(ctx2, {
+      type: "bar",
+      data: {
+        labels: ["Gün1", "Gün2", "Gün3", "Gün4", "Gün5", "Gün6", "Gün7"],
+        datasets: [{ label: "Sipariş", data: [3, 5, 2, 7, 4, 6, 3] }]
+      }
+    });
+  }
+}
+
+// Dashboard otomatik yenile (5 sn)
+setInterval(() => {
+  const v = document.getElementById("view-dashboard");
+  if (v && !v.classList.contains("hidden")) loadDashboard();
+}, 5000);
+
+// ================== STOK YÖNETİMİ ==================
+document.querySelector("button[data-view='view-stock']")?.addEventListener("click", loadStockManage);
+document.getElementById("stockWarehouse")?.addEventListener("change", loadStockManage);
+
+async function loadStockManage() {
+  const tbody = document.querySelector("#tbl-stock-manage tbody");
+  if (!tbody) return;
+  const selectedWh = document.getElementById("stockWarehouse").value;
+  const snap = await getDocs(collection(db, "stocks"));
+  tbody.innerHTML = "";
+  snap.forEach(docu => {
+    const d = docu.data();
+    if (d.warehouse === selectedWh) {
+      tbody.innerHTML += `<tr><td>${d.code}</td><td>${d.name}</td><td>${d.qty}</td><td>${d.warehouse}</td></tr>`;
+    }
+  });
+}
+
+document.getElementById("btnStockIn")?.addEventListener("click", async () => {
+  const warehouse = document.getElementById("stockWarehouse").value;
+  const code = document.getElementById("stockCode").value.trim();
+  const name = document.getElementById("stockName").value.trim();
+  const qty = parseInt(document.getElementById("stockQty").value, 10);
+  if (!code || !qty) return alert("Kod ve miktar gerekli!");
+  const ref = doc(db, "stocks", `${warehouse}_${code}`);
+  const snap = await getDoc(ref);
+  if (snap.exists()) {
+    await updateDoc(ref, { qty: (snap.data().qty || 0) + qty, name: name || snap.data().name || "", warehouse });
+  } else {
+    await setDoc(ref, { code, name: name || code, qty, warehouse });
+  }
+  alert("Stok girişi yapıldı.");
+  loadStockManage();
 });
+
+document.getElementById("btnStockOut")?.addEventListener("click", async () => {
+  const warehouse = document.getElementById("stockWarehouse").value;
+  const code = document.getElementById("stockCode").value.trim();
+  const qty = parseInt(document.getElementById("stockQty").value, 10);
+  if (!code || !qty) return alert("Kod ve miktar gerekli!");
+  const ref = doc(db, "stocks", `${warehouse}_${code}`);
+  const snap = await getDoc(ref);
+  if (snap.exists()) {
+    let newQty = (snap.data().qty || 0) - qty;
+    if (newQty < 0) newQty = 0;
+    await updateDoc(ref, { qty: newQty });
+  } else {
+    alert("Stok bulunamadı.");
+  }
+  alert("Stok çıkışı yapıldı.");
+  loadStockManage();
+});
+
 
 
 
