@@ -1,12 +1,12 @@
 // ================= FIREBASE IMPORT =================
 import { 
-  auth, db,
+  app, auth, db,
   signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged,
   collection, doc, setDoc, getDoc, getDocs, updateDoc, addDoc,
-  query, where, serverTimestamp
+  query, where, orderBy, serverTimestamp
 } from "./firebase.js";
 
-// Excel (SheetJS)
+// Excel (SheetJS) – ürün kataloğu yükleme için
 import * as XLSX from "https://cdn.sheetjs.com/xlsx-0.19.3/package/xlsx.mjs";
 
 // ================== GLOBAL ==================
@@ -16,6 +16,11 @@ let qcScanner = null;
 
 // Şube sipariş taslağı
 let orderDraft = []; // {code, name, qty, barcode?, reyon?}
+
+// Picker/QC/Palet çalışma değişkenleri
+let pickerOrder = null;
+let qcOrder = null;
+let paletOrder = null;
 
 // ================== VIEW DEĞİŞTİR ==================
 function showView(id) {
@@ -27,7 +32,7 @@ document.querySelectorAll("nav button[data-view]").forEach(btn => {
 });
 
 // ================== AUTH ==================
-document.getElementById("loginBtn").addEventListener("click", async () => {
+document.getElementById("loginBtn")?.addEventListener("click", async () => {
   const email = document.getElementById("login-email").value;
   const pass = document.getElementById("login-pass").value;
   try {
@@ -37,7 +42,7 @@ document.getElementById("loginBtn").addEventListener("click", async () => {
   }
 });
 
-document.getElementById("registerBtn").addEventListener("click", async () => {
+document.getElementById("registerBtn")?.addEventListener("click", async () => {
   const email = document.getElementById("reg-email").value;
   const pass = document.getElementById("reg-pass").value;
   const role = document.getElementById("reg-role").value;
@@ -50,18 +55,18 @@ document.getElementById("registerBtn").addEventListener("click", async () => {
   }
 });
 
-document.getElementById("logoutBtn").addEventListener("click", async () => {
+document.getElementById("logoutBtn")?.addEventListener("click", async () => {
   await signOut(auth);
 });
 
 onAuthStateChanged(auth, async (user) => {
   if (user) {
     currentUser = user;
+    // rol
     const udoc = await getDoc(doc(db, "users", user.uid));
     const role = udoc.exists() ? udoc.data().role : "sube";
     document.getElementById("logoutBtn").classList.remove("hidden");
 
-    // Varsayılan açılacak görünüm rolüne göre
     if (role === "sube") showView("view-branch");
     else if (role === "yonetici") showView("view-manager");
     else if (role === "toplayici") showView("view-picker");
@@ -70,7 +75,7 @@ onAuthStateChanged(auth, async (user) => {
     else if (role === "admin") showView("view-products");
     else showView("view-login");
 
-    // Ürün select’ini her girişte tazele
+    // ürün select’i hazırla
     await refreshBranchProductSelect();
   } else {
     currentUser = null;
@@ -79,7 +84,7 @@ onAuthStateChanged(auth, async (user) => {
   }
 });
 
-// ================== ÜRÜN KATALOĞU (Excel, Listeleme) ==================
+// ================== ÜRÜN KATALOĞU (Liste/Excel) ==================
 async function listProductsIntoTable() {
   const tb = document.querySelector("#tbl-products tbody");
   if (!tb) return;
@@ -117,7 +122,7 @@ async function refreshBranchProductSelect() {
   });
 }
 
-document.getElementById("uploadProductsBtn").addEventListener("click", async () => {
+document.getElementById("uploadProductsBtn")?.addEventListener("click", async () => {
   const file = document.getElementById("excelProducts").files?.[0];
   if (!file) return alert("Excel dosyası seç!");
   const reader = new FileReader();
@@ -149,14 +154,12 @@ document.getElementById("uploadProductsBtn").addEventListener("click", async () 
   reader.readAsArrayBuffer(file);
 });
 
-// Ürünler görünümü açıldığında listeyi yükle
-document.querySelector("button[data-view='view-products']").addEventListener("click", async () => {
-  await listProductsIntoTable();
-});
+document.querySelector("button[data-view='view-products']")?.addEventListener("click", listProductsIntoTable);
 
 // ================== ŞUBE: Sipariş Taslağı ==================
 function renderOrderDraft() {
   const tb = document.querySelector("#tbl-branch-lines tbody");
+  if (!tb) return;
   tb.innerHTML = "";
   orderDraft.forEach((l, i) => {
     tb.innerHTML += `<tr>
@@ -169,7 +172,6 @@ function renderOrderDraft() {
       <td><button class="danger" data-del="${i}">Sil</button></td>
     </tr>`;
   });
-  // Sil butonları
   tb.querySelectorAll("button[data-del]").forEach(btn => {
     btn.addEventListener("click", () => {
       const idx = parseInt(btn.dataset.del, 10);
@@ -181,12 +183,11 @@ function renderOrderDraft() {
   });
 }
 
-document.getElementById("addLineBtn").addEventListener("click", () => {
+document.getElementById("addLineBtn")?.addEventListener("click", () => {
   const sel = document.getElementById("branchProduct");
   const qty = parseInt(document.getElementById("branchQty").value, 10) || 0;
   if (!sel.value) return alert("Ürün seçin.");
   if (!qty || qty < 1) return alert("Geçerli miktar girin.");
-
   const opt = sel.options[sel.selectedIndex];
   const line = {
     code: sel.value,
@@ -195,20 +196,21 @@ document.getElementById("addLineBtn").addEventListener("click", () => {
     barcode: opt.dataset.barcode || "",
     reyon: opt.dataset.reyon || ""
   };
-  // aynı koddaysa birleştir
   const existing = orderDraft.find(x => x.code === line.code);
   if (existing) existing.qty += qty;
   else orderDraft.push(line);
   renderOrderDraft();
 });
 
-document.getElementById("createOrderBtn").addEventListener("click", async () => {
+document.getElementById("createOrderBtn")?.addEventListener("click", async () => {
   const name = document.getElementById("orderName").value.trim();
+  const warehouse = document.getElementById("branchWarehouse").value;
   if (!name) return alert("Sipariş adı gir!");
   if (orderDraft.length === 0) return alert("Sipariş satırı ekleyin!");
 
   await addDoc(collection(db, "orders"), {
     name,
+    warehouse,
     status: "Yeni",
     createdBy: currentUser.uid,
     createdAt: serverTimestamp(),
@@ -224,32 +226,35 @@ document.getElementById("createOrderBtn").addEventListener("click", async () => 
 });
 
 async function loadBranchOrders() {
-  const q = query(collection(db, "orders"), where("createdBy", "==", currentUser.uid));
-  const snap = await getDocs(q);
+  const qy = query(collection(db, "orders"), where("createdBy", "==", currentUser.uid));
+  const snap = await getDocs(qy);
   const tbody = document.querySelector("#branchOrders tbody");
+  if (!tbody) return;
   tbody.innerHTML = "";
   snap.forEach(docu => {
     const d = docu.data();
-    tbody.innerHTML += `<tr><td>${docu.id}</td><td>${d.name}</td><td>${d.status}</td></tr>`;
+    tbody.innerHTML += `<tr><td>${docu.id}</td><td>${d.name}</td><td>${d.warehouse || "-"}</td><td>${d.status}</td></tr>`;
   });
 }
-document.querySelector("button[data-view='view-branch']").addEventListener("click", async () => {
+
+document.querySelector("button[data-view='view-branch']")?.addEventListener("click", async () => {
   await refreshBranchProductSelect();
   await loadBranchOrders();
 });
 
 // ================== YÖNETİCİ ==================
-document.getElementById("refreshOrdersBtn").addEventListener("click", loadAllOrders);
+document.getElementById("refreshOrdersBtn")?.addEventListener("click", loadAllOrders);
 
 async function loadAllOrders() {
   const snap = await getDocs(collection(db, "orders"));
   const tbody = document.querySelector("#tbl-orders tbody");
+  if (!tbody) return;
   tbody.innerHTML = "";
   snap.forEach(docu => {
     const o = { id: docu.id, ...docu.data() };
     tbody.innerHTML += `
       <tr>
-        <td>${o.id}</td><td>${o.name}</td><td>${o.status}</td>
+        <td>${o.id}</td><td>${o.name}</td><td>${o.warehouse || "-"}</td><td>${o.status}</td>
         <td>
           ${o.status === "Yeni" ? `<button onclick="assignOrder('${o.id}')">Toplayıcıya Ata</button>` : ""}
           ${o.status === "Toplandı" ? `<button onclick="sendToQC('${o.id}')">Kontrole Gönder</button>` : ""}
@@ -267,16 +272,15 @@ window.sendToQC = async function(id) {
 };
 
 // ================== TOPLAYICI ==================
-document.getElementById("refreshAssignedBtn").addEventListener("click", refreshAssigned);
-document.getElementById("openAssignedBtn").addEventListener("click", openAssigned);
-document.getElementById("startScanBtn").addEventListener("click", startPickerScanner);
-document.getElementById("stopScanBtn").addEventListener("click", stopPickerScanner);
-document.getElementById("finishPickBtn").addEventListener("click", finishPick);
-
-let pickerOrder = null;
+document.getElementById("refreshAssignedBtn")?.addEventListener("click", refreshAssigned);
+document.getElementById("openAssignedBtn")?.addEventListener("click", openAssigned);
+document.getElementById("startScanBtn")?.addEventListener("click", startPickerScanner);
+document.getElementById("stopScanBtn")?.addEventListener("click", stopPickerScanner);
+document.getElementById("finishPickBtn")?.addEventListener("click", finishPick);
 
 async function refreshAssigned() {
   const sel = document.getElementById("assignedOrders");
+  if (!sel) return;
   sel.innerHTML = "";
   const qs = await getDocs(query(collection(db, "orders"), where("status", "==", "Atandı")));
   qs.forEach(d => {
@@ -296,12 +300,13 @@ async function openAssigned() {
   pickerOrder = { id: ds.id, ...ds.data() };
   pickerOrder.lines = pickerOrder.lines.map(l => ({ ...l, picked: l.picked || 0 }));
   renderPickerLines();
-  document.getElementById("pickerTitle").textContent = `Sipariş: ${pickerOrder.name}`;
+  document.getElementById("pickerTitle").textContent = `Sipariş: ${pickerOrder.name} (${pickerOrder.warehouse})`;
   document.getElementById("pickerArea").classList.remove("hidden");
 }
 
 function renderPickerLines() {
   const tb = document.querySelector("#tbl-picker-lines tbody");
+  if (!tb) return;
   tb.innerHTML = "";
   pickerOrder.lines.forEach((l, i) => {
     tb.innerHTML += `
@@ -331,16 +336,15 @@ function onPickerScan(code) {
     alert("Barkod/Kod bulunamadı: " + code);
     return;
   }
-  // ürün bulundu → picked++
   pickerOrder.lines[idx].picked = (pickerOrder.lines[idx].picked || 0) + 1;
   renderPickerLines();
 }
 
 async function finishPick() {
-  // stoktan düş
+  // stoktan düş (depo bazlı)
   for (const l of pickerOrder.lines) {
     const used = Math.min(l.picked || 0, l.qty || 0);
-    if (used > 0) await decreaseStock(l.code, used);
+    if (used > 0) await decreaseStock(l.code, used, pickerOrder.warehouse);
   }
   await updateDoc(doc(db, "orders", pickerOrder.id), {
     lines: pickerOrder.lines,
@@ -349,31 +353,30 @@ async function finishPick() {
   alert("Toplama tamamlandı ve stok güncellendi!");
 }
 
-// stok azaltma
-async function decreaseStock(code, qty) {
-  const ref = doc(db, "stocks", code);
+// stok azaltma (çoklu depo)
+async function decreaseStock(code, qty, warehouse) {
+  const ref = doc(db, "stocks", `${warehouse}_${code}`);
   const snap = await getDoc(ref);
   if (snap.exists()) {
     let newQty = (snap.data().qty || 0) - qty;
     if (newQty < 0) newQty = 0;
     await updateDoc(ref, { qty: newQty });
-    if (newQty < 5) alert(`⚠️ Dikkat! ${code} stoğu kritik seviyede (${newQty})`);
+    if (newQty < 5) alert(`⚠️ Dikkat! ${warehouse}/${code} stoğu kritik (${newQty})`);
   } else {
-    alert(`Stok bulunamadı: ${code}`);
+    alert(`Stok bulunamadı: ${warehouse} - ${code}`);
   }
 }
 
 // ================== QC ==================
-document.getElementById("refreshQCBtn").addEventListener("click", refreshQCOrders);
-document.getElementById("openQCBtn").addEventListener("click", openQCOrder);
-document.getElementById("startQCScanBtn").addEventListener("click", startQCScanner);
-document.getElementById("stopQCScanBtn").addEventListener("click", stopQCScanner);
-document.getElementById("finishQCBtn").addEventListener("click", finishQC);
-
-let qcOrder = null;
+document.getElementById("refreshQCBtn")?.addEventListener("click", refreshQCOrders);
+document.getElementById("openQCBtn")?.addEventListener("click", openQCOrder);
+document.getElementById("startQCScanBtn")?.addEventListener("click", startQCScanner);
+document.getElementById("stopQCScanBtn")?.addEventListener("click", stopQCScanner);
+document.getElementById("finishQCBtn")?.addEventListener("click", finishQC);
 
 async function refreshQCOrders() {
   const sel = document.getElementById("qcOrders");
+  if (!sel) return;
   sel.innerHTML = "";
   const qs = await getDocs(query(collection(db, "orders"), where("status", "==", "Kontrol")));
   qs.forEach(d => {
@@ -399,6 +402,7 @@ async function openQCOrder() {
 
 function renderQCLines() {
   const tb = document.querySelector("#tbl-qc-lines tbody");
+  if (!tb) return;
   tb.innerHTML = "";
   qcOrder.lines.forEach((l, i) => {
     tb.innerHTML += `
@@ -442,15 +446,14 @@ async function finishQC() {
 }
 
 // ================== PALET ==================
-document.getElementById("refreshPaletBtn").addEventListener("click", refreshPaletOrders);
-document.getElementById("openPaletBtn").addEventListener("click", openPaletOrder);
-document.getElementById("createPaletBtn").addEventListener("click", createPalet);
+document.getElementById("refreshPaletBtn")?.addEventListener("click", refreshPaletOrders);
+document.getElementById("openPaletBtn")?.addEventListener("click", openPaletOrder);
+document.getElementById("createPaletBtn")?.addEventListener("click", createPalet);
 document.getElementById("printPaletBtn")?.addEventListener("click", () => window.print());
-
-let paletOrder = null;
 
 async function refreshPaletOrders() {
   const sel = document.getElementById("paletOrders");
+  if (!sel) return;
   sel.innerHTML = "";
   const qs = await getDocs(query(collection(db, "orders"), where("status", "==", "Tamamlandı")));
   qs.forEach(d => {
@@ -475,6 +478,7 @@ async function openPaletOrder() {
 
 function renderPaletLines() {
   const tb = document.querySelector("#tbl-palet-lines tbody");
+  if (!tb) return;
   tb.innerHTML = "";
   paletOrder.lines.forEach((l, i) => {
     tb.innerHTML += `<tr><td>${i + 1}</td><td>${l.code}</td><td>${l.name}</td><td>${l.qty}</td></tr>`;
@@ -499,14 +503,19 @@ async function createPalet() {
 }
 
 // ================== DASHBOARD ==================
+document.getElementById("dashboardWarehouse")?.addEventListener("change", loadDashboard);
+
 async function loadStocksTable() {
   const tb = document.querySelector("#tbl-stocks tbody");
   if (!tb) return;
+  const selectedWh = document.getElementById("dashboardWarehouse")?.value || "MERKEZ";
   const snap = await getDocs(collection(db, "stocks"));
   tb.innerHTML = "";
   snap.forEach(docu => {
     const d = docu.data();
-    tb.innerHTML += `<tr><td>${d.code}</td><td>${d.name}</td><td>${d.qty}</td></tr>`;
+    if (d.warehouse === selectedWh) {
+      tb.innerHTML += `<tr><td>${d.code}</td><td>${d.name}</td><td>${d.qty}</td><td>${d.warehouse}</td></tr>`;
+    }
   });
 }
 
@@ -522,10 +531,10 @@ async function loadDashboard() {
     else pending++;
   });
 
-  document.getElementById("statTotalOrders").textContent = total;
-  document.getElementById("statCompletedOrders").textContent = completed;
-  document.getElementById("statPendingOrders").textContent = pending;
-  document.getElementById("statPallets").textContent = palletsSnap.size;
+  document.getElementById("statTotalOrders")?.innerText = total;
+  document.getElementById("statCompletedOrders")?.innerText = completed;
+  document.getElementById("statPendingOrders")?.innerText = pending;
+  document.getElementById("statPallets")?.innerText = palletsSnap.size;
 
   const ctx1 = document.getElementById("chartOrders");
   if (ctx1) {
@@ -543,51 +552,60 @@ async function loadDashboard() {
   }
   await loadStocksTable();
 }
+// dashboard açıkken periyodik yenile
 setInterval(()=>{
   const v=document.getElementById("view-dashboard");
   if(v && !v.classList.contains("hidden")) loadDashboard();
 },5000);
 
-// ================== STOK YÖNETİMİ (manuel) ==================
+// ================== STOK YÖNETİMİ (manuel, çoklu depo) ==================
+document.querySelector("button[data-view='view-stock']")?.addEventListener("click", loadStockManage);
+
 async function loadStockManage() {
   const tbody = document.querySelector("#tbl-stock-manage tbody");
   if (!tbody) return;
+  const selectedWh = document.getElementById("stockWarehouse")?.value || "MERKEZ";
   const snap = await getDocs(collection(db, "stocks"));
   tbody.innerHTML = "";
   snap.forEach(docu => {
     const d = docu.data();
-    tbody.innerHTML += `<tr><td>${d.code}</td><td>${d.name}</td><td>${d.qty}</td></tr>`;
+    if (d.warehouse === selectedWh) {
+      tbody.innerHTML += `<tr><td>${d.code}</td><td>${d.name}</td><td>${d.qty}</td><td>${d.warehouse}</td></tr>`;
+    }
   });
 }
-document.querySelector("button[data-view='view-stock']").addEventListener("click", loadStockManage);
 
-document.getElementById("btnStockIn").addEventListener("click", async () => {
+document.getElementById("stockWarehouse")?.addEventListener("change", loadStockManage);
+
+document.getElementById("btnStockIn")?.addEventListener("click", async () => {
+  const warehouse = document.getElementById("stockWarehouse").value;
   const code = document.getElementById("stockCode").value.trim();
   const name = document.getElementById("stockName").value.trim();
   const qty  = parseInt(document.getElementById("stockQty").value,10);
   if (!code || !qty) return alert("Kod ve miktar gerekli!");
-  const ref = doc(db, "stocks", code);
+  const ref = doc(db, "stocks", `${warehouse}_${code}`);
   const snap = await getDoc(ref);
   if (snap.exists()) {
-    await updateDoc(ref, { qty: (snap.data().qty || 0) + qty, name: name || snap.data().name || "" });
+    await updateDoc(ref, { qty: (snap.data().qty || 0) + qty, name: name || snap.data().name || "", warehouse });
   } else {
-    await setDoc(ref, { code, name: name || code, qty });
+    await setDoc(ref, { code, name: name || code, qty, warehouse });
   }
   alert("Stok girişi yapıldı.");
   loadStockManage();
 });
 
-document.getElementById("btnStockOut").addEventListener("click", async () => {
+document.getElementById("btnStockOut")?.addEventListener("click", async () => {
+  const warehouse = document.getElementById("stockWarehouse").value;
   const code = document.getElementById("stockCode").value.trim();
   const qty  = parseInt(document.getElementById("stockQty").value,10);
   if (!code || !qty) return alert("Kod ve miktar gerekli!");
-  const ref = doc(db, "stocks", code);
+  const ref = doc(db, "stocks", `${warehouse}_${code}`);
   const snap = await getDoc(ref);
   if (snap.exists()) {
     let newQty = (snap.data().qty || 0) - qty;
     if (newQty < 0) newQty = 0;
     await updateDoc(ref, { qty: newQty });
-    if (newQty < 5) alert(`⚠️ Dikkat! ${code} stoğu kritik seviyede (${newQty})`);
+    if (newQty < 5) alert(`⚠️ Dikkat! ${warehouse}/${code} stoğu kritik (${newQty})`);
   } else {
     alert("Stok bulunamadı.");
   }
