@@ -1,3 +1,6 @@
+document.getElementById("menuToggle")?.addEventListener("click", () => {
+  document.getElementById("mainNav")?.classList.toggle("show");
+});
 // ================= FIREBASE IMPORT =================
 import { 
   app, auth, db,
@@ -26,6 +29,7 @@ function showView(id) {
 document.querySelectorAll("nav button[data-view]").forEach(btn => {
   btn.addEventListener("click", () => showView(btn.dataset.view));
 });
+  
 
 // ================== AUTH ==================
 document.getElementById("loginBtn")?.addEventListener("click", async () => {
