@@ -13,11 +13,7 @@ import * as XLSX from "https://cdn.sheetjs.com/xlsx-0.19.3/package/xlsx.mjs";
 let currentUser = null;
 let scanner = null;
 let qcScanner = null;
-
-// Şube sipariş taslağı
-let orderDraft = []; // {code, name, qty, barcode?, reyon?}
-
-// Picker/QC/Palet çalışma değişkenleri
+let orderDraft = []; // şube sipariş satırları
 let pickerOrder = null;
 let qcOrder = null;
 let paletOrder = null;
@@ -48,7 +44,12 @@ document.getElementById("registerBtn")?.addEventListener("click", async () => {
   const role = document.getElementById("reg-role").value;
   try {
     const userCred = await createUserWithEmailAndPassword(auth, email, pass);
-    await setDoc(doc(db, "users", userCred.user.uid), { email, role });
+    const uid = userCred.user.uid;
+    await setDoc(doc(db, "users", uid), {
+      email,
+      role,
+      createdAt: new Date()
+    });
     alert("Kayıt başarılı!");
   } catch (err) {
     alert("Kayıt hatası: " + err.message);
@@ -62,7 +63,6 @@ document.getElementById("logoutBtn")?.addEventListener("click", async () => {
 onAuthStateChanged(auth, async (user) => {
   if (user) {
     currentUser = user;
-    // rol
     const udoc = await getDoc(doc(db, "users", user.uid));
     const role = udoc.exists() ? udoc.data().role : "sube";
     document.getElementById("logoutBtn").classList.remove("hidden");
@@ -75,7 +75,6 @@ onAuthStateChanged(auth, async (user) => {
     else if (role === "admin") showView("view-products");
     else showView("view-login");
 
-    // ürün select’i hazırla
     await refreshBranchProductSelect();
   } else {
     currentUser = null;
@@ -84,7 +83,7 @@ onAuthStateChanged(auth, async (user) => {
   }
 });
 
-// ================== ÜRÜN KATALOĞU (Liste/Excel) ==================
+// ================== ÜRÜN KATALOĞU ==================
 async function listProductsIntoTable() {
   const tb = document.querySelector("#tbl-products tbody");
   if (!tb) return;
@@ -130,8 +129,7 @@ document.getElementById("uploadProductsBtn")?.addEventListener("click", async ()
     try {
       const wb = XLSX.read(new Uint8Array(e.target.result), { type: "array" });
       const sheet = wb.Sheets[wb.SheetNames[0]];
-      const json = XLSX.utils.sheet_to_json(sheet); // [{code,name,barcode?,reyon?}, ...]
-
+      const json = XLSX.utils.sheet_to_json(sheet);
       let count = 0;
       for (const row of json) {
         if (!row.code || !row.name) continue;
@@ -156,7 +154,7 @@ document.getElementById("uploadProductsBtn")?.addEventListener("click", async ()
 
 document.querySelector("button[data-view='view-products']")?.addEventListener("click", listProductsIntoTable);
 
-// ================== ŞUBE: Sipariş Taslağı ==================
+// ================== ŞUBE SİPARİŞ ==================
 function renderOrderDraft() {
   const tb = document.querySelector("#tbl-branch-lines tbody");
   if (!tb) return;
@@ -242,35 +240,19 @@ document.querySelector("button[data-view='view-branch']")?.addEventListener("cli
   await loadBranchOrders();
 });
 
-// ================== YÖNETİCİ ==================
-document.getElementById("refreshOrdersBtn")?.addEventListener("click", loadAllOrders);
-
-async function loadAllOrders() {
-  const snap = await getDocs(collection(db, "orders"));
-  const tbody = document.querySelector("#tbl-orders tbody");
-  if (!tbody) return;
-  tbody.innerHTML = "";
-  snap.forEach(docu => {
-    const o = { id: docu.id, ...docu.data() };
-    tbody.innerHTML += `
-      <tr>
-        <td>${o.id}</td><td>${o.name}</td><td>${o.warehouse || "-"}</td><td>${o.status}</td>
-        <td>
-          ${o.status === "Yeni" ? `<button onclick="assignOrder('${o.id}')">Toplayıcıya Ata</button>` : ""}
-          ${o.status === "Toplandı" ? `<button onclick="sendToQC('${o.id}')">Kontrole Gönder</button>` : ""}
-        </td>
-      </tr>`;
-  });
+// ================== STOK AZALTMA ==================
+async function decreaseStock(code, qty, warehouse) {
+  const ref = doc(db, "stocks", `${warehouse}_${code}`);
+  const snap = await getDoc(ref);
+  if (snap.exists()) {
+    let newQty = (snap.data().qty || 0) - qty;
+    if (newQty < 0) newQty = 0;
+    await updateDoc(ref, { qty: newQty });
+    if (newQty < 5) alert(`⚠️ Dikkat! ${warehouse}/${code} stoğu kritik (${newQty})`);
+  } else {
+    alert(`Stok bulunamadı: ${warehouse} - ${code}`);
+  }
 }
-window.assignOrder = async function(id) {
-  await updateDoc(doc(db, "orders", id), { status: "Atandı" });
-  loadAllOrders();
-};
-window.sendToQC = async function(id) {
-  await updateDoc(doc(db, "orders", id), { status: "Kontrol" });
-  loadAllOrders();
-};
-
 // ================== TOPLAYICI ==================
 document.getElementById("refreshAssignedBtn")?.addEventListener("click", refreshAssigned);
 document.getElementById("openAssignedBtn")?.addEventListener("click", openAssigned);
@@ -287,7 +269,7 @@ async function refreshAssigned() {
     const o = { id: d.id, ...d.data() };
     const opt = document.createElement("option");
     opt.value = o.id;
-    opt.textContent = `${o.id} - ${o.name}`;
+    opt.textContent = `${o.id} - ${o.name} (${o.warehouse || "-"})`;
     sel.appendChild(opt);
   });
 }
@@ -331,6 +313,7 @@ function stopPickerScanner() {
 }
 
 function onPickerScan(code) {
+  if (!pickerOrder) return;
   const idx = pickerOrder.lines.findIndex(l => (l.barcode && l.barcode === code) || l.code === code);
   if (idx === -1) {
     alert("Barkod/Kod bulunamadı: " + code);
@@ -341,7 +324,8 @@ function onPickerScan(code) {
 }
 
 async function finishPick() {
-  // stoktan düş (depo bazlı)
+  if (!pickerOrder) return;
+  // depo bazlı stok düş
   for (const l of pickerOrder.lines) {
     const used = Math.min(l.picked || 0, l.qty || 0);
     if (used > 0) await decreaseStock(l.code, used, pickerOrder.warehouse);
@@ -353,19 +337,37 @@ async function finishPick() {
   alert("Toplama tamamlandı ve stok güncellendi!");
 }
 
-// stok azaltma (çoklu depo)
-async function decreaseStock(code, qty, warehouse) {
-  const ref = doc(db, "stocks", `${warehouse}_${code}`);
-  const snap = await getDoc(ref);
-  if (snap.exists()) {
-    let newQty = (snap.data().qty || 0) - qty;
-    if (newQty < 0) newQty = 0;
-    await updateDoc(ref, { qty: newQty });
-    if (newQty < 5) alert(`⚠️ Dikkat! ${warehouse}/${code} stoğu kritik (${newQty})`);
-  } else {
-    alert(`Stok bulunamadı: ${warehouse} - ${code}`);
-  }
+// ================== YÖNETİCİ ==================
+document.getElementById("refreshOrdersBtn")?.addEventListener("click", loadAllOrders);
+
+async function loadAllOrders() {
+  const snap = await getDocs(collection(db, "orders"));
+  const tbody = document.querySelector("#tbl-orders tbody");
+  if (!tbody) return;
+  tbody.innerHTML = "";
+  snap.forEach(docu => {
+    const o = { id: docu.id, ...docu.data() };
+    tbody.innerHTML += `
+      <tr>
+        <td>${o.id}</td>
+        <td>${o.name}</td>
+        <td>${o.warehouse || "-"}</td>
+        <td>${o.status}</td>
+        <td>
+          ${o.status === "Yeni" ? `<button onclick="assignOrder('${o.id}')">Toplayıcıya Ata</button>` : ""}
+          ${o.status === "Toplandı" ? `<button onclick="sendToQC('${o.id}')">Kontrole Gönder</button>` : ""}
+        </td>
+      </tr>`;
+  });
 }
+window.assignOrder = async function(id) {
+  await updateDoc(doc(db, "orders", id), { status: "Atandı" });
+  loadAllOrders();
+};
+window.sendToQC = async function(id) {
+  await updateDoc(doc(db, "orders", id), { status: "Kontrol" });
+  loadAllOrders();
+};
 
 // ================== QC ==================
 document.getElementById("refreshQCBtn")?.addEventListener("click", refreshQCOrders);
@@ -383,7 +385,7 @@ async function refreshQCOrders() {
     const o = { id: d.id, ...d.data() };
     const opt = document.createElement("option");
     opt.value = o.id;
-    opt.textContent = `${o.id} - ${o.name}`;
+    opt.textContent = `${o.id} - ${o.name} (${o.warehouse || "-"})`;
     sel.appendChild(opt);
   });
 }
@@ -428,6 +430,7 @@ function stopQCScanner() {
   return qcScanner.stop().then(() => { qcScanner.clear(); qcScanner = null; });
 }
 function onQCScan(code) {
+  if (!qcOrder) return;
   const idx = qcOrder.lines.findIndex(l => (l.barcode && l.barcode === code) || l.code === code);
   if (idx === -1) {
     alert("Barkod yok: " + code);
@@ -438,6 +441,7 @@ function onQCScan(code) {
 }
 
 async function finishQC() {
+  if (!qcOrder) return;
   await updateDoc(doc(db, "orders", qcOrder.id), {
     lines: qcOrder.lines,
     status: "Tamamlandı"
@@ -552,7 +556,8 @@ async function loadDashboard() {
   }
   await loadStocksTable();
 }
-// dashboard açıkken periyodik yenile
+
+// Dashboard açıkken periyodik yenile
 setInterval(()=>{
   const v=document.getElementById("view-dashboard");
   if(v && !v.classList.contains("hidden")) loadDashboard();
@@ -560,6 +565,7 @@ setInterval(()=>{
 
 // ================== STOK YÖNETİMİ (manuel, çoklu depo) ==================
 document.querySelector("button[data-view='view-stock']")?.addEventListener("click", loadStockManage);
+document.getElementById("stockWarehouse")?.addEventListener("change", loadStockManage);
 
 async function loadStockManage() {
   const tbody = document.querySelector("#tbl-stock-manage tbody");
@@ -574,8 +580,6 @@ async function loadStockManage() {
     }
   });
 }
-
-document.getElementById("stockWarehouse")?.addEventListener("change", loadStockManage);
 
 document.getElementById("btnStockIn")?.addEventListener("click", async () => {
   const warehouse = document.getElementById("stockWarehouse").value;
@@ -612,3 +616,5 @@ document.getElementById("btnStockOut")?.addEventListener("click", async () => {
   alert("Stok çıkışı yapıldı.");
   loadStockManage();
 });
+
+
