@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Depo Otomasyonu • Full</title>
+  <title>Depo Otomasyonu • Adım 5</title>
   <link rel="stylesheet" href="style.css"/>
 </head>
 <body>
@@ -15,8 +15,6 @@
       <button data-view="view-picker" class="btn-light">Toplayıcı</button>
       <button data-view="view-qc" class="btn-light">QC</button>
       <button data-view="view-palet" class="btn-light">Paletleme</button>
-      <button data-view="view-dashboard" class="btn-light">Dashboard</button>
-      <button data-view="view-stock" class="btn-light">Stok Yönetimi</button>
       <button data-view="view-products" class="btn-light">Ürünler</button>
       <button data-view="view-login" id="logoutBtn" class="danger hidden">Çıkış</button>
     </nav>
@@ -47,16 +45,6 @@
     <!-- Şube -->
     <section id="view-branch" class="view hidden">
       <h2>🏪 Şube Siparişi</h2>
-
-      <div class="row">
-        <label for="branchWarehouse">Depo:</label>
-        <select id="branchWarehouse">
-          <option value="MERKEZ">MERKEZ</option>
-          <option value="KOCAELİ">KOCAELİ</option>
-          <option value="ADAPAZARI">ADAPAZARI</option>
-        </select>
-      </div>
-
       <div class="card">
         <h3>📥 Satır Ekle</h3>
         <div class="row">
@@ -77,7 +65,7 @@
 
       <h3>🧾 Siparişlerim</h3>
       <table id="branchOrders">
-        <thead><tr><th>ID</th><th>Ad</th><th>Depo</th><th>Durum</th></tr></thead>
+        <thead><tr><th>ID</th><th>Ad</th><th>Durum</th></tr></thead>
         <tbody></tbody>
       </table>
     </section>
@@ -87,7 +75,7 @@
       <h2>👨‍💼 Yönetici Paneli</h2>
       <button id="refreshOrdersBtn" class="btn-light">Yenile</button>
       <table id="tbl-orders">
-        <thead><tr><th>ID</th><th>Ad</th><th>Depo</th><th>Durum</th><th>İşlem</th></tr></thead>
+        <thead><tr><th>ID</th><th>Ad</th><th>Durum</th><th>İşlem</th></tr></thead>
         <tbody></tbody>
       </table>
     </section>
@@ -101,13 +89,11 @@
 
       <div id="pickerArea" class="card hidden">
         <h3 id="pickerTitle">Sipariş:</h3>
-
         <div id="reader"></div>
         <div class="row">
           <button id="startScanBtn">📷 Başlat</button>
           <button id="stopScanBtn" class="btn-light">⛔ Durdur</button>
         </div>
-
         <table id="tbl-picker-lines">
           <thead><tr><th>#</th><th>Kod</th><th>Ürün</th><th>İstenen</th><th>Toplanan</th></tr></thead>
           <tbody></tbody>
@@ -132,19 +118,11 @@
             <button id="startQCScanBtn">📷 Başlat</button>
             <button id="stopQCScanBtn" class="btn-light">⛔ Durdur</button>
           </div>
-          <div class="flex-1">
-            <table id="tbl-qc-lines">
-              <thead>
-                <tr>
-                  <th>#</th><th>Kod</th><th>Ürün</th>
-                  <th>İstenen</th><th>Toplanan</th>
-                  <th>QC</th><th>Eksik</th>
-                </tr>
-              </thead>
-              <tbody></tbody>
-            </table>
-            <button id="finishQCBtn" class="success">Kontrolü Bitir</button>
-          </div>
+          <table id="tbl-qc-lines">
+            <thead><tr><th>#</th><th>Kod</th><th>Ürün</th><th>İstenen</th><th>Toplanan</th><th>QC</th><th>Eksik</th></tr></thead>
+            <tbody></tbody>
+          </table>
+          <button id="finishQCBtn" class="success">Kontrolü Bitir</button>
         </div>
       </div>
     </section>
@@ -172,59 +150,7 @@
       </div>
     </section>
 
-    <!-- Dashboard -->
-    <section id="view-dashboard" class="view hidden">
-      <h2>📊 Dashboard</h2>
-      <div class="row">
-        <label>Depo seç:</label>
-        <select id="dashboardWarehouse">
-          <option value="MERKEZ">MERKEZ</option>
-          <option value="KOCAELİ">KOCAELİ</option>
-          <option value="ADAPAZARI">ADAPAZARI</option>
-        </select>
-      </div>
-
-      <div class="row">
-        <div class="card flex-1"><h3>Toplam Sipariş</h3><p id="statTotalOrders">0</p></div>
-        <div class="card flex-1"><h3>Tamamlanan Sipariş</h3><p id="statCompletedOrders">0</p></div>
-        <div class="card flex-1"><h3>Bekleyen Sipariş</h3><p id="statPendingOrders">0</p></div>
-        <div class="card flex-1"><h3>Palet Sayısı</h3><p id="statPallets">0</p></div>
-      </div>
-
-      <div class="card"><canvas id="chartOrders"></canvas></div>
-      <div class="card"><canvas id="chartDaily"></canvas></div>
-
-      <div class="card">
-        <h3>📦 Stok Durumu</h3>
-        <table id="tbl-stocks">
-          <thead><tr><th>Kod</th><th>Ürün</th><th>Miktar</th><th>Depo</th></tr></thead>
-          <tbody></tbody>
-        </table>
-      </div>
-    </section>
-
-    <!-- Stok Yönetimi -->
-    <section id="view-stock" class="view hidden">
-      <h2>📦 Stok Yönetimi</h2>
-      <div class="row">
-        <select id="stockWarehouse">
-          <option value="MERKEZ">MERKEZ</option>
-          <option value="KOCAELİ">KOCAELİ</option>
-          <option value="ADAPAZARI">ADAPAZARI</option>
-        </select>
-        <input id="stockCode" class="input" placeholder="Ürün Kodu"/>
-        <input id="stockName" class="input" placeholder="Ürün Adı"/>
-        <input id="stockQty" class="input" type="number" placeholder="Miktar"/>
-        <button id="btnStockIn" class="success">Stok Girişi</button>
-        <button id="btnStockOut" class="danger">Stok Çıkışı</button>
-      </div>
-      <table id="tbl-stock-manage">
-        <thead><tr><th>Kod</th><th>Ad</th><th>Miktar</th><th>Depo</th></tr></thead>
-        <tbody></tbody>
-      </table>
-    </section>
-
-    <!-- Ürünler (Katalog & Excel Yükleme) -->
+    <!-- Ürünler -->
     <section id="view-products" class="view hidden">
       <h2>🗂 Ürün Kataloğu</h2>
       <div class="card">
@@ -233,7 +159,6 @@
           <input type="file" id="excelProducts" accept=".xlsx"/>
           <button id="uploadProductsBtn" class="btn-light">Yükle</button>
         </div>
-        <p class="muted">Beklenen sütun başlıkları: <b>code, name</b> (opsiyonel: barcode, reyon)</p>
       </div>
       <table id="tbl-products">
         <thead><tr><th>Kod</th><th>Ad</th><th>Barkod</th><th>Reyon</th></tr></thead>
