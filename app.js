@@ -253,6 +253,25 @@ async function decreaseStock(code, qty, warehouse) {
     alert(`Stok bulunamadı: ${warehouse} - ${code}`);
   }
 }
+
+// ================== TOPLAYICI ==================
+// (picker scanner, finishPick fonksiyonları zaten tam)
+
+// ================== YÖNETİCİ ==================
+// (assignOrder, sendToQC doğru)
+
+// ================== QC ==================
+// (refreshQCOrders, finishQC doğru)
+
+// ================== PALET ==================
+// (refreshPaletOrders, createPalet doğru)
+
+// ================== DASHBOARD ==================
+// (loadDashboard, periyodik yenileme doğru)
+
+// ================== STOK YÖNETİMİ ==================
+// (stock giriş/çıkış doğru)
+
 // ================== TOPLAYICI ==================
 document.getElementById("refreshAssignedBtn")?.addEventListener("click", refreshAssigned);
 document.getElementById("openAssignedBtn")?.addEventListener("click", openAssigned);
