@@ -38,7 +38,7 @@ header h1 {
 
 /* ================= Navbar Butonları ================= */
 nav button {
-  color: #111;              /* yazılar siyah */
+  color: #111;              /* yazılar siyah (desktop) */
   background: #f8fafc;      /* açık gri arka plan */
   border: 1px solid #cbd5e1;
   padding: 8px 12px;
@@ -52,7 +52,7 @@ nav button:hover {
   background: #e2e8f0;      /* hover daha koyu gri */
 }
 
-/* Logout ve danger buton hariç */
+/* Logout (çıkış) ve danger buton */
 #logoutBtn {
   background: #ef4444;
   color: #fff;
@@ -209,23 +209,27 @@ tr:nth-child(even) {
     margin: 8px 0;
     text-align: left;
     width: 100%;
+    color: #fff;       /* mobilde beyaz yazı */
+    background: none;  /* arka planı kaldır */
+    border: none;
   }
-  /* Toplayıcı elle toplama alanı için ufak iyileştirme */
-#tbl-picker-lines input[type="number"] {
-  width: 72px;
-  padding: 4px;
-  text-align: center;
-}
 
-.pill {
-  padding: 4px 8px;
-  border-radius: 999px;
-  border: 1px solid #cbd5e1;
-  background: #f8fafc;
-  cursor: pointer;
-}
-.pill:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
+  /* Toplayıcı elle toplama alanı için ufak iyileştirme */
+  #tbl-picker-lines input[type="number"] {
+    width: 72px;
+    padding: 4px;
+    text-align: center;
+  }
+
+  .pill {
+    padding: 4px 8px;
+    border-radius: 999px;
+    border: 1px solid #cbd5e1;
+    background: #f8fafc;
+    cursor: pointer;
+  }
+  .pill:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
 }
