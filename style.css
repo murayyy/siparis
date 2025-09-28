@@ -177,4 +177,24 @@ tr:nth-child(even) {
     text-align: left;
     color: #fff;
   }
+  /* Navbar butonları için renkler */
+nav button {
+  color: #111;              /* yazılar siyah */
+  background: #f8fafc;      /* açık gri arka plan */
+  border: 1px solid #cbd5e1;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+nav button:hover {
+  background: #e2e8f0;      /* hover daha koyu gri */
+}
+
+/* Logout ve danger buton hariç */
+#logoutBtn {
+  background: #ef4444;
+  color: #fff;
+}
 }
