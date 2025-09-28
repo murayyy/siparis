@@ -210,4 +210,22 @@ tr:nth-child(even) {
     text-align: left;
     width: 100%;
   }
+  /* Toplayıcı elle toplama alanı için ufak iyileştirme */
+#tbl-picker-lines input[type="number"] {
+  width: 72px;
+  padding: 4px;
+  text-align: center;
+}
+
+.pill {
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  cursor: pointer;
+}
+.pill:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
 }
