@@ -79,28 +79,44 @@ onAuthStateChanged(auth, async (user) => {
     currentUser = user;
     document.getElementById("logoutBtn")?.classList.remove("hidden");
 
-    // Rol güvenli okunuyor (doc yoksa patlamasın)
-    let role = "sube";
+    let role = "sube"; // default role
     try {
       const udoc = await getDoc(doc(db, "users", user.uid));
-      if (udoc.exists() && udoc.data()?.role) role = udoc.data().role;
+      if (udoc.exists() && udoc.data()?.role) {
+        role = udoc.data().role;
+      }
     } catch (e) {
       console.warn("Rol okunamadı:", e);
     }
 
-    if      (role === "sube")     showView("view-branch");
-    else if (role === "yonetici") showView("view-manager");
-    else if (role === "toplayici"){ showView("view-picker"); refreshAssigned(); }
-    else if (role === "qc")       showView("view-qc");
-    else if (role === "palet")    showView("view-palet");
-    else if (role === "admin")    { showView("view-products"); listProductsIntoTable(); }
-    else                          showView("view-login");
+    switch (role) {
+      case "sube":
+        showView("view-branch");
+        break;
+      case "yonetici":
+        showView("view-manager");
+        break;
+      case "toplayici":
+        showView("view-picker");
+        await refreshAssigned();
+        break;
+      case "qc":
+        showView("view-qc");
+        break;
+      case "palet":
+        showView("view-palet");
+        break;
+      case "admin":
+        showView("view-products");
+        await listProductsIntoTable();
+        break;
+      default:
+        showView("view-login");
+    }
 
-    // ürün select'i her login’de yenile
     await refreshBranchProductSelect();
   } catch (err) {
-    console.error("onAuthStateChanged hata:", err);
-    alert("Oturum başlatılırken hata oluştu.");
+    console.error("AuthState hata:", err);
     showView("view-login");
   }
 });
