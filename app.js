@@ -5,7 +5,7 @@ document.getElementById("menuToggle")?.addEventListener("click", () => {
 
 // ================= FIREBASE IMPORT =================
 import { 
-  app, auth, db,
+  auth, db,
   signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged,
   collection, doc, setDoc, getDoc, getDocs, updateDoc, addDoc,
   query, where, orderBy, serverTimestamp
