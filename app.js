@@ -8,7 +8,7 @@ import {
   auth, db,
   signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged,
   collection, doc, setDoc, getDoc, getDocs, updateDoc, addDoc,
-  query, where, orderBy, serverTimestamp
+  query, where, serverTimestamp
 } from "./firebase.js";
 
 // Excel (SheetJS) – ürün kataloğu yükleme için
@@ -17,7 +17,6 @@ import * as XLSX from "https://cdn.sheetjs.com/xlsx-0.19.3/package/xlsx.mjs";
 // ================== GLOBAL ==================
 let currentUser = null;
 let scanner = null;
-let qcScanner = null;
 let lastScanAt = 0;
 
 let orderDraft = [];   // şube sipariş satırları
@@ -41,7 +40,8 @@ document.getElementById("loginBtn")?.addEventListener("click", async () => {
   try {
     await signInWithEmailAndPassword(auth, email, pass);
   } catch (err) {
-    alert("Giriş hatası: " + err.message);
+    console.error(err);
+    alert("Giriş hatası: " + (err?.message || err));
   }
 });
 
@@ -57,33 +57,50 @@ document.getElementById("registerBtn")?.addEventListener("click", async () => {
     });
     alert("Kayıt başarılı!");
   } catch (err) {
-    alert("Kayıt hatası: " + err.message);
+    console.error(err);
+    alert("Kayıt hatası: " + (err?.message || err));
   }
 });
 
 document.getElementById("logoutBtn")?.addEventListener("click", async () => {
-  await signOut(auth);
+  try { await signOut(auth); } catch(e){ console.warn(e); }
 });
 
+// >>> BURASI SAĞLAMLAŞTIRILDI
 onAuthStateChanged(auth, async (user) => {
-  if (user) {
+  try {
+    if (!user) {
+      currentUser = null;
+      document.getElementById("logoutBtn")?.classList.add("hidden");
+      showView("view-login");
+      return;
+    }
+
     currentUser = user;
-    const udoc = await getDoc(doc(db, "users", user.uid));
-    const role = udoc.exists() ? udoc.data().role : "sube";
     document.getElementById("logoutBtn")?.classList.remove("hidden");
+
+    // Rol güvenli okunuyor (doc yoksa patlamasın)
+    let role = "sube";
+    try {
+      const udoc = await getDoc(doc(db, "users", user.uid));
+      if (udoc.exists() && udoc.data()?.role) role = udoc.data().role;
+    } catch (e) {
+      console.warn("Rol okunamadı:", e);
+    }
 
     if      (role === "sube")     showView("view-branch");
     else if (role === "yonetici") showView("view-manager");
-    else if (role === "toplayici")showView("view-picker");
+    else if (role === "toplayici"){ showView("view-picker"); refreshAssigned(); }
     else if (role === "qc")       showView("view-qc");
     else if (role === "palet")    showView("view-palet");
-    else if (role === "admin")    showView("view-products");
+    else if (role === "admin")    { showView("view-products"); listProductsIntoTable(); }
     else                          showView("view-login");
 
+    // ürün select'i her login’de yenile
     await refreshBranchProductSelect();
-  } else {
-    currentUser = null;
-    document.getElementById("logoutBtn")?.classList.add("hidden");
+  } catch (err) {
+    console.error("onAuthStateChanged hata:", err);
+    alert("Oturum başlatılırken hata oluştu.");
     showView("view-login");
   }
 });
@@ -108,9 +125,8 @@ async function listProductsIntoTable() {
 async function refreshBranchProductSelect() {
   const sel = document.getElementById("branchProduct");
   if (!sel) return;
-  sel.innerHTML = "";
+  sel.innerHTML = '<option value="">Ürün seçin…</option>';
   const snap = await getDocs(collection(db, "products"));
-  sel.insertAdjacentHTML("beforeend", `<option value="">Ürün seçin…</option>`);
   snap.forEach(d => {
     const p = d.data();
     const opt = document.createElement("option");
@@ -148,7 +164,8 @@ document.getElementById("uploadProductsBtn")?.addEventListener("click", async ()
       await listProductsIntoTable();
       await refreshBranchProductSelect();
     } catch (err) {
-      alert("Excel okuma hatası: " + err.message);
+      console.error(err);
+      alert("Excel okuma hatası: " + (err?.message || err));
     }
   };
   reader.readAsArrayBuffer(file);
@@ -292,7 +309,7 @@ async function populatePickerCameras() {
   const sel = document.getElementById("pickerCamera");
   if (!sel) return;
   try {
-    const cams = await Html5Qrcode.getCameras(); // https şart
+    const cams = await Html5Qrcode.getCameras(); // https şart (http: çalışmaz)
     sel.innerHTML = "";
     if (!cams || cams.length === 0) {
       sel.insertAdjacentHTML("beforeend", `<option value="">Kamera bulunamadı</option>`);
@@ -344,8 +361,8 @@ async function startPickerScanner() {
       handleScannedCode(text, /*askQty*/ true);
     }, () => {});
   } catch (err) {
-    alert("Kamera başlatılamadı: " + err.message);
     console.error(err);
+    alert("Kamera başlatılamadı: " + (err?.message || err));
   }
 }
 function stopPickerScanner() {
@@ -524,7 +541,7 @@ window.sendToQC = async function(id) {
   loadAllOrders();
 };
 
-// ================== QC ==================
+// ================== QC (manuel input ile) ==================
 document.getElementById("refreshQCBtn")?.addEventListener("click", refreshQCOrders);
 document.getElementById("openQCBtn")?.addEventListener("click", openQCOrder);
 
