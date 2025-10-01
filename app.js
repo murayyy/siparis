@@ -24,11 +24,12 @@ document.getElementById("menuToggle")?.addEventListener("click", () => {
 });
 
 // ================= FIREBASE IMPORT =================
+// ================= FIREBASE IMPORT =================
 import { 
-  auth, db,
+  app, auth, db,
   signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged,
   collection, doc, setDoc, getDoc, getDocs, updateDoc, addDoc,
-  query, where, serverTimestamp
+  query, where, orderBy, serverTimestamp
 } from "./firebase.js";
 
 
