@@ -1,7 +1,3 @@
-// ================= NAV (mobil menü) =================
-document.getElementById("menuToggle")?.addEventListener("click", () => {
-  document.getElementById("mainNav")?.classList.toggle("show");
-});
 // ---- SheetJS'i sadece ihtiyaç olduğunda yükle ----
 let XLSX = null;
 async function ensureXLSX() {
@@ -22,6 +18,10 @@ async function ensureXLSX() {
     }
   }
 }
+// ================= NAV (mobil menü) =================
+document.getElementById("menuToggle")?.addEventListener("click", () => {
+  document.getElementById("mainNav")?.classList.toggle("show");
+});
 
 // ================= FIREBASE IMPORT =================
 import { 
