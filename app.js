@@ -67,6 +67,7 @@ document.getElementById("logoutBtn")?.addEventListener("click", async () => {
 });
 
 // >>> BURASI SAĞLAMLAŞTIRILDI
+// ================== AUTH STATE ==================
 onAuthStateChanged(auth, async (user) => {
   try {
     if (!user) {
@@ -79,21 +80,46 @@ onAuthStateChanged(auth, async (user) => {
     currentUser = user;
     document.getElementById("logoutBtn")?.classList.remove("hidden");
 
-    let role = "sube";
+    let role = "sube"; // default
     try {
       const udoc = await getDoc(doc(db, "users", user.uid));
-      if (udoc.exists() && udoc.data()?.role) role = udoc.data().role;
-    } catch (e) {
-      console.warn("Rol okunamadı:", e);
+      if (udoc.exists()) {
+        role = udoc.data().role || "sube";
+      } else {
+        // Eğer hiç kayıt yoksa, varsayılan olarak sube yaz
+        await setDoc(doc(db, "users", user.uid), { role: "sube", email: user.email });
+      }
+    } catch (err) {
+      console.error("Rol okunamadı:", err);
     }
 
-    if      (role === "sube")     showView("view-branch");
-    else if (role === "yonetici") showView("view-manager");
-    else if (role === "toplayici"){ showView("view-picker"); refreshAssigned(); }
-    else if (role === "qc")       showView("view-qc");
-    else if (role === "palet")    showView("view-palet");
-    else if (role === "admin")    { showView("view-products"); listProductsIntoTable(); }
-    else                          showView("view-login");
+    console.log("🔑 Kullanıcı girdi:", user.email, "Rol:", role);
+
+    // Rol bazlı yönlendirme
+    switch (role) {
+      case "sube":
+        showView("view-branch");
+        break;
+      case "yonetici":
+        showView("view-manager");
+        break;
+      case "toplayici":
+        showView("view-picker");
+        await refreshAssigned();
+        break;
+      case "qc":
+        showView("view-qc");
+        break;
+      case "palet":
+        showView("view-palet");
+        break;
+      case "admin":
+        showView("view-products");
+        await listProductsIntoTable();
+        break;
+      default:
+        showView("view-login");
+    }
 
     await refreshBranchProductSelect();
   } catch (err) {
