@@ -2,6 +2,26 @@
 document.getElementById("menuToggle")?.addEventListener("click", () => {
   document.getElementById("mainNav")?.classList.toggle("show");
 });
+// ---- SheetJS'i sadece ihtiyaç olduğunda yükle ----
+let XLSX = null;
+async function ensureXLSX() {
+  if (XLSX) return XLSX;
+  try {
+    // İstersen aşağıdaki URL'yi sabit bırak; yüklenmezse zaten catch'e düşer
+    XLSX = await import("https://cdn.sheetjs.com/xlsx-0.19.3/package/xlsx.mjs");
+    return XLSX;
+  } catch (e) {
+    // Alternatif CDN denemesi (opsiyonel, istersen bırak)
+    try {
+      XLSX = await import("https://cdn.jsdelivr.net/npm/xlsx@0.19.3/+esm");
+      return XLSX;
+    } catch (e2) {
+      console.error("XLSX import edilemedi:", e, e2);
+      alert("Excel kütüphanesi yüklenemedi. İnternet/HTTPS/CDN erişimini kontrol et.");
+      throw e2;
+    }
+  }
+}
 
 // ================= FIREBASE IMPORT =================
 import { 
@@ -11,8 +31,6 @@ import {
   query, where, serverTimestamp
 } from "./firebase.js";
 
-// Excel (SheetJS) – ürün kataloğu yükleme için
-import * as XLSX from "https://cdn.sheetjs.com/xlsx-0.19.3/package/xlsx.mjs";
 
 // ================== GLOBAL ==================
 let currentUser = null;
