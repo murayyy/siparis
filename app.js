@@ -184,6 +184,10 @@ async function refreshBranchProductSelect() {
 document.getElementById("uploadProductsBtn")?.addEventListener("click", async () => {
   const file = document.getElementById("excelProducts").files?.[0];
   if (!file) return alert("Excel dosyası seç!");
+
+  // Excel kütüphanesini burada yükle
+  await ensureXLSX();
+
   const reader = new FileReader();
   reader.onload = async (e) => {
     try {
@@ -207,7 +211,7 @@ document.getElementById("uploadProductsBtn")?.addEventListener("click", async ()
       await refreshBranchProductSelect();
     } catch (err) {
       console.error(err);
-      alert("Excel okuma hatası: " + (err?.message || err));
+      alert("Excel okuma hatası: " + err.message);
     }
   };
   reader.readAsArrayBuffer(file);
