@@ -66,18 +66,20 @@ document.getElementById("logoutBtn")?.addEventListener("click", async () => {
 });
 
 onAuthStateChanged(auth, async (user) => {
-  if (user) {
+  if (!user) { // ❌ kullanıcı yok = çıkış yapılmış
     currentUser = null;
     document.getElementById("logoutBtn")?.classList.add("hidden");
-    document.querySelector("header nav").style.display = "none";  // 🔴 menü gizle
+    document.querySelector("header nav").style.display = "none";  // Menü gizle
     showView("view-login");
     return;
   }
+
+  // ✅ kullanıcı giriş yapmış
   currentUser = user;
-   document.getElementById("logoutBtn")?.classList.remove("hidden");
-   document.querySelector("header nav").style.display = "flex"; // 🟢 login sonrası menü aç
-  
-   // rol oku
+  document.getElementById("logoutBtn")?.classList.remove("hidden");
+  document.querySelector("header nav").style.display = "flex"; // Menü aç
+
+  // rol oku
   let role = "sube";
   try {
     const udoc = await getDoc(doc(db, "users", user.uid));
@@ -86,10 +88,14 @@ onAuthStateChanged(auth, async (user) => {
 
   if (role === "sube") showView("view-branch");
   else if (role === "yonetici") showView("view-manager");
-  else if (role === "toplayici") { showView("view-picker"); refreshAssigned(); }
+  else if (role === "toplayici") { 
+    showView("view-picker"); 
+    refreshAssigned(); 
+  }
   else if (role === "admin") showView("view-products");
   else showView("view-branch");
 });
+
 
 // ================== ÜRÜN KATALOĞU ==================
 async function listProductsIntoTable() {
