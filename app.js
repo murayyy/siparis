@@ -70,32 +70,36 @@ onAuthStateChanged(auth, async (user) => {
     // ❌ Kullanıcı giriş yapmamış
     currentUser = null;
     document.getElementById("logoutBtn")?.classList.add("hidden");
-    document.querySelector("header nav").style.display = "none";  
-    showView("view-login");   // 🔑 Her durumda login ekranı gelsin
+    document.querySelector("header nav").classList.add("hidden");  
+    showView("view-login");   // 🔑 Sadece login ekranı görünsün
     return;
   }
 
   // ✅ Kullanıcı giriş yapmış
   currentUser = user;
   document.getElementById("logoutBtn")?.classList.remove("hidden");
-  document.querySelector("header nav").style.display = "flex"; 
+  document.querySelector("header nav").classList.remove("hidden"); 
 
-  // Rol oku
+  // 🔑 Rol oku
   let role = "sube";
   try {
     const udoc = await getDoc(doc(db, "users", user.uid));
     if (udoc.exists() && udoc.data().role) {
       role = udoc.data().role;
     }
-  } catch (e) { console.warn("Rol okunamadı:", e); }
+  } catch (e) { 
+    console.warn("Rol okunamadı:", e); 
+  }
 
-  // 🎯 Giriş yaptıktan SONRA rolüne göre yönlendir
+  // 🎯 Kullanıcı giriş yaptıktan SONRA yönlendirme
   if (role === "sube") showView("view-branch");
   else if (role === "yonetici") showView("view-manager");
   else if (role === "toplayici") { 
     showView("view-picker"); 
     refreshAssigned(); 
   }
+  else if (role === "qc") showView("view-qc");
+  else if (role === "palet") showView("view-palet");
   else if (role === "admin") showView("view-products");
   else showView("view-branch");
 });
