@@ -283,6 +283,7 @@ document.getElementById("openAssignedBtn")?.addEventListener("click", openAssign
 document.getElementById("startScanBtn")?.addEventListener("click", startPickerScanner);
 document.getElementById("stopScanBtn")?.addEventListener("click", stopPickerScanner);
 document.getElementById("finishPickBtn")?.addEventListener("click", finishPick);
+document.getElementById("manualAddBtn")?.addEventListener("click", manualAdd); // ✅ elle ekleme
 
 async function refreshAssigned() {
   const sel = document.getElementById("assignedOrders");
@@ -397,6 +398,27 @@ async function handleScannedCode(codeOrBarcode, askQty = false) {
   }
   renderPickerLines();
 }
+
+// ✅ Elle ekleme
+function manualAdd() {
+  if (!pickerOrder) return alert("Önce sipariş seçin!");
+  const code = document.getElementById("manualScanCode").value.trim();
+  let qty = parseInt(document.getElementById("manualScanQty").value, 10);
+  if (!code) return alert("Kod veya barkod girin!");
+  if (!qty || qty < 1) qty = 1;
+
+  let idx = pickerOrder.lines.findIndex(l => l.code === code || l.barcode === code);
+  if (idx !== -1) {
+    pickerOrder.lines[idx].picked = (pickerOrder.lines[idx].picked || 0) + qty;
+  } else {
+    pickerOrder.lines.push({ code: code, name: "(Elle Eklendi)", qty: 0, picked: qty });
+  }
+
+  renderPickerLines();
+  document.getElementById("manualScanCode").value = "";
+  document.getElementById("manualScanQty").value = "1";
+}
+
 async function finishPick() {
   if (!pickerOrder) return;
   for (const l of pickerOrder.lines) {
