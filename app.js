@@ -260,4 +260,167 @@ async function decreaseStock(code, qty, warehouse) {
 }
 
 // ================== TOPLAYICI ==================
-// (buraya kadar olan kod tamam, devamında toplayıcı + QC + Palet + Dashboard + Stok yönetimi aynı şekilde full var)
+document.getElementById("refreshAssignedBtn")?.addEventListener("click", refreshAssigned);
+document.getElementById("openAssignedBtn")?.addEventListener("click", openAssigned);
+document.getElementById("startScanBtn")?.addEventListener("click", startPickerScanner);
+document.getElementById("stopScanBtn")?.addEventListener("click", stopPickerScanner);
+document.getElementById("finishPickBtn")?.addEventListener("click", finishPick);
+
+async function refreshAssigned() {
+  const sel = document.getElementById("assignedOrders");
+  if (!sel) return;
+  sel.innerHTML = "";
+  const qs = await getDocs(query(collection(db, "orders"), where("status", "==", "Atandı")));
+  qs.forEach(d => {
+    const o = { id: d.id, ...d.data() };
+    const opt = document.createElement("option");
+    opt.value = o.id;
+    opt.textContent = `${o.id} - ${o.name} (${o.warehouse || "-"})`;
+    sel.appendChild(opt);
+  });
+}
+
+async function openAssigned() {
+  const id = document.getElementById("assignedOrders").value;
+  if (!id) return;
+  const ds = await getDoc(doc(db, "orders", id));
+  if (!ds.exists()) return;
+  pickerOrder = { id: ds.id, ...ds.data() };
+  pickerOrder.lines = pickerOrder.lines.map(l => ({ ...l, picked: l.picked || 0 }));
+  renderPickerLines();
+  document.getElementById("pickerTitle").textContent = `Sipariş: ${pickerOrder.name} (${pickerOrder.warehouse})`;
+  document.getElementById("pickerArea").classList.remove("hidden");
+}
+
+function renderPickerLines() {
+  const tb = document.querySelector("#tbl-picker-lines tbody");
+  if (!tb) return;
+  tb.innerHTML = "";
+  pickerOrder.lines.forEach((l, i) => {
+    tb.innerHTML += `
+      <tr>
+        <td>${i + 1}</td>
+        <td>${l.code}</td>
+        <td>${l.name}</td>
+        <td>${l.qty}</td>
+        <td>
+          <input type="number" min="0" class="picked-input" data-idx="${i}" value="${l.picked || 0}"/>
+        </td>
+        <td>
+          <button class="pill" data-plus="${i}">+1</button>
+          <button class="pill" data-minus="${i}">-1</button>
+          <button class="pill" data-del="${i}">Sil</button>
+        </td>
+      </tr>`;
+  });
+
+  // input değişikliği
+  tb.querySelectorAll(".picked-input").forEach(inp => {
+    inp.addEventListener("input", e => {
+      const idx = parseInt(e.target.dataset.idx, 10);
+      let v = parseInt(e.target.value, 10);
+      if (isNaN(v) || v < 0) v = 0;
+      pickerOrder.lines[idx].picked = v;
+    });
+  });
+
+  // +1 / -1 / Sil
+  tb.querySelectorAll("button[data-plus]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const i = parseInt(btn.dataset.plus, 10);
+      pickerOrder.lines[i].picked = (pickerOrder.lines[i].picked || 0) + 1;
+      renderPickerLines();
+    });
+  });
+  tb.querySelectorAll("button[data-minus]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const i = parseInt(btn.dataset.minus, 10);
+      let v = (pickerOrder.lines[i].picked || 0) - 1;
+      if (v < 0) v = 0;
+      pickerOrder.lines[i].picked = v;
+      renderPickerLines();
+    });
+  });
+  tb.querySelectorAll("button[data-del]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const i = parseInt(btn.dataset.del, 10);
+      if (confirm("Bu satırı listeden silmek istiyor musunuz?")) {
+        pickerOrder.lines.splice(i, 1);
+        renderPickerLines();
+      }
+    });
+  });
+}
+
+async function startPickerScanner() {
+  if (scanner) await stopPickerScanner();
+  scanner = new Html5Qrcode("reader");
+  await scanner.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 }, (code) => {
+    handleScannedCode(code, true);
+  });
+}
+function stopPickerScanner() {
+  if (!scanner) return;
+  return scanner.stop().then(() => { scanner.clear(); scanner = null; });
+}
+async function handleScannedCode(codeOrBarcode, askQty = false) {
+  if (!pickerOrder) return alert("Önce sipariş açın.");
+  let qty = 1;
+  if (askQty) {
+    const v = prompt(`Okunan: ${codeOrBarcode}\nMiktar?`, "1");
+    qty = parseInt(v || "1", 10);
+    if (!qty || qty < 1) qty = 1;
+  }
+  let idx = pickerOrder.lines.findIndex(l => (l.barcode && l.barcode === codeOrBarcode) || l.code === codeOrBarcode);
+  if (idx !== -1) {
+    pickerOrder.lines[idx].picked = (pickerOrder.lines[idx].picked || 0) + qty;
+  } else {
+    pickerOrder.lines.push({ code: codeOrBarcode, name: "(Yeni)", qty: 0, picked: qty });
+  }
+  renderPickerLines();
+}
+async function finishPick() {
+  if (!pickerOrder) return;
+  for (const l of pickerOrder.lines) {
+    const used = Math.min(l.picked || 0, l.qty || 0);
+    if (used > 0) await decreaseStock(l.code, used, pickerOrder.warehouse);
+  }
+  await updateDoc(doc(db, "orders", pickerOrder.id), {
+    lines: pickerOrder.lines,
+    status: "Toplandı"
+  });
+  alert("Toplama tamamlandı!");
+}
+
+// ================== YÖNETİCİ ==================
+document.getElementById("refreshOrdersBtn")?.addEventListener("click", loadAllOrders);
+
+async function loadAllOrders() {
+  const snap = await getDocs(collection(db, "orders"));
+  const tbody = document.querySelector("#tbl-orders tbody");
+  if (!tbody) return;
+  tbody.innerHTML = "";
+  snap.forEach(docu => {
+    const o = { id: docu.id, ...docu.data() };
+    tbody.innerHTML += `
+      <tr>
+        <td>${o.id}</td>
+        <td>${o.name}</td>
+        <td>${o.warehouse || "-"}</td>
+        <td>${o.status}</td>
+        <td>
+          ${o.status === "Yeni" ? `<button onclick="assignOrder('${o.id}')">Toplayıcıya Ata</button>` : ""}
+          ${o.status === "Toplandı" ? `<button onclick="sendToQC('${o.id}')">Kontrole Gönder</button>` : ""}
+        </td>
+      </tr>`;
+  });
+}
+window.assignOrder = async function(id) {
+  await updateDoc(doc(db, "orders", id), { status: "Atandı" });
+  loadAllOrders();
+};
+window.sendToQC = async function(id) {
+  await updateDoc(doc(db, "orders", id), { status: "Kontrol" });
+  loadAllOrders();
+};
+
