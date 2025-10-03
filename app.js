@@ -424,3 +424,240 @@ window.sendToQC = async function(id) {
   loadAllOrders();
 };
 
+// ================== QC ==================
+document.getElementById("refreshQCBtn")?.addEventListener("click", refreshQCOrders);
+document.getElementById("openQCBtn")?.addEventListener("click", openQCOrder);
+document.getElementById("startQCScanBtn")?.addEventListener("click", startQCScanner);
+document.getElementById("stopQCScanBtn")?.addEventListener("click", stopQCScanner);
+document.getElementById("finishQCBtn")?.addEventListener("click", finishQC);
+
+async function refreshQCOrders() {
+  const sel = document.getElementById("qcOrders");
+  if (!sel) return;
+  sel.innerHTML = "";
+  const qs = await getDocs(query(collection(db, "orders"), where("status", "==", "Kontrol")));
+  qs.forEach(d => {
+    const o = { id: d.id, ...d.data() };
+    const opt = document.createElement("option");
+    opt.value = o.id;
+    opt.textContent = `${o.id} - ${o.name}`;
+    sel.appendChild(opt);
+  });
+}
+
+async function openQCOrder() {
+  const id = document.getElementById("qcOrders").value;
+  if (!id) return;
+  const ds = await getDoc(doc(db, "orders", id));
+  if (!ds.exists()) return;
+  qcOrder = { id: ds.id, ...ds.data() };
+  qcOrder.lines = qcOrder.lines.map(l => ({ ...l, qc: l.qc || 0 }));
+  renderQCLines();
+  document.getElementById("qcTitle").textContent = `Sipariş: ${qcOrder.name}`;
+  document.getElementById("qcArea").classList.remove("hidden");
+}
+
+function renderQCLines() {
+  const tb = document.querySelector("#tbl-qc-lines tbody");
+  if (!tb) return;
+  tb.innerHTML = "";
+  qcOrder.lines.forEach((l, i) => {
+    tb.innerHTML += `
+      <tr>
+        <td>${i + 1}</td>
+        <td>${l.code}</td>
+        <td>${l.name}</td>
+        <td>${l.qty}</td>
+        <td>${l.picked || 0}</td>
+        <td>${l.qc}</td>
+        <td>${Math.max(0, (l.picked || 0) - (l.qc || 0))}</td>
+      </tr>`;
+  });
+}
+
+async function startQCScanner() {
+  if (qcScanner) await stopQCScanner();
+  qcScanner = new Html5Qrcode("qcReader");
+  await qcScanner.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 }, onQCScan);
+}
+function stopQCScanner() {
+  if (!qcScanner) return;
+  return qcScanner.stop().then(() => { qcScanner.clear(); qcScanner = null; });
+}
+function onQCScan(code) {
+  if (!qcOrder) return;
+  const idx = qcOrder.lines.findIndex(l => (l.barcode && l.barcode === code) || l.code === code);
+  if (idx === -1) {
+    alert("Barkod bulunamadı: " + code);
+    return;
+  }
+  qcOrder.lines[idx].qc = (qcOrder.lines[idx].qc || 0) + 1;
+  renderQCLines();
+}
+async function finishQC() {
+  if (!qcOrder) return;
+  await updateDoc(doc(db, "orders", qcOrder.id), {
+    lines: qcOrder.lines,
+    status: "Tamamlandı"
+  });
+  alert("QC tamamlandı!");
+}
+
+// ================== PALETLEME ==================
+document.getElementById("refreshPaletBtn")?.addEventListener("click", refreshPaletOrders);
+document.getElementById("openPaletBtn")?.addEventListener("click", openPaletOrder);
+document.getElementById("createPaletBtn")?.addEventListener("click", createPalet);
+document.getElementById("printPaletBtn")?.addEventListener("click", () => window.print());
+
+async function refreshPaletOrders() {
+  const sel = document.getElementById("paletOrders");
+  if (!sel) return;
+  sel.innerHTML = "";
+  const qs = await getDocs(query(collection(db, "orders"), where("status", "==", "Tamamlandı")));
+  qs.forEach(d => {
+    const o = { id: d.id, ...d.data() };
+    const opt = document.createElement("option");
+    opt.value = o.id;
+    opt.textContent = `${o.id} - ${o.name}`;
+    sel.appendChild(opt);
+  });
+}
+
+async function openPaletOrder() {
+  const id = document.getElementById("paletOrders").value;
+  if (!id) return;
+  const ds = await getDoc(doc(db, "orders", id));
+  if (!ds.exists()) return;
+  paletOrder = { id: ds.id, ...ds.data() };
+  renderPaletLines();
+  document.getElementById("paletTitle").textContent = `Sipariş: ${paletOrder.name}`;
+  document.getElementById("paletArea").classList.remove("hidden");
+}
+
+function renderPaletLines() {
+  const tb = document.querySelector("#tbl-palet-lines tbody");
+  if (!tb) return;
+  tb.innerHTML = "";
+  paletOrder.lines.forEach((l, i) => {
+    tb.innerHTML += `<tr><td>${i + 1}</td><td>${l.code}</td><td>${l.name}</td><td>${l.qty}</td></tr>`;
+  });
+}
+
+async function createPalet() {
+  if (!paletOrder) return alert("Önce bir sipariş seçin.");
+  const paletNo = "PLT-" + Date.now();
+  await addDoc(collection(db, "pallets"), {
+    id: paletNo,
+    orderId: paletOrder.id,
+    createdAt: serverTimestamp(),
+    items: paletOrder.lines
+  });
+  document.getElementById("paletNo").textContent = paletNo;
+  document.getElementById("paletResult").classList.remove("hidden");
+  document.getElementById("paletQr").innerHTML = "";
+  if (window.QRCode) {
+    window.QRCode.toCanvas(document.getElementById("paletQr"), paletNo, { width: 128 });
+  }
+  alert("Palet oluşturuldu: " + paletNo);
+}
+
+// ================== DASHBOARD ==================
+document.getElementById("dashboardWarehouse")?.addEventListener("change", loadDashboard);
+
+async function loadDashboard() {
+  const ordersSnap = await getDocs(collection(db, "orders"));
+  const palletsSnap = await getDocs(collection(db, "pallets"));
+
+  let total = 0, completed = 0, pending = 0;
+  ordersSnap.forEach(docu => {
+    total++;
+    const st = docu.data().status;
+    if (st === "Tamamlandı") completed++;
+    else pending++;
+  });
+
+  document.getElementById("statTotalOrders").innerText = total;
+  document.getElementById("statCompletedOrders").innerText = completed;
+  document.getElementById("statPendingOrders").innerText = pending;
+  document.getElementById("statPallets").innerText = palletsSnap.size;
+
+  const ctx1 = document.getElementById("chartOrders");
+  if (ctx1) {
+    new Chart(ctx1, {
+      type: "pie",
+      data: {
+        labels: ["Tamamlanan", "Bekleyen"],
+        datasets: [{ data: [completed, pending], backgroundColor: ["#16a34a", "#f87171"] }]
+      }
+    });
+  }
+  const ctx2 = document.getElementById("chartDaily");
+  if (ctx2) {
+    new Chart(ctx2, {
+      type: "bar",
+      data: {
+        labels: ["Gün1", "Gün2", "Gün3", "Gün4", "Gün5", "Gün6", "Gün7"],
+        datasets: [{ label: "Sipariş", data: [3, 5, 2, 7, 4, 6, 3] }]
+      }
+    });
+  }
+}
+
+// Dashboard otomatik yenile (5 sn)
+setInterval(() => {
+  const v = document.getElementById("view-dashboard");
+  if (v && !v.classList.contains("hidden")) loadDashboard();
+}, 5000);
+
+// ================== STOK YÖNETİMİ ==================
+document.querySelector("button[data-view='view-stock']")?.addEventListener("click", loadStockManage);
+document.getElementById("stockWarehouse")?.addEventListener("change", loadStockManage);
+
+async function loadStockManage() {
+  const tbody = document.querySelector("#tbl-stock-manage tbody");
+  if (!tbody) return;
+  const selectedWh = document.getElementById("stockWarehouse").value;
+  const snap = await getDocs(collection(db, "stocks"));
+  tbody.innerHTML = "";
+  snap.forEach(docu => {
+    const d = docu.data();
+    if (d.warehouse === selectedWh) {
+      tbody.innerHTML += `<tr><td>${d.code}</td><td>${d.name}</td><td>${d.qty}</td><td>${d.warehouse}</td></tr>`;
+    }
+  });
+}
+
+document.getElementById("btnStockIn")?.addEventListener("click", async () => {
+  const warehouse = document.getElementById("stockWarehouse").value;
+  const code = document.getElementById("stockCode").value.trim();
+  const name = document.getElementById("stockName").value.trim();
+  const qty = parseInt(document.getElementById("stockQty").value, 10);
+  if (!code || !qty) return alert("Kod ve miktar gerekli!");
+  const ref = doc(db, "stocks", `${warehouse}_${code}`);
+  const snap = await getDoc(ref);
+  if (snap.exists()) {
+    await updateDoc(ref, { qty: (snap.data().qty || 0) + qty, name: name || snap.data().name || "", warehouse });
+  } else {
+    await setDoc(ref, { code, name: name || code, qty, warehouse });
+  }
+  alert("Stok girişi yapıldı.");
+  loadStockManage();
+});
+
+document.getElementById("btnStockOut")?.addEventListener("click", async () => {
+  const warehouse = document.getElementById("stockWarehouse").value;
+  const code = document.getElementById("stockCode").value.trim();
+  const qty = parseInt(document.getElementById("stockQty").value, 10);
+  if (!code || !qty) return alert("Kod ve miktar gerekli!");
+  const ref = doc(db, "stocks", `${warehouse}_${code}`);
+  const snap = await getDoc(ref);
+  if (snap.exists()) {
+    let newQty = (snap.data().qty || 0) - qty;
+    if (newQty < 0) newQty = 0;
+    await updateDoc(ref, { qty: newQty });
+  } else {
+    alert("Stok bulunamadı.");
+  }
+  alert("Stok çıkışı yapıldı.");
+  loadStockManage();
+});
