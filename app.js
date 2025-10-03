@@ -67,25 +67,28 @@ document.getElementById("logoutBtn")?.addEventListener("click", async () => {
 
 onAuthStateChanged(auth, async (user) => {
   if (user) {
-    currentUser = user;
-    const udoc = await getDoc(doc(db, "users", user.uid));
-    const role = udoc.exists() ? udoc.data().role : "sube";
-    document.getElementById("logoutBtn").classList.remove("hidden");
-
-    if (role === "sube") showView("view-branch");
-    else if (role === "yonetici") showView("view-manager");
-    else if (role === "toplayici") showView("view-picker");
-    else if (role === "qc") showView("view-qc");
-    else if (role === "palet") showView("view-palet");
-    else if (role === "admin") showView("view-products");
-    else showView("view-login");
-
-    await refreshBranchProductSelect();
-  } else {
     currentUser = null;
-    document.getElementById("logoutBtn").classList.add("hidden");
+    document.getElementById("logoutBtn")?.classList.add("hidden");
+    document.querySelector("header nav").style.display = "none";  // 🔴 menü gizle
     showView("view-login");
+    return;
   }
+  currentUser = user;
+   document.getElementById("logoutBtn")?.classList.remove("hidden");
+   document.querySelector("header nav").style.display = "flex"; // 🟢 login sonrası menü aç
+  
+   // rol oku
+  let role = "sube";
+  try {
+    const udoc = await getDoc(doc(db, "users", user.uid));
+    if (udoc.exists() && udoc.data().role) role = udoc.data().role;
+  } catch (e) { console.warn("Rol okunamadı:", e); }
+
+  if (role === "sube") showView("view-branch");
+  else if (role === "yonetici") showView("view-manager");
+  else if (role === "toplayici") { showView("view-picker"); refreshAssigned(); }
+  else if (role === "admin") showView("view-products");
+  else showView("view-branch");
 });
 
 // ================== ÜRÜN KATALOĞU ==================
