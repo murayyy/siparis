@@ -14,7 +14,7 @@
   <header>
     <h1>📦 Depo Otomasyonu</h1>
     <button id="menuToggle" class="menu-btn">☰</button>
-    <nav id="mainNav" class="nav-menu">
+    <nav id="mainNav" class="nav-menu hidden">
       <button data-view="view-branch" class="btn-light">Şube</button>
       <button data-view="view-manager" class="btn-light">Yönetici</button>
       <button data-view="view-picker" class="btn-light">Toplayıcı</button>
@@ -30,15 +30,6 @@
   <main>
     <!-- Login -->
     <section id="view-login" class="view">
-      <section id="view-branch" class="view hidden">...</section>
-<section id="view-manager" class="view hidden">...</section>
-<section id="view-picker" class="view hidden">...</section>
-<section id="view-qc" class="view hidden">...</section>
-<section id="view-palet" class="view hidden">...</section>
-<section id="view-dashboard" class="view hidden">...</section>
-<section id="view-stock" class="view hidden">...</section>
-<section id="view-products" class="view hidden">...</section>
-
       <h2>🔑 Giriş</h2>
       <input type="email" id="login-email" placeholder="Email"/><br/>
       <input type="password" id="login-pass" placeholder="Şifre"/><br/>
@@ -121,9 +112,7 @@
           <button id="startScanBtn">📷 Başlat</button>
           <button id="stopScanBtn" class="btn-light">⛔ Durdur</button>
         </div>
-        <!-- Barkod tarayıcı alanı -->
         <div id="reader" style="width:300px; margin:10px auto;"></div>
-        <!-- Elle toplama -->
         <div class="card">
           <h3>✍️ Elle Toplama & Ürün Ekle</h3>
           <div class="row">
