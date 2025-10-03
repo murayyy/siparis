@@ -1,10 +1,13 @@
-// ================= NAV (mobil menü) =================
+// app.js — Tam, güncel, tek dosya
+
+// NAV (mobil menü) toggle
 document.getElementById("menuToggle")?.addEventListener("click", () => {
   document.getElementById("mainNav")?.classList.toggle("show");
 });
 
 // ================= FIREBASE IMPORT =================
-import { 
+// Beklenen: firebase.js şu isimleri export ediyor: app, auth, db, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, collection, doc, setDoc, getDoc, getDocs, updateDoc, addDoc, query, where, orderBy, serverTimestamp
+import {
   app, auth, db,
   signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged,
   collection, doc, setDoc, getDoc, getDocs, updateDoc, addDoc,
@@ -41,7 +44,8 @@ document.getElementById("loginBtn")?.addEventListener("click", async () => {
   try {
     await signInWithEmailAndPassword(auth, email, pass);
   } catch (err) {
-    alert("Giriş hatası: " + err.message);
+    alert("Giriş hatası: " + (err.message || err));
+    console.error(err);
   }
 });
 
@@ -57,69 +61,100 @@ document.getElementById("registerBtn")?.addEventListener("click", async () => {
     });
     alert("Kayıt başarılı!");
   } catch (err) {
-    alert("Kayıt hatası: " + err.message);
+    alert("Kayıt hatası: " + (err.message || err));
+    console.error(err);
   }
 });
 
 document.getElementById("logoutBtn")?.addEventListener("click", async () => {
-  await signOut(auth);
+  try {
+    await signOut(auth);
+  } catch (e) {
+    console.error("Sign out error:", e);
+  }
 });
 
+// Daha güvenli onAuthStateChanged (hata yakalama + rol güvenliği)
 onAuthStateChanged(auth, async (user) => {
-  if (user) {
+  try {
+    if (!user) {
+      currentUser = null;
+      document.getElementById("logoutBtn")?.classList.add("hidden");
+      showView("view-login");
+      return;
+    }
+
     currentUser = user;
-    const udoc = await getDoc(doc(db, "users", user.uid));
-    const role = udoc.exists() ? udoc.data().role : "sube";
     document.getElementById("logoutBtn")?.classList.remove("hidden");
 
-    if      (role === "sube")     showView("view-branch");
-    else if (role === "yonetici") showView("view-manager");
-    else if (role === "toplayici")showView("view-picker");
-    else if (role === "qc")       showView("view-qc");
-    else if (role === "palet")    showView("view-palet");
-    else if (role === "admin")    showView("view-products");
-    else                          showView("view-login");
+    // rol oku (doc yoksa patlamasın)
+    let role = "sube";
+    try {
+      const udoc = await getDoc(doc(db, "users", user.uid));
+      if (udoc.exists() && udoc.data()?.role) role = udoc.data().role;
+    } catch (e) {
+      console.warn("Rol okunamadı:", e);
+    }
 
-    await refreshBranchProductSelect();
-  } else {
-    currentUser = null;
-    document.getElementById("logoutBtn")?.classList.add("hidden");
+    if      (role === "sube")      showView("view-branch");
+    else if (role === "yonetici")  showView("view-manager");
+    else if (role === "toplayici") { showView("view-picker"); await refreshAssigned(); }
+    else if (role === "qc")        showView("view-qc");
+    else if (role === "palet")     showView("view-palet");
+    else if (role === "admin")     { showView("view-products"); await listProductsIntoTable(); }
+    else                           showView("view-login");
+
+    // ürün select'i her login’de yenile (sessiz hatayı yakala)
+    try { await refreshBranchProductSelect(); } catch(e){ console.warn("refreshBranchProductSelect hata:", e); }
+  } catch (err) {
+    console.error("onAuthStateChanged hata:", err);
+    alert("Oturum başlatılırken hata oluştu.");
     showView("view-login");
   }
 });
+
 // ================== ÜRÜN KATALOĞU ==================
 async function listProductsIntoTable() {
   const tb = document.querySelector("#tbl-products tbody");
   if (!tb) return;
   tb.innerHTML = "";
-  const snap = await getDocs(collection(db, "products"));
-  snap.forEach(d => {
-    const p = d.data();
-    tb.innerHTML += `<tr>
-      <td>${p.code || ""}</td>
-      <td>${p.name || ""}</td>
-      <td>${p.barcode || ""}</td>
-      <td>${p.reyon || ""}</td>
-    </tr>`;
-  });
+  try {
+    const snap = await getDocs(collection(db, "products"));
+    snap.forEach(d => {
+      const p = d.data();
+      tb.innerHTML += `<tr>
+        <td>${p.code || ""}</td>
+        <td>${p.name || ""}</td>
+        <td>${p.barcode || ""}</td>
+        <td>${p.reyon || ""}</td>
+      </tr>`;
+    });
+  } catch (e) {
+    console.error("listProductsIntoTable hata:", e);
+  }
 }
 
 async function refreshBranchProductSelect() {
   const sel = document.getElementById("branchProduct");
   if (!sel) return;
   sel.innerHTML = "";
-  const snap = await getDocs(collection(db, "products"));
-  sel.insertAdjacentHTML("beforeend", `<option value="">Ürün seçin…</option>`);
-  snap.forEach(d => {
-    const p = d.data();
-    const opt = document.createElement("option");
-    opt.value = p.code;
-    opt.textContent = `${p.code} — ${p.name}`;
-    opt.dataset.name = p.name || "";
-    opt.dataset.barcode = p.barcode || "";
-    opt.dataset.reyon = p.reyon || "";
-    sel.appendChild(opt);
-  });
+  try {
+    const snap = await getDocs(collection(db, "products"));
+    sel.insertAdjacentHTML("beforeend", `<option value="">Ürün seçin…</option>`);
+    snap.forEach(d => {
+      const p = d.data();
+      const opt = document.createElement("option");
+      opt.value = p.code;
+      opt.textContent = `${p.code} — ${p.name}`;
+      opt.dataset.name = p.name || "";
+      opt.dataset.barcode = p.barcode || "";
+      opt.dataset.reyon = p.reyon || "";
+      sel.appendChild(opt);
+    });
+  } catch (e) {
+    console.error("refreshBranchProductSelect hata:", e);
+    sel.insertAdjacentHTML("beforeend", `<option value="">(Ürün yüklenemedi)</option>`);
+  }
 }
 
 document.getElementById("uploadProductsBtn")?.addEventListener("click", async () => {
@@ -139,7 +174,7 @@ document.getElementById("uploadProductsBtn")?.addEventListener("click", async ()
           code,
           name: String(row.name).trim(),
           barcode: row.barcode ? String(row.barcode).trim() : "",
-          reyon:   row.reyon   ? String(row.reyon).trim()   : ""
+          reyon: row.reyon ? String(row.reyon).trim() : ""
         });
         count++;
       }
@@ -147,11 +182,13 @@ document.getElementById("uploadProductsBtn")?.addEventListener("click", async ()
       await listProductsIntoTable();
       await refreshBranchProductSelect();
     } catch (err) {
-      alert("Excel okuma hatası: " + err.message);
+      alert("Excel okuma hatası: " + (err.message || err));
+      console.error(err);
     }
   };
   reader.readAsArrayBuffer(file);
 });
+
 document.querySelector("button[data-view='view-products']")?.addEventListener("click", listProductsIntoTable);
 
 // ================== ŞUBE SİPARİŞ ==================
@@ -224,6 +261,7 @@ document.getElementById("createOrderBtn")?.addEventListener("click", async () =>
 });
 
 async function loadBranchOrders() {
+  if (!currentUser) return;
   const qy = query(collection(db, "orders"), where("createdBy", "==", currentUser.uid));
   const snap = await getDocs(qy);
   const tbody = document.querySelector("#branchOrders tbody");
@@ -249,7 +287,8 @@ async function decreaseStock(code, qty, warehouse) {
     await updateDoc(ref, { qty: newQty });
     if (newQty < 5) alert(`⚠️ Dikkat! ${warehouse}/${code} stoğu kritik (${newQty})`);
   } else {
-    alert(`Stok bulunamadı: ${warehouse} - ${code}`);
+    // sessiz hata — sadece log
+    console.warn(`Stok bulunamadı: ${warehouse} - ${code}`);
   }
 }
 
@@ -267,10 +306,7 @@ async function refreshAssigned() {
   const qs = await getDocs(query(collection(db, "orders"), where("status", "==", "Atandı")));
   qs.forEach(d => {
     const o = { id: d.id, ...d.data() };
-    const opt = document.createElement("option");
-    opt.value = o.id;
-    opt.textContent = `${o.id} - ${o.name} (${o.warehouse || "-"})`;
-    sel.appendChild(opt);
+    sel.insertAdjacentHTML("beforeend", `<option value="${o.id}">${o.id} - ${o.name} (${o.warehouse || "-"})</option>`);
   });
 }
 
@@ -280,11 +316,12 @@ async function openAssigned() {
   const ds = await getDoc(doc(db, "orders", id));
   if (!ds.exists()) return;
   pickerOrder = { id: ds.id, ...ds.data() };
-  pickerOrder.lines = pickerOrder.lines.map(l => ({ ...l, picked: l.picked || 0 }));
+  pickerOrder.lines = (pickerOrder.lines || []).map(l => ({ ...l, picked: l.picked || 0 }));
   renderPickerLines();
   document.getElementById("pickerTitle").textContent = `Sipariş: ${pickerOrder.name} (${pickerOrder.warehouse})`;
   document.getElementById("pickerArea").classList.remove("hidden");
 }
+
 // Kamera listesini doldur
 async function populatePickerCameras() {
   const sel = document.getElementById("pickerCamera");
@@ -296,7 +333,6 @@ async function populatePickerCameras() {
       sel.insertAdjacentHTML("beforeend", `<option value="">Kamera bulunamadı</option>`);
       return;
     }
-    // arka kamerayı öne al
     cams.sort((a,b)=>{
       const A=(a.label||"").toLowerCase(), B=(b.label||"").toLowerCase();
       const ab=A.includes("back")||A.includes("rear")||A.includes("arka");
@@ -317,6 +353,7 @@ document.addEventListener("DOMContentLoaded", populatePickerCameras);
 // Tarayıcı başlat/durdur
 async function startPickerScanner() {
   try {
+    if (!pickerOrder) return alert("Önce bir sipariş açın.");
     if (scanner) await stopPickerScanner();
     const sel = document.getElementById("pickerCamera");
     const camId = sel?.value || "";
@@ -340,9 +377,9 @@ async function startPickerScanner() {
       if (now - lastScanAt < 1200) return;
       lastScanAt = now;
       handleScannedCode(text, true);
-    }, () => {});
+    }, (err) => { /* frame error */ });
   } catch (err) {
-    alert("Kamera başlatılamadı: " + err.message);
+    alert("Kamera başlatılamadı: " + (err.message || err));
     console.error(err);
   }
 }
@@ -365,7 +402,8 @@ async function handleScannedCode(codeOrBarcode, askQty = false) {
 
 // Kod/barkod’a göre “Toplanan” arttır ya da satır ekle
 async function applyPickByCodeOrBarcode(codeOrBarcode, qty) {
-  let idx = pickerOrder.lines.findIndex(
+  // 1) Sipariş satırlarında ara
+  let idx = (pickerOrder.lines || []).findIndex(
     l => (l.barcode && String(l.barcode) === String(codeOrBarcode)) || String(l.code) === String(codeOrBarcode)
   );
   if (idx !== -1) {
@@ -374,6 +412,7 @@ async function applyPickByCodeOrBarcode(codeOrBarcode, qty) {
     return;
   }
 
+  // 2) Ürün kataloğunda ara
   let found = null;
   try {
     const byCode = await getDoc(doc(db, "products", String(codeOrBarcode)));
@@ -388,23 +427,26 @@ async function applyPickByCodeOrBarcode(codeOrBarcode, qty) {
     console.warn("Ürün arama hatası:", e);
   }
 
+  // 3) Bulduysan ekle, bulamadıysan adını boş geç (sonra düzenlenebilir)
   const line = {
     code: found?.code || String(codeOrBarcode),
     name: found?.name || "(Ad yok)",
-    qty: found ? 0 : qty,
+    qty: found ? (found.qty || 0) : 0,
     picked: qty,
     barcode: found?.barcode || "",
     reyon: found?.reyon || ""
   };
+  pickerOrder.lines = pickerOrder.lines || [];
   pickerOrder.lines.push(line);
   renderPickerLines();
 }
 
+// Toplayıcı tablosu – elle düzenleme + +/- + sil
 function renderPickerLines() {
   const tb = document.querySelector("#tbl-picker-lines tbody");
   if (!tb) return;
   tb.innerHTML = "";
-  pickerOrder.lines.forEach((l, i) => {
+  (pickerOrder.lines || []).forEach((l, i) => {
     tb.innerHTML += `
       <tr>
         <td>${i + 1}</td>
@@ -422,7 +464,9 @@ function renderPickerLines() {
       </tr>`;
   });
 
+  // input değişikliği
   tb.querySelectorAll(".picked-input").forEach(inp => {
+    inp.removeEventListener?.("input", () => {}); // guard
     inp.addEventListener("input", e => {
       const idx = parseInt(e.target.dataset.idx, 10);
       let v = parseInt(e.target.value, 10);
@@ -431,6 +475,7 @@ function renderPickerLines() {
     });
   });
 
+  // +1 / -1 / Sil
   tb.querySelectorAll("button[data-plus]").forEach(btn => {
     btn.addEventListener("click", () => {
       const i = parseInt(btn.dataset.plus, 10);
@@ -458,6 +503,7 @@ function renderPickerLines() {
   });
 }
 
+// Elle toplama butonu
 document.getElementById("manualAddBtn")?.addEventListener("click", async () => {
   const code = document.getElementById("manualScanCode")?.value.trim();
   let qty = parseInt(document.getElementById("manualScanQty")?.value, 10);
@@ -471,6 +517,7 @@ document.getElementById("manualAddBtn")?.addEventListener("click", async () => {
 
 async function finishPick() {
   if (!pickerOrder) return;
+  // depo bazlı stok düş
   for (const l of pickerOrder.lines) {
     const used = Math.min(l.picked || 0, l.qty || 0);
     if (used > 0) await decreaseStock(l.code, used, pickerOrder.warehouse);
@@ -535,7 +582,7 @@ async function openQCOrder() {
   const ds = await getDoc(doc(db, "orders", id));
   if (!ds.exists()) return;
   qcOrder = { id: ds.id, ...ds.data() };
-  qcOrder.lines = qcOrder.lines.map(l => ({ ...l, qc: l.qc || 0 }));
+  qcOrder.lines = (qcOrder.lines || []).map(l => ({ ...l, qc: l.qc || 0 }));
   renderQCLines();
   document.getElementById("qcTitle").textContent = `Sipariş: ${qcOrder.name}`;
   document.getElementById("qcArea").classList.remove("hidden");
@@ -545,7 +592,7 @@ function renderQCLines() {
   const tb = document.querySelector("#tbl-qc-lines tbody");
   if (!tb) return;
   tb.innerHTML = "";
-  qcOrder.lines.forEach((l, i) => {
+  (qcOrder.lines || []).forEach((l, i) => {
     tb.innerHTML += `
       <tr data-idx="${i}">
         <td>${i + 1}</td>
@@ -560,7 +607,7 @@ function renderQCLines() {
 }
 document.getElementById("finishQCBtn")?.addEventListener("click", async () => {
   document.querySelectorAll("#tbl-qc-lines tbody tr").forEach(tr => {
-    const idx = parseInt(tr.dataset.idx);
+    const idx = parseInt(tr.dataset.idx, 10);
     qcOrder.lines[idx].qc = parseInt(tr.querySelector(".qc-input").value) || 0;
   });
   await updateDoc(doc(db, "orders", qcOrder.id), { status: "Tamamlandı", lines: qcOrder.lines });
@@ -658,118 +705,95 @@ async function loadDashboard() {
   document.getElementById("statTotalOrders")?.innerText = total;
   document.getElementById("statCompletedOrders")?.innerText = completed;
   document.getElementById("statPendingOrders")?.innerText = pending;
-  document.getElementById("statPallets")?.innerText = palletsSnap.size;
+  const statP = document.getElementById("statPallets");
+  if (statP) statP.innerText = palletsSnap.size;
 
   const ctx1 = document.getElementById("chartOrders");
-  if (ctx1) {
+  if (ctx1 && window.Chart) {
     if (ctx1._chartInstance) ctx1._chartInstance.destroy();
     ctx1._chartInstance = new Chart(ctx1,{ type:"pie",
       data:{ labels:["Tamamlanan","Bekleyen"],
-        datasets:[{ data:[completed,pending] }]}
+        datasets:[{ data:[completed,pending] }] }
     });
   }
   const ctx2 = document.getElementById("chartDaily");
-  if (ctx2) {
+  if (ctx2 && window.Chart) {
     if (ctx2._chartInstance) ctx2._chartInstance.destroy();
     ctx2._chartInstance = new Chart(ctx2,{ type:"bar",
       data:{ labels:["Gün1","Gün2","Gün3","Gün4","Gün5","Gün6","Gün7"],
-        datasets:[{ label:"Sipariş", data:[3,5,2,7,4,6,3] }]}
+        datasets:[{ label:"Sipariş", data:[3,5,2,7,4,6,3] }] }
     });
   }
   await loadStocksTable();
 }
 
+// Dashboard açıkken periyodik yenile (5s)
 setInterval(()=>{
   const v=document.getElementById("view-dashboard");
   if(v && !v.classList.contains("hidden")) loadDashboard();
 },5000);
 
-// ================== STOK YÖNETİMİ ==================
-document.querySelector("button[data-view='view-stock']")
-document.getElementById("btnStockIn")?.addEventListener("click", () => {
-  stockTransaction(true);
-});
-document.getElementById("btnStockOut")?.addEventListener("click", () => {
-  stockTransaction(false);
-});
-
-async function stockTransaction(isIn) {
-  const code = document.getElementById("stockCode")?.value.trim();
-  const name = document.getElementById("stockName")?.value.trim();
-  let qty = parseInt(document.getElementById("stockQty")?.value, 10);
-  const wh = document.getElementById("stockWarehouse")?.value;
-
-  if (!code || !name || !qty || qty <= 0) return alert("Lütfen kod, ad ve miktar girin.");
-
-  const ref = doc(db, "stocks", code + "_" + wh);
-  const snap = await getDoc(ref);
-  let cur = 0;
-  if (snap.exists()) {
-    cur = snap.data().qty || 0;
-  }
-  if (isIn) cur += qty;
-  else cur -= qty;
-
-  if (cur < 0) {
-    alert("Stok yetersiz!");
-    return;
-  }
-
-  await setDoc(ref, { code, name, qty: cur, warehouse: wh });
-  alert("Stok güncellendi.");
-  document.getElementById("stockCode").value = "";
-  document.getElementById("stockName").value = "";
-  document.getElementById("stockQty").value = "";
-  loadStockManage();
-}
+// ================== STOK YÖNETİMİ (manuel, çoklu depo) ==================
+document.querySelector("button[data-view='view-stock']")?.addEventListener("click", loadStockManage);
+document.getElementById("stockWarehouse")?.addEventListener("change", loadStockManage);
 
 async function loadStockManage() {
-  const tb = document.querySelector("#tbl-stock-manage tbody");
-  if (!tb) return;
-  tb.innerHTML = "";
+  const tbody = document.querySelector("#tbl-stock-manage tbody");
+  if (!tbody) return;
+  const selectedWh = document.getElementById("stockWarehouse")?.value || "MERKEZ";
   const snap = await getDocs(collection(db, "stocks"));
-  snap.forEach(d => {
-    const v = d.data();
-    tb.innerHTML += `<tr><td>${v.code}</td><td>${v.name}</td><td>${v.qty}</td><td>${v.warehouse}</td></tr>`;
+  tbody.innerHTML = "";
+  snap.forEach(docu => {
+    const d = docu.data();
+    if (d.warehouse === selectedWh) {
+      tbody.innerHTML += `<tr><td>${d.code}</td><td>${d.name}</td><td>${d.qty}</td><td>${d.warehouse}</td></tr>`;
+    }
   });
 }
 
-document.querySelector("button[data-view='view-stock']")?.addEventListener("click", loadStockManage);
-
-// ================== BAŞLANGIÇ ==================
-window.addEventListener("DOMContentLoaded", () => {
-  // Menü toggle
-  document.getElementById("menuToggle")?.addEventListener("click", () => {
-    document.getElementById("mainNav")?.classList.toggle("show");
-  });
-
-  // Oturum takibi
-  onAuthStateChanged(auth, async (user) => {
-    if (!user) {
-      currentUser = null;
-      document.getElementById("logoutBtn")?.classList.add("hidden");
-      showView("view-login");
-      return;
-    }
-    currentUser = user;
-    document.getElementById("logoutBtn")?.classList.remove("hidden");
-
-    let role = "sube";
-    try {
-      const udoc = await getDoc(doc(db, "users", user.uid));
-      if (udoc.exists() && udoc.data()?.role) role = udoc.data().role;
-    } catch (e) {
-      console.warn("Rol okunamadı:", e);
-    }
-
-    if (role === "sube") showView("view-branch");
-    else if (role === "yonetici") showView("view-manager");
-    else if (role === "toplayici") { showView("view-picker"); refreshAssigned(); }
-    else if (role === "qc") showView("view-qc");
-    else if (role === "palet") showView("view-palet");
-    else if (role === "admin") { showView("view-products"); listProductsIntoTable(); }
-    else showView("view-login");
-
-    await refreshBranchProductSelect();
-  });
+document.getElementById("btnStockIn")?.addEventListener("click", async () => {
+  const warehouse = document.getElementById("stockWarehouse").value;
+  const code = document.getElementById("stockCode").value.trim();
+  const name = document.getElementById("stockName").value.trim();
+  const qty  = parseInt(document.getElementById("stockQty").value,10);
+  if (!code || !qty) return alert("Kod ve miktar gerekli!");
+  const ref = doc(db, "stocks", `${warehouse}_${code}`);
+  const snap = await getDoc(ref);
+  if (snap.exists()) {
+    await updateDoc(ref, { qty: (snap.data().qty || 0) + qty, name: name || snap.data().name || "", warehouse });
+  } else {
+    await setDoc(ref, { code, name: name || code, qty, warehouse });
+  }
+  alert("Stok girişi yapıldı.");
+  loadStockManage();
 });
+
+document.getElementById("btnStockOut")?.addEventListener("click", async () => {
+  const warehouse = document.getElementById("stockWarehouse").value;
+  const code = document.getElementById("stockCode").value.trim();
+  const qty  = parseInt(document.getElementById("stockQty").value,10);
+  if (!code || !qty) return alert("Kod ve miktar gerekli!");
+  const ref = doc(db, "stocks", `${warehouse}_${code}`);
+  const snap = await getDoc(ref);
+  if (snap.exists()) {
+    let newQty = (snap.data().qty || 0) - qty;
+    if (newQty < 0) newQty = 0;
+    await updateDoc(ref, { qty: newQty });
+    if (newQty < 5) alert(`⚠️ Dikkat! ${warehouse}/${code} stoğu kritik (${newQty})`);
+  } else {
+    alert("Stok bulunamadı.");
+  }
+  alert("Stok çıkışı yapıldı.");
+  loadStockManage();
+});
+
+// ================== KÜÇÜK İYİLEŞTİRMELER ==================
+document.querySelector("button[data-view='view-manager']")?.addEventListener("click", loadAllOrders);
+document.querySelector("button[data-view='view-dashboard']")?.addEventListener("click", loadDashboard);
+document.querySelector("button[data-view='view-picker']")?.addEventListener("click", refreshAssigned);
+document.querySelector("button[data-view='view-qc']")?.addEventListener("click", refreshQCOrders);
+document.querySelector("button[data-view='view-palet']")?.addEventListener("click", refreshPaletOrders);
+
+// İlk açılışta login görünümü hazır
+showView("view-login");
+console.log("app.js yüklendi ✓");
