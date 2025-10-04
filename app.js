@@ -285,6 +285,7 @@ document.getElementById("stopScanBtn")?.addEventListener("click", stopPickerScan
 document.getElementById("finishPickBtn")?.addEventListener("click", finishPick);
 document.getElementById("manualAddBtn")?.addEventListener("click", manualAdd); // ✅ elle ekleme
 
+// ================== GÖREVLER ==================
 async function refreshAssigned() {
   const sel = document.getElementById("assignedOrders");
   if (!sel) return;
@@ -311,6 +312,7 @@ async function openAssigned() {
   document.getElementById("pickerArea").classList.remove("hidden");
 }
 
+// ================== LİSTE GÖRÜNÜMÜ ==================
 function renderPickerLines() {
   const tb = document.querySelector("#tbl-picker-lines tbody");
   if (!tb) return;
@@ -320,7 +322,7 @@ function renderPickerLines() {
       <tr>
         <td>${i + 1}</td>
         <td>${l.code}</td>
-        <td>${l.name}</td>
+        <td>${l.name || ""}</td>
         <td>${l.qty}</td>
         <td>
           <input type="number" min="0" class="picked-input" data-idx="${i}" value="${l.picked || 0}"/>
@@ -343,7 +345,7 @@ function renderPickerLines() {
     });
   });
 
-  // +1 / -1 / Sil
+  // +1 / -1 / Sil işlemleri
   tb.querySelectorAll("button[data-plus]").forEach(btn => {
     btn.addEventListener("click", () => {
       const i = parseInt(btn.dataset.plus, 10);
@@ -371,6 +373,7 @@ function renderPickerLines() {
   });
 }
 
+// ================== BARKOD OKUTMA ==================
 async function startPickerScanner() {
   if (scanner) await stopPickerScanner();
   scanner = new Html5Qrcode("reader");
@@ -382,6 +385,8 @@ function stopPickerScanner() {
   if (!scanner) return;
   return scanner.stop().then(() => { scanner.clear(); scanner = null; });
 }
+
+// ✅ Barkodla veya elle okunan ürünü Firestore'dan bulup ekler
 async function handleScannedCode(codeOrBarcode, askQty = false) {
   if (!pickerOrder) return alert("Önce sipariş açın.");
   let qty = 1;
@@ -390,17 +395,28 @@ async function handleScannedCode(codeOrBarcode, askQty = false) {
     qty = parseInt(v || "1", 10);
     if (!qty || qty < 1) qty = 1;
   }
+
   let idx = pickerOrder.lines.findIndex(l => (l.barcode && l.barcode === codeOrBarcode) || l.code === codeOrBarcode);
   if (idx !== -1) {
     pickerOrder.lines[idx].picked = (pickerOrder.lines[idx].picked || 0) + qty;
   } else {
-    pickerOrder.lines.push({ code: codeOrBarcode, name: "(Yeni)", qty: 0, picked: qty });
+    let name = "";
+    try {
+      const prodSnap = await getDoc(doc(db, "products", codeOrBarcode));
+      if (prodSnap.exists()) {
+        name = prodSnap.data().name || "";
+      }
+    } catch (e) {
+      console.warn("Ürün bulunamadı:", e);
+    }
+    pickerOrder.lines.push({ code: codeOrBarcode, name, qty: 0, picked: qty });
   }
+
   renderPickerLines();
 }
 
-// ✅ Elle ekleme
-function manualAdd() {
+// ================== ELLE EKLEME ==================
+async function manualAdd() {
   if (!pickerOrder) return alert("Önce sipariş seçin!");
   const code = document.getElementById("manualScanCode").value.trim();
   let qty = parseInt(document.getElementById("manualScanQty").value, 10);
@@ -411,7 +427,16 @@ function manualAdd() {
   if (idx !== -1) {
     pickerOrder.lines[idx].picked = (pickerOrder.lines[idx].picked || 0) + qty;
   } else {
-    pickerOrder.lines.push({ code: code, name: "(Elle Eklendi)", qty: 0, picked: qty });
+    let name = "";
+    try {
+      const prodSnap = await getDoc(doc(db, "products", code));
+      if (prodSnap.exists()) {
+        name = prodSnap.data().name || "";
+      }
+    } catch (e) {
+      console.warn("Elle eklenen ürün bulunamadı:", e);
+    }
+    pickerOrder.lines.push({ code, name, qty: 0, picked: qty });
   }
 
   renderPickerLines();
@@ -419,6 +444,7 @@ function manualAdd() {
   document.getElementById("manualScanQty").value = "1";
 }
 
+// ================== TOPLAMA TAMAMLAMA ==================
 async function finishPick() {
   if (!pickerOrder) return;
   for (const l of pickerOrder.lines) {
@@ -431,6 +457,7 @@ async function finishPick() {
   });
   alert("Toplama tamamlandı!");
 }
+
 
 // ================== YÖNETİCİ ==================
 document.getElementById("refreshOrdersBtn")?.addEventListener("click", loadAllOrders);
