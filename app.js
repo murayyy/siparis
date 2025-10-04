@@ -284,18 +284,20 @@ document.getElementById("startScanBtn")?.addEventListener("click", startPickerSc
 document.getElementById("stopScanBtn")?.addEventListener("click", stopPickerScanner);
 document.getElementById("finishPickBtn")?.addEventListener("click", finishPick);
 document.getElementById("manualAddBtn")?.addEventListener("click", manualAdd); // ✅ elle ekleme
+document.getElementById("savePickBtn")?.addEventListener("click", savePickProgress); // 💾 yeni kaydet butonu
 
 // ================== GÖREVLER ==================
 async function refreshAssigned() {
   const sel = document.getElementById("assignedOrders");
   if (!sel) return;
   sel.innerHTML = "";
-  const qs = await getDocs(query(collection(db, "orders"), where("status", "==", "Atandı")));
+  // 🔄 Artık hem "Atandı" hem "Toplama Başladı" durumundakiler listelenecek
+  const qs = await getDocs(query(collection(db, "orders"), where("status", "in", ["Atandı", "Toplama Başladı"])));
   qs.forEach(d => {
     const o = { id: d.id, ...d.data() };
     const opt = document.createElement("option");
     opt.value = o.id;
-    opt.textContent = `${o.id} - ${o.name} (${o.warehouse || "-"})`;
+    opt.textContent = `${o.id} - ${o.name} (${o.status})`;
     sel.appendChild(opt);
   });
 }
@@ -442,6 +444,17 @@ async function manualAdd() {
   renderPickerLines();
   document.getElementById("manualScanCode").value = "";
   document.getElementById("manualScanQty").value = "1";
+}
+
+// ================== TOPLAMA KAYDET (Yeni) ==================
+async function savePickProgress() {
+  if (!pickerOrder) return alert("Önce bir sipariş açın!");
+  await updateDoc(doc(db, "orders", pickerOrder.id), {
+    lines: pickerOrder.lines,
+    status: "Toplama Başladı",
+    lastUpdate: new Date()
+  });
+  alert("Toplama durumu kaydedildi. Daha sonra devam edebilirsin!");
 }
 
 // ================== TOPLAMA TAMAMLAMA ==================
