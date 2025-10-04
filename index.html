@@ -146,23 +146,41 @@
 </section>
 
 
-    <!-- QC -->
-    <section id="view-qc" class="view hidden">
-      <h2>🔍 QC – Kontrol</h2>
-      <div class="row">
-        <button id="refreshQCBtn" class="btn-light">Yenile</button>
-        <select id="qcOrders"></select>
-        <button id="openQCBtn">Aç</button>
-      </div>
-      <div id="qcArea" class="card hidden">
-        <h3 id="qcTitle">Sipariş:</h3>
-        <table id="tbl-qc-lines">
-          <thead><tr><th>#</th><th>Kod</th><th>Ürün</th><th>İstenen</th><th>Toplanan</th><th>QC</th><th>Eksik</th></tr></thead>
-          <tbody></tbody>
-        </table>
-        <button id="finishQCBtn" class="success">Kontrolü Bitir</button>
-      </div>
-    </section>
+  <!-- QC – Kontrol -->
+<section id="view-qc" class="view hidden">
+  <h2>🔍 QC – Kontrol</h2>
+
+  <!-- Üst Menü -->
+  <div class="row">
+    <button id="refreshQcBtn" class="btn-light">Yenile</button>
+    <select id="qcOrders" class="input"></select>
+    <button id="openQcBtn" class="btn-light">Aç</button>
+  </div>
+
+  <!-- Kontrol Alanı -->
+  <div id="qcArea" class="card hidden">
+    <h3 id="qcTitle">Sipariş:</h3>
+
+    <table id="tbl-qc-lines">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Kod</th>
+          <th>Ürün</th>
+          <th>İstenen</th>
+          <th>Toplanan</th>
+          <th>QC (Kontrol)</th>
+          <th>Eksik</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+
+    <div class="row" style="margin-top:12px;">
+      <button id="finishQcBtn" class="success">Kontrolü Bitir</button>
+    </div>
+  </div>
+</section>
 
     <!-- Paletleme -->
     <section id="view-palet" class="view hidden">
