@@ -169,6 +169,17 @@ tr:nth-child(even) {
   background: #f9fafb;
 }
 
+/* ================= Satır Renkleri (Toplayıcı) ================= */
+.not-picked {
+  background-color: #ffd6d6; /* hiç toplanmamış */
+}
+.partial-picked {
+  background-color: #fff6c5; /* kısmen toplanmış */
+}
+.fully-picked {
+  background-color: #d7ffd7; /* tamamen toplanmış */
+}
+
 /* ================= Paletleme ================= */
 #paletResult {
   margin-top: 15px;
@@ -232,13 +243,4 @@ tr:nth-child(even) {
     opacity: 0.5;
     cursor: not-allowed;
   }
-  .not-picked {
-  background-color: #ffd6d6;
-}
-.partial-picked {
-  background-color: #fff6c5;
-}
-.fully-picked {
-  background-color: #d7ffd7;
-}
 }
