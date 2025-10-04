@@ -97,22 +97,53 @@
       </table>
     </section>
 
-    <!-- Toplayıcı -->
-    <section id="view-picker" class="view hidden">
-      <h2>🧺 Toplayıcı</h2>
-      <button id="refreshAssignedBtn" class="btn-light">Yenile</button>
-      <select id="assignedOrders"></select>
-      <button id="openAssignedBtn">Aç</button>
-      <div id="pickerArea" class="card hidden">
-        <h3 id="pickerTitle">Sipariş:</h3>
-        <div id="reader" style="width:300px; margin:10px auto;"></div>
-        <table id="tbl-picker-lines">
-          <thead><tr><th>#</th><th>Kod</th><th>Ürün</th><th>İstenen</th><th>Toplanan</th><th>İşlem</th></tr></thead>
-          <tbody></tbody>
-        </table>
-        <button id="finishPickBtn" class="success">Toplamayı Bitir</button>
+   <!-- Toplayıcı -->
+<section id="view-picker" class="view hidden">
+  <h2>🧺 Toplayıcı</h2>
+
+  <button id="refreshAssignedBtn" class="btn-light">Yenile</button>
+  <select id="assignedOrders"></select>
+  <button id="openAssignedBtn">Aç</button>
+
+  <div id="pickerArea" class="card hidden">
+    <h3 id="pickerTitle">Sipariş:</h3>
+
+    <!-- 📷 Barkod Okuyucu Alanı -->
+    <div class="row">
+      <button id="startScanBtn" class="btn-light">📷 Barkod Tarayıcıyı Başlat</button>
+      <button id="stopScanBtn" class="danger">⛔ Durdur</button>
+    </div>
+    <div id="reader" style="width:300px; margin:10px auto;"></div>
+
+    <!-- ✍️ Elle Toplama & Ürün Ekleme Alanı -->
+    <div class="card" style="margin-top:15px;">
+      <h3>✍️ Elle Toplama & Ürün Ekle</h3>
+      <div class="row">
+        <input id="manualScanCode" class="input" placeholder="Kod veya Barkod" />
+        <input id="manualScanQty" class="input" type="number" min="1" value="1" placeholder="Miktar" />
+        <button id="manualAddBtn" class="btn-light">Ekle / Topla</button>
       </div>
-    </section>
+    </div>
+
+    <!-- 🧾 Toplama Tablosu -->
+    <table id="tbl-picker-lines" style="margin-top:15px;">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Kod</th>
+          <th>Ürün</th>
+          <th>İstenen</th>
+          <th>Toplanan</th>
+          <th>İşlem</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+
+    <button id="finishPickBtn" class="success" style="margin-top:15px;">Toplamayı Bitir</button>
+  </div>
+</section>
+
 
     <!-- QC -->
     <section id="view-qc" class="view hidden">
