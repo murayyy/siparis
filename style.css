@@ -232,4 +232,13 @@ tr:nth-child(even) {
     opacity: 0.5;
     cursor: not-allowed;
   }
+  .not-picked {
+  background-color: #ffd6d6;
+}
+.partial-picked {
+  background-color: #fff6c5;
+}
+.fully-picked {
+  background-color: #d7ffd7;
+}
 }
