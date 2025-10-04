@@ -319,9 +319,16 @@ function renderPickerLines() {
   const tb = document.querySelector("#tbl-picker-lines tbody");
   if (!tb) return;
   tb.innerHTML = "";
+
   pickerOrder.lines.forEach((l, i) => {
+    // 🔍 Satır renk durumu
+    let rowClass = "";
+    if ((l.picked || 0) === 0) rowClass = "not-picked";              // hiç toplanmadı
+    else if ((l.picked || 0) < (l.qty || 0)) rowClass = "partial-picked"; // kısmen
+    else rowClass = "fully-picked";                                   // tamamlandı
+
     tb.innerHTML += `
-      <tr>
+      <tr class="${rowClass}">
         <td>${i + 1}</td>
         <td>${l.code}</td>
         <td>${l.name || ""}</td>
@@ -344,6 +351,7 @@ function renderPickerLines() {
       let v = parseInt(e.target.value, 10);
       if (isNaN(v) || v < 0) v = 0;
       pickerOrder.lines[idx].picked = v;
+      renderPickerLines(); // 🔁 renkleri güncelle
     });
   });
 
@@ -470,7 +478,6 @@ async function finishPick() {
   });
   alert("Toplama tamamlandı!");
 }
-
 
 // ================== YÖNETİCİ ==================
 document.getElementById("refreshOrdersBtn")?.addEventListener("click", loadAllOrders);
