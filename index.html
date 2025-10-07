@@ -146,7 +146,7 @@
 </section>
 
 
- <!-- QC – Kontrol -->
+<!-- QC – Kontrol -->
 <section id="view-qc" class="view hidden">
   <h2>🔍 QC – Kontrol</h2>
 
@@ -160,6 +160,9 @@
   <!-- Kontrol Alanı -->
   <div id="qcArea" class="card hidden">
     <h3 id="qcTitle">Sipariş:</h3>
+
+    <!-- Barkod Okuyucu Alanı -->
+    <div id="qcReader" style="width:300px; margin:10px auto; border:1px dashed #ccc; padding:10px;"></div>
 
     <table id="tbl-qc-lines">
       <thead>
@@ -177,7 +180,10 @@
     </table>
 
     <div class="row" style="margin-top:12px;">
-      <button id="finishQCBtn" class="success">Kontrolü Bitir</button>
+      <button id="startQCScanBtn" class="btn-light">📷 Tarayıcıyı Başlat</button>
+      <button id="stopQCScanBtn" class="btn-light">⏹ Durdur</button>
+      <button id="saveQCBtn" class="btn-light">💾 Kaydet</button>
+      <button id="finishQCBtn" class="success">✅ Kontrolü Bitir</button>
     </div>
   </div>
 </section>
