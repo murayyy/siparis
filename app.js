@@ -512,9 +512,6 @@ window.sendToQC = async function(id) {
 };
 
 // ================== QC (KONTROL) ==================
-let qcOrder = null;
-let qcScanner = null;
-
 document.getElementById("refreshQCBtn")?.addEventListener("click", refreshQCOrders);
 document.getElementById("openQCBtn")?.addEventListener("click", openQCOrder);
 document.getElementById("startQCScanBtn")?.addEventListener("click", startQCScanner);
@@ -522,12 +519,16 @@ document.getElementById("stopQCScanBtn")?.addEventListener("click", stopQCScanne
 document.getElementById("finishQCBtn")?.addEventListener("click", finishQC);
 document.getElementById("saveQCBtn")?.addEventListener("click", saveQCProgress); // 💾 QC kaydetme
 
+let qcOrder = null;
+let qcScanner = null;
+
 // ================== QC SİPARİŞLERİNİ LİSTELE ==================
 async function refreshQCOrders() {
   const sel = document.getElementById("qcOrders");
   if (!sel) return;
   sel.innerHTML = "";
 
+  // 🔄 Hem "Kontrol" hem "Kontrol Başladı" olan siparişleri getir
   const qs = await getDocs(query(collection(db, "orders"), where("status", "in", ["Kontrol", "Kontrol Başladı"])));
   qs.forEach(d => {
     const o = { id: d.id, ...d.data() };
@@ -552,7 +553,7 @@ async function openQCOrder() {
   document.getElementById("qcTitle").textContent = `Sipariş: ${qcOrder.name}`;
   document.getElementById("qcArea").classList.remove("hidden");
 
-  // 🔄 Sipariş durumunu "Kontrol Başladı" olarak işaretle
+  // 🔄 Sipariş durumunu “Kontrol Başladı” olarak işaretle
   await updateDoc(doc(db, "orders", qcOrder.id), {
     status: "Kontrol Başladı",
     lastUpdate: new Date()
@@ -570,11 +571,11 @@ function renderQCLines() {
     const qc = l.qc || 0;
     const diff = Math.max(0, picked - qc);
 
-    // 🔵 Duruma göre satır rengi
+    // 🔵 Duruma göre renk sınıfı
     let rowClass = "";
-    if (qc === 0) rowClass = "not-picked";
-    else if (qc < picked) rowClass = "partial-picked";
-    else rowClass = "fully-picked";
+    if (qc === 0) rowClass = "not-picked";           // kırmızı
+    else if (qc < picked) rowClass = "partial-picked"; // sarı
+    else rowClass = "fully-picked";                  // yeşil
 
     tb.innerHTML += `
       <tr class="${rowClass}">
@@ -587,28 +588,25 @@ function renderQCLines() {
           <input 
             type="number" 
             class="qc-input" 
-            data-idx="${i}" 
             min="0" 
             max="${picked}" 
             value="${qc}" 
-            style="width:70px;text-align:center;"
+            data-idx="${i}"
           />
         </td>
         <td>${diff}</td>
       </tr>`;
   });
 
-  // 🎯 Input değişikliği
+  // 🎯 Elle QC değeri girildiğinde tabloyu güncelle
   tb.querySelectorAll(".qc-input").forEach(inp => {
     inp.addEventListener("input", e => {
       const idx = parseInt(e.target.dataset.idx);
       let val = parseInt(e.target.value || "0");
       if (isNaN(val) || val < 0) val = 0;
-      if (val > (qcOrder.lines[idx].picked || 0))
-        val = qcOrder.lines[idx].picked;
-
+      if (val > (qcOrder.lines[idx].picked || 0)) val = qcOrder.lines[idx].picked;
       qcOrder.lines[idx].qc = val;
-      renderQCLines(); // Anında renk güncelle
+      renderQCLines();
     });
   });
 }
@@ -659,7 +657,6 @@ async function finishQC() {
   });
   alert("✅ QC tamamlandı ve sipariş başarıyla onaylandı!");
 }
-
 
 // ================== PALETLEME ==================
 document.getElementById("refreshPaletBtn")?.addEventListener("click", refreshPaletOrders);
