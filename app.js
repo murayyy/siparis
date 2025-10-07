@@ -528,7 +528,9 @@ async function refreshQCOrders() {
   if (!sel) return;
   sel.innerHTML = "";
 
-  const qs = await getDocs(query(collection(db, "orders"), where("status", "in", ["Kontrol", "Kontrol Başladı"])));
+  const qs = await getDocs(
+    query(collection(db, "orders"), where("status", "in", ["Kontrol", "Kontrol Başladı"]))
+  );
   qs.forEach(d => {
     const o = { id: d.id, ...d.data() };
     const opt = document.createElement("option");
@@ -545,14 +547,17 @@ async function openQCOrder() {
   const ds = await getDoc(doc(db, "orders", id));
   if (!ds.exists()) return alert("Sipariş bulunamadı!");
 
+  // Aynı anda iki tarayıcı açık kalmasın
+  await stopQCScanner();
+
   qcOrder = { id: ds.id, ...ds.data() };
-  qcOrder.lines = qcOrder.lines.map(l => ({ ...l, qc: l.qc || 0 }));
-  renderQCLines();
+  qcOrder.lines = (qcOrder.lines || []).map(l => ({ ...l, qc: l.qc || 0, picked: l.picked || 0 }));
 
   document.getElementById("qcTitle").textContent = `Sipariş: ${qcOrder.name}`;
-  document.getElementById("qcArea").classList.remove("hidden");
+  document.getElementById("qcArea")?.classList.remove("hidden");
+  renderQCLines();
 
-  // 🔄 Sipariş durumunu "Kontrol Başladı" olarak işaretle
+  // Durumu güncelle
   await updateDoc(doc(db, "orders", qcOrder.id), {
     status: "Kontrol Başladı",
     lastUpdate: new Date()
@@ -570,7 +575,6 @@ function renderQCLines() {
     const qc = l.qc || 0;
     const diff = Math.max(0, picked - qc);
 
-    // 🔵 Duruma göre satır rengi
     let rowClass = "";
     if (qc === 0) rowClass = "not-picked";
     else if (qc < picked) rowClass = "partial-picked";
@@ -579,9 +583,9 @@ function renderQCLines() {
     tb.innerHTML += `
       <tr class="${rowClass}">
         <td>${i + 1}</td>
-        <td>${l.code}</td>
-        <td>${l.name}</td>
-        <td>${l.qty}</td>
+        <td>${l.code || ""}</td>
+        <td>${l.name || ""}</td>
+        <td>${l.qty ?? 0}</td>
         <td>${picked}</td>
         <td>
           <input 
@@ -598,32 +602,51 @@ function renderQCLines() {
       </tr>`;
   });
 
-  // 🎯 Input değişikliği
+  // Input değişikliği
   tb.querySelectorAll(".qc-input").forEach(inp => {
     inp.addEventListener("input", e => {
-      const idx = parseInt(e.target.dataset.idx);
-      let val = parseInt(e.target.value || "0");
+      const idx = parseInt(e.target.dataset.idx, 10);
+      let val = parseInt(e.target.value || "0", 10);
       if (isNaN(val) || val < 0) val = 0;
-      if (val > (qcOrder.lines[idx].picked || 0))
-        val = qcOrder.lines[idx].picked;
+      const max = qcOrder.lines[idx].picked || 0;
+      if (val > max) val = max;
 
       qcOrder.lines[idx].qc = val;
-      renderQCLines(); // Anında renk güncelle
+      renderQCLines(); // renkleri anında güncelle
     });
   });
 }
 
 // ================== QC TARAMA BAŞLAT ==================
 async function startQCScanner() {
+  // Kütüphane veya hedef eleman yoksa sessiz çık
+  if (typeof Html5Qrcode === "undefined") {
+    alert("Barkod kütüphanesi yüklenmedi.");
+    return;
+  }
+  const targetEl = document.getElementById("qcReader");
+  if (!targetEl) {
+    alert("qcReader alanı bulunamadı.");
+    return;
+  }
+
   if (qcScanner) await stopQCScanner();
   qcScanner = new Html5Qrcode("qcReader");
-  await qcScanner.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 }, onQCScan);
+  try {
+    await qcScanner.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 }, onQCScan);
+  } catch (err) {
+    console.error("QC scanner start error:", err);
+    alert("Tarayıcı başlatılamadı.");
+  }
 }
 
 // ================== QC TARAMA DURDUR ==================
 function stopQCScanner() {
-  if (!qcScanner) return;
-  return qcScanner.stop().then(() => { qcScanner.clear(); qcScanner = null; });
+  if (!qcScanner) return Promise.resolve();
+  return qcScanner.stop().then(() => { 
+    qcScanner.clear(); 
+    qcScanner = null; 
+  }).catch(() => { qcScanner = null; });
 }
 
 // ================== QC BARKOD OKUMA ==================
@@ -634,8 +657,12 @@ function onQCScan(code) {
     alert("Barkod bulunamadı: " + code);
     return;
   }
-  qcOrder.lines[idx].qc = (qcOrder.lines[idx].qc || 0) + 1;
-  renderQCLines();
+  const picked = qcOrder.lines[idx].picked || 0;
+  const current = qcOrder.lines[idx].qc || 0;
+  if (current < picked) {
+    qcOrder.lines[idx].qc = current + 1;
+    renderQCLines();
+  }
 }
 
 // ================== QC KAYDET ==================
@@ -652,14 +679,14 @@ async function saveQCProgress() {
 // ================== QC BİTİR ==================
 async function finishQC() {
   if (!qcOrder) return alert("Henüz bir sipariş seçmedin!");
+  await stopQCScanner();
   await updateDoc(doc(db, "orders", qcOrder.id), {
     lines: qcOrder.lines,
     status: "Tamamlandı",
     lastUpdate: new Date()
   });
-  alert("✅ QC tamamlandı ve sipariş başarıyla onaylandı!");
+  alert("✅ QC tamamlandı ve sipariş onaylandı!");
 }
-
 
 // ================== PALETLEME ==================
 document.getElementById("refreshPaletBtn")?.addEventListener("click", refreshPaletOrders);
