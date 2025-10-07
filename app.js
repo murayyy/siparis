@@ -511,8 +511,10 @@ window.sendToQC = async function(id) {
   loadAllOrders();
 };
 
-// ================== QC ==================
 // ================== QC (KONTROL) ==================
+let qcOrder = null;
+let qcScanner = null;
+
 document.getElementById("refreshQCBtn")?.addEventListener("click", refreshQCOrders);
 document.getElementById("openQCBtn")?.addEventListener("click", openQCOrder);
 document.getElementById("startQCScanBtn")?.addEventListener("click", startQCScanner);
@@ -526,13 +528,12 @@ async function refreshQCOrders() {
   if (!sel) return;
   sel.innerHTML = "";
 
-  // 🔄 Artık hem "Kontrol" hem "Kontrol Başladı" durumundakiler gelir
   const qs = await getDocs(query(collection(db, "orders"), where("status", "in", ["Kontrol", "Kontrol Başladı"])));
   qs.forEach(d => {
     const o = { id: d.id, ...d.data() };
     const opt = document.createElement("option");
     opt.value = o.id;
-    opt.textContent = `${o.id} - ${o.name} (${o.status})`;
+    opt.textContent = `${o.id} - ${o.name || "(İsimsiz)"} (${o.status})`;
     sel.appendChild(opt);
   });
 }
@@ -540,9 +541,9 @@ async function refreshQCOrders() {
 // ================== QC SİPARİŞİ AÇ ==================
 async function openQCOrder() {
   const id = document.getElementById("qcOrders").value;
-  if (!id) return;
+  if (!id) return alert("Lütfen bir sipariş seç.");
   const ds = await getDoc(doc(db, "orders", id));
-  if (!ds.exists()) return;
+  if (!ds.exists()) return alert("Sipariş bulunamadı!");
 
   qcOrder = { id: ds.id, ...ds.data() };
   qcOrder.lines = qcOrder.lines.map(l => ({ ...l, qc: l.qc || 0 }));
@@ -561,7 +562,7 @@ async function openQCOrder() {
 // ================== QC TABLOSUNU GÖSTER ==================
 function renderQCLines() {
   const tb = document.querySelector("#tbl-qc-lines tbody");
-  if (!tb) return;
+  if (!tb || !qcOrder) return;
   tb.innerHTML = "";
 
   qcOrder.lines.forEach((l, i) => {
@@ -569,11 +570,11 @@ function renderQCLines() {
     const qc = l.qc || 0;
     const diff = Math.max(0, picked - qc);
 
-    // 🔵 Duruma göre renk sınıfı
+    // 🔵 Duruma göre satır rengi
     let rowClass = "";
-    if (qc === 0) rowClass = "not-picked";         // kırmızı
-    else if (qc < picked) rowClass = "partial-picked"; // sarı
-    else rowClass = "fully-picked";                // yeşil
+    if (qc === 0) rowClass = "not-picked";
+    else if (qc < picked) rowClass = "partial-picked";
+    else rowClass = "fully-picked";
 
     tb.innerHTML += `
       <tr class="${rowClass}">
@@ -582,9 +583,33 @@ function renderQCLines() {
         <td>${l.name}</td>
         <td>${l.qty}</td>
         <td>${picked}</td>
-        <td>${qc}</td>
+        <td>
+          <input 
+            type="number" 
+            class="qc-input" 
+            data-idx="${i}" 
+            min="0" 
+            max="${picked}" 
+            value="${qc}" 
+            style="width:70px;text-align:center;"
+          />
+        </td>
         <td>${diff}</td>
       </tr>`;
+  });
+
+  // 🎯 Input değişikliği
+  tb.querySelectorAll(".qc-input").forEach(inp => {
+    inp.addEventListener("input", e => {
+      const idx = parseInt(e.target.dataset.idx);
+      let val = parseInt(e.target.value || "0");
+      if (isNaN(val) || val < 0) val = 0;
+      if (val > (qcOrder.lines[idx].picked || 0))
+        val = qcOrder.lines[idx].picked;
+
+      qcOrder.lines[idx].qc = val;
+      renderQCLines(); // Anında renk güncelle
+    });
   });
 }
 
@@ -626,13 +651,15 @@ async function saveQCProgress() {
 
 // ================== QC BİTİR ==================
 async function finishQC() {
-  if (!qcOrder) return;
+  if (!qcOrder) return alert("Henüz bir sipariş seçmedin!");
   await updateDoc(doc(db, "orders", qcOrder.id), {
     lines: qcOrder.lines,
-    status: "Tamamlandı"
+    status: "Tamamlandı",
+    lastUpdate: new Date()
   });
-  alert("QC tamamlandı!");
+  alert("✅ QC tamamlandı ve sipariş başarıyla onaylandı!");
 }
+
 
 // ================== PALETLEME ==================
 document.getElementById("refreshPaletBtn")?.addEventListener("click", refreshPaletOrders);
