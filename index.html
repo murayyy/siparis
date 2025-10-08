@@ -150,16 +150,21 @@
 <section id="view-qc" class="view hidden">
   <h2>🔍 QC – Kontrol</h2>
 
-  <!-- Üst Menü -->
   <div class="row">
     <button id="refreshQCBtn" class="btn-light">Yenile</button>
     <select id="qcOrders" class="input"></select>
     <button id="openQCBtn" class="btn-light">Aç</button>
   </div>
 
-  <!-- Kontrol Alanı -->
   <div id="qcArea" class="card hidden">
     <h3 id="qcTitle">Sipariş:</h3>
+
+    <div class="row" style="gap:6px;margin-bottom:10px;">
+      <button id="startQCScanBtn" class="btn-light">📷 Tarayıcıyı Başlat</button>
+      <button id="stopQCScanBtn" class="btn-light">⛔ Durdur</button>
+      <button id="saveQCBtn" class="btn-light">💾 Kaydet</button>
+    </div>
+    <div id="qcReader" style="width:300px; margin:10px auto;"></div>
 
     <table id="tbl-qc-lines">
       <thead>
