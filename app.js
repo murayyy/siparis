@@ -512,25 +512,38 @@ window.sendToQC = async function(id) {
 };
 
 // ================== QC (KONTROL) ==================
-document.getElementById("refreshQCBtn")?.addEventListener("click", refreshQCOrders);
-document.getElementById("openQCBtn")?.addEventListener("click", openQCOrder);
-document.getElementById("startQCScanBtn")?.addEventListener("click", startQCScanner);
-document.getElementById("stopQCScanBtn")?.addEventListener("click", stopQCScanner);
-document.getElementById("finishQCBtn")?.addEventListener("click", finishQC);
-document.getElementById("saveQCBtn")?.addEventListener("click", saveQCProgress); // 💾 QC kaydetme
-
 let qcOrder = null;
 let qcScanner = null;
 
+// Güvenli event binder (ID tek ya da dizi olabilir)
+const $ = (id) => document.getElementById(id);
+const on = (ids, evt, fn) => {
+  (Array.isArray(ids) ? ids : [ids]).forEach((id) => {
+    const el = $(id);
+    if (el) el.addEventListener(evt, fn);
+    else console.warn(`[QC] Bulunamadı: #${id} (event=${evt})`);
+  });
+};
+
+// Tüm olası ID varyasyonlarına bağlan (QC/qc farkları)
+on(["refreshQCBtn", "refreshQcBtn"], "click", refreshQCOrders);
+on(["openQCBtn", "openQcBtn"], "click", openQCOrder);
+on(["startQCScanBtn", "startQcScanBtn"], "click", startQCScanner);
+on(["stopQCScanBtn", "stopQcScanBtn"], "click", stopQCScanner);
+on(["finishQCBtn", "finishQcBtn"], "click", finishQC);
+on(["saveQCBtn", "saveQcBtn"], "click", saveQCProgress); // 💾 QC kaydet
+
 // ================== QC SİPARİŞLERİNİ LİSTELE ==================
 async function refreshQCOrders() {
-  const sel = document.getElementById("qcOrders");
+  const sel = $("qcOrders");
   if (!sel) return;
   sel.innerHTML = "";
 
-  // 🔄 Hem "Kontrol" hem "Kontrol Başladı" olan siparişleri getir
-  const qs = await getDocs(query(collection(db, "orders"), where("status", "in", ["Kontrol", "Kontrol Başladı"])));
-  qs.forEach(d => {
+  const qs = await getDocs(
+    query(collection(db, "orders"), where("status", "in", ["Kontrol", "Kontrol Başladı"]))
+  );
+
+  qs.forEach((d) => {
     const o = { id: d.id, ...d.data() };
     const opt = document.createElement("option");
     opt.value = o.id;
@@ -541,122 +554,26 @@ async function refreshQCOrders() {
 
 // ================== QC SİPARİŞİ AÇ ==================
 async function openQCOrder() {
-  const id = document.getElementById("qcOrders").value;
+  const id = $("qcOrders")?.value;
   if (!id) return alert("Lütfen bir sipariş seç.");
+
   const ds = await getDoc(doc(db, "orders", id));
   if (!ds.exists()) return alert("Sipariş bulunamadı!");
 
   qcOrder = { id: ds.id, ...ds.data() };
-  qcOrder.lines = qcOrder.lines.map(l => ({ ...l, qc: l.qc || 0 }));
+  qcOrder.lines = (qcOrder.lines || []).map((l) => ({
+    ...l,
+    picked: l.picked || 0,
+    qc: l.qc || 0,
+  }));
+
   renderQCLines();
+  $("qcTitle").textContent = `Sipariş: ${qcOrder.name}`;
+  $("qcArea")?.classList.remove("hidden");
 
-  document.getElementById("qcTitle").textContent = `Sipariş: ${qcOrder.name}`;
-  document.getElementById("qcArea").classList.remove("hidden");
-
-  // 🔄 Sipariş durumunu “Kontrol Başladı” olarak işaretle
   await updateDoc(doc(db, "orders", qcOrder.id), {
     status: "Kontrol Başladı",
-    lastUpdate: new Date()
-  });
-}
-
-// ================== QC TABLOSUNU GÖSTER ==================
-function renderQCLines() {
-  const tb = document.querySelector("#tbl-qc-lines tbody");
-  if (!tb || !qcOrder) return;
-  tb.innerHTML = "";
-
-  qcOrder.lines.forEach((l, i) => {
-    const picked = l.picked || 0;
-    const qc = l.qc || 0;
-    const diff = Math.max(0, picked - qc);
-
-    // 🔵 Duruma göre renk sınıfı
-    let rowClass = "";
-    if (qc === 0) rowClass = "not-picked";           // kırmızı
-    else if (qc < picked) rowClass = "partial-picked"; // sarı
-    else rowClass = "fully-picked";                  // yeşil
-
-    tb.innerHTML += `
-      <tr class="${rowClass}">
-        <td>${i + 1}</td>
-        <td>${l.code}</td>
-        <td>${l.name}</td>
-        <td>${l.qty}</td>
-        <td>${picked}</td>
-        <td>
-          <input 
-            type="number" 
-            class="qc-input" 
-            min="0" 
-            max="${picked}" 
-            value="${qc}" 
-            data-idx="${i}"
-          />
-        </td>
-        <td>${diff}</td>
-      </tr>`;
-  });
-
-  // 🎯 Elle QC değeri girildiğinde tabloyu güncelle
-  tb.querySelectorAll(".qc-input").forEach(inp => {
-    inp.addEventListener("input", e => {
-      const idx = parseInt(e.target.dataset.idx);
-      let val = parseInt(e.target.value || "0");
-      if (isNaN(val) || val < 0) val = 0;
-      if (val > (qcOrder.lines[idx].picked || 0)) val = qcOrder.lines[idx].picked;
-      qcOrder.lines[idx].qc = val;
-      renderQCLines();
-    });
-  });
-}
-
-// ================== QC TARAMA BAŞLAT ==================
-async function startQCScanner() {
-  if (qcScanner) await stopQCScanner();
-  qcScanner = new Html5Qrcode("qcReader");
-  await qcScanner.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 }, onQCScan);
-}
-
-// ================== QC TARAMA DURDUR ==================
-function stopQCScanner() {
-  if (!qcScanner) return;
-  return qcScanner.stop().then(() => { qcScanner.clear(); qcScanner = null; });
-}
-
-// ================== QC BARKOD OKUMA ==================
-function onQCScan(code) {
-  if (!qcOrder) return;
-  const idx = qcOrder.lines.findIndex(l => (l.barcode && l.barcode === code) || l.code === code);
-  if (idx === -1) {
-    alert("Barkod bulunamadı: " + code);
-    return;
-  }
-  qcOrder.lines[idx].qc = (qcOrder.lines[idx].qc || 0) + 1;
-  renderQCLines();
-}
-
-// ================== QC KAYDET ==================
-async function saveQCProgress() {
-  if (!qcOrder) return alert("Önce bir sipariş açın!");
-  await updateDoc(doc(db, "orders", qcOrder.id), {
-    lines: qcOrder.lines,
-    status: "Kontrol Başladı",
-    lastUpdate: new Date()
-  });
-  alert("Kontrol durumu kaydedildi. Daha sonra devam edebilirsin!");
-}
-
-// ================== QC BİTİR ==================
-async function finishQC() {
-  if (!qcOrder) return alert("Henüz bir sipariş seçmedin!");
-  await updateDoc(doc(db, "orders", qcOrder.id), {
-    lines: qcOrder.lines,
-    status: "Tamamlandı",
-    lastUpdate: new Date()
-  });
-  alert("✅ QC tamamlandı ve sipariş başarıyla onaylandı!");
-}
+    lastUpdate: new Date
 
 // ================== PALETLEME ==================
 document.getElementById("refreshPaletBtn")?.addEventListener("click", refreshPaletOrders);
