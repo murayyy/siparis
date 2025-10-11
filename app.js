@@ -512,6 +512,7 @@ window.sendToQC = async function(id) {
 };
 
 // ================== QC (KONTROL) ==================
+console.log("QC script aktif, tarayıcı bekleniyor...");
 let qcOrder = null;
 let qcScanner = null;
 
