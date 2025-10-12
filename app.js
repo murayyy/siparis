@@ -319,26 +319,28 @@ function renderPickerLines() {
   if (!tb) return;
   tb.innerHTML = "";
 
-  // Yardımcı: satır UI’sını sadece o satır için güncelle
+  const clamp = (v, min, max) => Math.min(Math.max(v, min), max);
+
+  // Sadece satırı güncelleyen yardımcı
   const refreshRow = (idx) => {
     const tr = tb.querySelector(`tr[data-row="${idx}"]`);
     if (!tr) return;
     const line = pickerOrder.lines[idx];
-    const qty = line.qty || 0;
-    const picked = line.picked || 0;
+    const qty = Number(line.qty || 0);
+    const picked = Number(line.picked || 0);
 
-    // renk
-    tr.classList.remove("not-picked","partial-picked","fully-picked");
-    tr.classList.add(picked === 0 ? "not-picked" : picked < qty ? "partial-picked" : "fully-picked");
+    tr.classList.remove("not-picked", "partial-picked", "fully-picked");
+    tr.classList.add(
+      picked === 0 ? "not-picked" : picked < qty ? "partial-picked" : "fully-picked"
+    );
 
-    // input değeri
     const inp = tr.querySelector(".picked-input");
     if (inp) inp.value = picked;
   };
 
   pickerOrder.lines.forEach((l, i) => {
-    const picked = l.picked || 0;
-    const qty = l.qty || 0;
+    const picked = Number(l.picked || 0);
+    const qty = Number(l.qty || 0);
     const rowClass = picked === 0 ? "not-picked" : picked < qty ? "partial-picked" : "fully-picked";
 
     tb.insertAdjacentHTML("beforeend", `
@@ -351,11 +353,12 @@ function renderPickerLines() {
           <input
             type="number"
             min="0"
-            max="${qty || ''}"
+            ${Number.isFinite(qty) ? `max="${qty}"` : ""}
+            step="any"
             class="picked-input"
             data-idx="${i}"
             value="${picked}"
-            style="width:72px;text-align:center;"
+            style="width:90px;text-align:center;"
           />
         </td>
         <td>
@@ -367,47 +370,48 @@ function renderPickerLines() {
     `);
   });
 
-  // Elle yazma
+  // Elle yazma (ondalık)
   tb.querySelectorAll(".picked-input").forEach(inp => {
     inp.addEventListener("input", e => {
-      const idx = parseInt(e.target.dataset.idx, 10);
-      let v = parseInt(e.target.value || "0", 10);
+      const idx = Number(e.target.dataset.idx);
+      let v = parseFloat(e.target.value);
       if (isNaN(v) || v < 0) v = 0;
-      const max = pickerOrder.lines[idx].qty ?? Infinity;
-      if (v > max) v = max;
-      pickerOrder.lines[idx].picked = v;
-      refreshRow(idx); // 🔁 sadece o satırı boya/güncelle
+      const max = Number(pickerOrder.lines[idx].qty ?? Infinity);
+      pickerOrder.lines[idx].picked = clamp(v, 0, max);
+      refreshRow(idx);
     });
     inp.addEventListener("blur", e => {
-      const idx = parseInt(e.target.dataset.idx, 10);
-      e.target.value = pickerOrder.lines[idx].picked || 0;
+      const idx = Number(e.target.dataset.idx);
+      e.target.value = pickerOrder.lines[idx].picked ?? 0;
     });
   });
 
-  // +1 / -1
+  // +1 / -1 (tam sayı artış, istersen +0.1 yapabilirsin)
   tb.querySelectorAll("button[data-plus]").forEach(btn => {
     btn.addEventListener("click", () => {
-      const idx = parseInt(btn.dataset.plus, 10);
-      const max = pickerOrder.lines[idx].qty ?? Infinity;
-      pickerOrder.lines[idx].picked = Math.min((pickerOrder.lines[idx].picked || 0) + 1, max);
+      const idx = Number(btn.dataset.plus);
+      const max = Number(pickerOrder.lines[idx].qty ?? Infinity);
+      const cur = Number(pickerOrder.lines[idx].picked || 0);
+      pickerOrder.lines[idx].picked = clamp(cur + 1, 0, max);
       refreshRow(idx);
     });
   });
   tb.querySelectorAll("button[data-minus]").forEach(btn => {
     btn.addEventListener("click", () => {
-      const idx = parseInt(btn.dataset.minus, 10);
-      pickerOrder.lines[idx].picked = Math.max((pickerOrder.lines[idx].picked || 0) - 1, 0);
+      const idx = Number(btn.dataset.minus);
+      const cur = Number(pickerOrder.lines[idx].picked || 0);
+      pickerOrder.lines[idx].picked = Math.max(cur - 1, 0);
       refreshRow(idx);
     });
   });
 
-  // Sil (indeksler değişeceği için komple yeniden çizmek mantıklı)
+  // Sil
   tb.querySelectorAll("button[data-del]").forEach(btn => {
     btn.addEventListener("click", () => {
-      const i = parseInt(btn.dataset.del, 10);
+      const i = Number(btn.dataset.del);
       if (confirm("Bu satırı listeden silmek istiyor musunuz?")) {
         pickerOrder.lines.splice(i, 1);
-        renderPickerLines(); // indeksler değişti; tabloyu yeniden kur
+        renderPickerLines();
       }
     });
   });
@@ -594,71 +598,78 @@ async function openQCOrder() {
   });
 }
 
-// ================== QC TABLOSUNU GÖSTER ==================
+// ================== QC TABLOSUNU GÖSTER (ondalıklı destek) ==================
 function renderQCLines() {
   const tb = document.querySelector("#tbl-qc-lines tbody");
-  if (!tb) return;
-
+  if (!tb || !qcOrder) return;
   tb.innerHTML = "";
 
+  const clamp = (v, min, max) => Math.min(Math.max(v, min), max);
+
+  // Satır bazlı mini-güncelle
+  const refreshRow = (idx) => {
+    const tr = tb.querySelector(`tr[data-row="${idx}"]`);
+    if (!tr) return;
+    const l = qcOrder.lines[idx];
+    const picked = Number(l.picked || 0);
+    const qc = Number(l.qc || 0);
+    const diff = Math.max(0, picked - qc);
+
+    tr.classList.remove("not-picked","partial-picked","fully-picked");
+    tr.classList.add(qc === 0 ? "not-picked" : qc < picked ? "partial-picked" : "fully-picked");
+
+    tr.querySelector(".qc-input").value = qc;
+    tr.querySelector(".cell-diff").textContent = diff;
+  };
+
   qcOrder.lines.forEach((l, i) => {
-    const picked = l.picked || 0;
-    const qc = l.qc || 0;
+    const picked = Number(l.picked || 0);
+    const qc = Number(l.qc || 0);
     const diff = Math.max(0, picked - qc);
     const rowClass = qc === 0 ? "not-picked" : qc < picked ? "partial-picked" : "fully-picked";
 
-    tb.insertAdjacentHTML(
-      "beforeend",
-      `
-      <tr class="${rowClass}">
+    tb.insertAdjacentHTML("beforeend", `
+      <tr class="${rowClass}" data-row="${i}">
         <td>${i + 1}</td>
         <td>${l.code || ""}</td>
         <td>${l.name || ""}</td>
-        <td>${l.qty || 0}</td>
+        <td>${Number(l.qty || 0)}</td>
         <td>${picked}</td>
         <td>
           <input
             type="number"
+            min="0"
+            ${Number.isFinite(picked) ? `max="${picked}"` : ""}
+            step="any"
             class="qc-input"
             data-idx="${i}"
-            min="0"
-            max="${picked}"
             value="${qc}"
-            style="width:70px;text-align:center;"
+            style="width:90px;text-align:center;"
           />
         </td>
-        <td class="diff-cell">${diff}</td>
-      </tr>`
-    );
+        <td class="cell-diff">${diff}</td>
+      </tr>
+    `);
   });
 
-  // Sadece ilgili satırı güncelle (tam tabloyu yeniden çizme!)
-  tb.querySelectorAll(".qc-input").forEach((inp) => {
-    inp.addEventListener("input", (e) => {
+  // Elle yazma (ondalık)
+  tb.querySelectorAll(".qc-input").forEach(inp => {
+    inp.addEventListener("input", e => {
       const idx = Number(e.target.dataset.idx);
-      let val = parseInt(e.target.value || "0", 10);
-      if (isNaN(val) || val < 0) val = 0;
-
-      const picked = qcOrder.lines[idx].picked || 0;
-      if (val > picked) val = picked;
-
-      qcOrder.lines[idx].qc = val;
-
-      const tr = e.target.closest("tr");
-      const diffCell = tr.querySelector(".diff-cell");
-      diffCell.textContent = Math.max(0, picked - val);
-
-      tr.classList.remove("not-picked", "partial-picked", "fully-picked");
-      tr.classList.add(val === 0 ? "not-picked" : val < picked ? "partial-picked" : "fully-picked");
+      let v = parseFloat(e.target.value);
+      if (isNaN(v) || v < 0) v = 0;
+      const pickedMax = Number(qcOrder.lines[idx].picked || 0);
+      qcOrder.lines[idx].qc = clamp(v, 0, pickedMax);
+      refreshRow(idx);
     });
-
-    inp.addEventListener("blur", (e) => {
+    inp.addEventListener("blur", e => {
       const idx = Number(e.target.dataset.idx);
-      e.target.value = qcOrder.lines[idx].qc || 0;
+      e.target.value = qcOrder.lines[idx].qc ?? 0;
     });
   });
 }
 
+ 
 // ================== QC SCANNER ==================
 async function startQCScanner() {
   if (typeof Html5Qrcode === "undefined") return alert("📷 Barkod kütüphanesi yüklenmemiş!");
