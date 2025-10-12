@@ -244,3 +244,31 @@ tr:nth-child(even) {
     cursor: not-allowed;
   }
 }
+/* ---- Satır renklendirme: zebra çizgisini ez ---- */
+table tr.not-picked    { background-color: #ffd6d6 !important; }
+table tr.partial-picked{ background-color: #fff6c5 !important; }
+table tr.fully-picked  { background-color: #d7ffd7 !important; }
+
+/* ---- Sayısal inputlar masaüstünde de dar görünsün ---- */
+#tbl-picker-lines input[type="number"],
+#tbl-qc-lines input[type="number"],
+.picked-input,
+.qc-input {
+  width: 72px;
+  padding: 4px;
+  text-align: center;
+}
+
+/* ---- .pill butonlarını global yap (sadece mobile değil) ---- */
+.pill {
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  cursor: pointer;
+}
+.pill:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
