@@ -512,15 +512,16 @@ window.sendToQC = async function(id) {
 };
 
 // ================== QC (KONTROL) ==================
-console.log("QC script aktif, tarayıcı bekleniyor...");
+console.log("✅ QC Modülü Yüklendi");
+
 let qcOrder = null;
 let qcScanner = null;
 
 const $ = (id) => document.getElementById(id);
 
+// 🎯 Butonlar
 ["refreshQCBtn", "openQCBtn", "startQCScanBtn", "stopQCScanBtn", "finishQCBtn", "saveQCBtn"].forEach(id => {
-  const el = $(id);
-  if (!el) console.warn("Eksik eleman:", id);
+  if (!$(id)) console.warn("Eksik eleman:", id);
 });
 
 $("refreshQCBtn")?.addEventListener("click", refreshQCOrders);
@@ -604,12 +605,13 @@ function renderQCLines() {
 
 // ================== QC SCANNER ==================
 async function startQCScanner() {
-  if (typeof Html5Qrcode === "undefined") return alert("Barkod kütüphanesi yüklenmemiş!");
+  if (typeof Html5Qrcode === "undefined") return alert("📷 Barkod kütüphanesi yüklenmemiş!");
   if (qcScanner) await stopQCScanner();
 
   qcScanner = new Html5Qrcode("qcReader");
   try {
     await qcScanner.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 }, onQCScan);
+    console.log("✅ QC Tarayıcı başlatıldı");
   } catch (err) {
     console.error(err);
     alert("Tarayıcı başlatılamadı!");
@@ -618,7 +620,11 @@ async function startQCScanner() {
 
 function stopQCScanner() {
   if (!qcScanner) return;
-  return qcScanner.stop().then(() => { qcScanner.clear(); qcScanner = null; });
+  return qcScanner.stop().then(() => {
+    qcScanner.clear();
+    qcScanner = null;
+    console.log("⛔ QC Tarayıcı durduruldu");
+  });
 }
 
 function onQCScan(code) {
@@ -652,6 +658,7 @@ async function finishQC() {
   });
   alert("✅ QC tamamlandı!");
 }
+
 
 // ================== PALETLEME ==================
 document.getElementById("refreshPaletBtn")?.addEventListener("click", refreshPaletOrders);
