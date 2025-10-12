@@ -589,9 +589,7 @@ window.sendToQC = async function(id) {
 // ================== QC (KONTROL) ==================
 console.log("✅ QC Modülü Yüklendi");
 
-// Durumlar
-let qcOrder = null;
-let qcScanner = null;
+
 
 // Kısa seçici
 const $ = (id) => document.getElementById(id);
