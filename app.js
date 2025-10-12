@@ -514,9 +514,6 @@ window.sendToQC = async function(id) {
 // ================== QC (KONTROL) ==================
 console.log("✅ QC Modülü Yüklendi");
 
-let qcOrder = null;
-let qcScanner = null;
-
 const $ = (id) => document.getElementById(id);
 
 // 🎯 Butonlar
