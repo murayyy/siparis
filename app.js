@@ -320,13 +320,12 @@ function renderPickerLines() {
 
   const toNum = (v) => {
     if (v === "" || v == null) return 0;
-    // TR desteği: virgülü noktaya çevir
-    const n = parseFloat(String(v).replace(",", "."));
+    const n = parseFloat(String(v).replace(",", ".")); // TR virgül -> nokta
     return Number.isNaN(n) ? 0 : n;
   };
   const clamp = (v, min, max) => Math.min(Math.max(v, min), max);
 
-  // Sadece ilgili satırı boyayan küçük yardımcı
+  // Sadece ilgili satırı boyayan yardımcı
   const paintRow = (tr, qty, picked) => {
     tr.classList.remove("not-picked", "partial-picked", "fully-picked");
     tr.classList.add(
@@ -368,51 +367,52 @@ function renderPickerLines() {
     paintRow(tr, qty, picked);
   });
 
-  // — Elle yazma (İNPUT): sadece değeri modele koy, clamp & boyama BLUR/CHANGE’de
+  // Elle yazma (input): değeri modele koy; blur/enter’da normalize + boya
   tb.querySelectorAll(".picked-input").forEach(inp => {
     inp.addEventListener("input", e => {
       const idx = Number(e.target.dataset.idx);
       const raw = e.target.value;
       const val = toNum(raw);
-      pickerOrder.lines[idx].picked = val; // ara değer
-      // burada repaint yapmıyoruz -> imeç zıplamaz
+      pickerOrder.lines[idx].picked = val; // ara değer (kullanıcı yazarken)
     });
 
-    // kesinleştir: blur’da sınırla + satırı boya
     inp.addEventListener("blur", e => {
       const idx = Number(e.target.dataset.idx);
       const line = pickerOrder.lines[idx];
       const qty = toNum(line.qty);
       let val = toNum(e.target.value);
-      // üst sınır: istersen qty’yi kaldırıp Infinity yap
-      val = clamp(val, 0, Number.isFinite(qty) ? qty : Infinity);
+
+      // Üst sınır: sadece istenen miktar gerçekten pozitifse uygula
+      const hardMax = (Number.isFinite(qty) && qty > 0) ? qty : Infinity;
+      val = clamp(val, 0, hardMax);
+
       line.picked = val;
-      e.target.value = val; // normalize et
+      e.target.value = val; // normalize et (virgül/gereksiz karakterler gider)
       const tr = tb.querySelector(`tr[data-row="${idx}"]`);
       paintRow(tr, qty, val);
     });
 
-    // Enter’da da blur davranışı
     inp.addEventListener("keydown", e => {
       if (e.key === "Enter") e.target.blur();
     });
   });
 
-  // +1 / -1 (tam sayı artış; istersen 0.1 yap: cur + 0.1 / cur - 0.1)
+  // +1 / -1 / Sil
   tb.querySelectorAll("button[data-plus]").forEach(btn => {
     btn.addEventListener("click", () => {
       const idx = Number(btn.dataset.plus);
       const line = pickerOrder.lines[idx];
       const qty = toNum(line.qty);
       const cur = toNum(line.picked);
-      const next = clamp(cur + 1, 0, Number.isFinite(qty) ? qty : Infinity);
+
+      const hardMax = (Number.isFinite(qty) && qty > 0) ? qty : Infinity;
+      const next = clamp(cur + 1, 0, hardMax);
       line.picked = next;
 
       const tr = tb.querySelector(`tr[data-row="${idx}"]`);
       const inp = tr.querySelector(".picked-input");
       inp.value = next;
-      const q = toNum(line.qty);
-      paintRow(tr, q, next);
+      paintRow(tr, qty, next);
     });
   });
 
@@ -420,15 +420,16 @@ function renderPickerLines() {
     btn.addEventListener("click", () => {
       const idx = Number(btn.dataset.minus);
       const line = pickerOrder.lines[idx];
+      const qty = toNum(line.qty);
       const cur = toNum(line.picked);
+
       const next = Math.max(cur - 1, 0);
       line.picked = next;
 
       const tr = tb.querySelector(`tr[data-row="${idx}"]`);
       const inp = tr.querySelector(".picked-input");
       inp.value = next;
-      const q = toNum(line.qty);
-      paintRow(tr, q, next);
+      paintRow(tr, qty, next);
     });
   });
 
@@ -462,21 +463,28 @@ async function handleScannedCode(codeOrBarcode, askQty = false) {
   let qty = 1;
   if (askQty) {
     const v = prompt(`Okunan: ${codeOrBarcode}\nMiktar?`, "1");
-    qty = parseInt(v || "1", 10);
-    if (!qty || qty < 1) qty = 1;
+    qty = parseFloat(String(v || "1").replace(",", ".")); // ondalık & TR desteği
+    if (!qty || qty < 0) qty = 0;
   }
 
   let idx = pickerOrder.lines.findIndex(l => (l.barcode && l.barcode === codeOrBarcode) || l.code === codeOrBarcode);
   if (idx !== -1) {
-    const max = pickerOrder.lines[idx].qty ?? Infinity;
-    pickerOrder.lines[idx].picked = Math.min((pickerOrder.lines[idx].picked || 0) + qty, max);
+    const line = pickerOrder.lines[idx];
+    const req = parseFloat(String(line.qty ?? 0));
+    const hardMax = (Number.isFinite(req) && req > 0) ? req : Infinity;
+    const cur = parseFloat(String(line.picked ?? 0)) || 0;
+    line.picked = Math.min(cur + qty, hardMax);
   } else {
-    // Ürün yeni ekleniyorsa qty=0 istenen; picked = okunan
     let name = "";
     try {
       const prodSnap = await getDoc(doc(db, "products", codeOrBarcode));
-      if (prodSnap.exists()) name = prodSnap.data().name || "";
-    } catch (e) { console.warn("Ürün bulunamadı:", e); }
+      if (prodSnap.exists()) {
+        name = prodSnap.data().name || "";
+      }
+    } catch (e) {
+      console.warn("Ürün bulunamadı:", e);
+    }
+    // Yeni eklenende istenen 0 (ad-hoc), picked taranan miktar
     pickerOrder.lines.push({ code: codeOrBarcode, name, qty: 0, picked: qty });
   }
 
@@ -487,20 +495,27 @@ async function handleScannedCode(codeOrBarcode, askQty = false) {
 async function manualAdd() {
   if (!pickerOrder) return alert("Önce sipariş seçin!");
   const code = document.getElementById("manualScanCode").value.trim();
-  let qty = parseInt(document.getElementById("manualScanQty").value, 10);
+  let qty = parseFloat(String(document.getElementById("manualScanQty").value).replace(",", "."));
   if (!code) return alert("Kod veya barkod girin!");
-  if (!qty || qty < 1) qty = 1;
+  if (!qty || qty < 0) qty = 0;
 
   let idx = pickerOrder.lines.findIndex(l => l.code === code || l.barcode === code);
   if (idx !== -1) {
-    const max = pickerOrder.lines[idx].qty ?? Infinity;
-    pickerOrder.lines[idx].picked = Math.min((pickerOrder.lines[idx].picked || 0) + qty, max);
+    const line = pickerOrder.lines[idx];
+    const req = parseFloat(String(line.qty ?? 0));
+    const hardMax = (Number.isFinite(req) && req > 0) ? req : Infinity;
+    const cur = parseFloat(String(line.picked ?? 0)) || 0;
+    line.picked = Math.min(cur + qty, hardMax);
   } else {
     let name = "";
     try {
       const prodSnap = await getDoc(doc(db, "products", code));
-      if (prodSnap.exists()) name = prodSnap.data().name || "";
-    } catch (e) { console.warn("Elle eklenen ürün bulunamadı:", e); }
+      if (prodSnap.exists()) {
+        name = prodSnap.data().name || "";
+      }
+    } catch (e) {
+      console.warn("Elle eklenen ürün bulunamadı:", e);
+    }
     pickerOrder.lines.push({ code, name, qty: 0, picked: qty });
   }
 
@@ -523,8 +538,13 @@ async function savePickProgress() {
 // ================== TOPLAMA TAMAMLAMA ==================
 async function finishPick() {
   if (!pickerOrder) return;
+  const toNum = (v) => {
+    if (v === "" || v == null) return 0;
+    const n = parseFloat(String(v).replace(",", "."));
+    return Number.isNaN(n) ? 0 : n;
+  };
   for (const l of pickerOrder.lines) {
-    const used = Math.min(l.picked || 0, l.qty || 0);
+    const used = Math.min(toNum(l.picked), toNum(l.qty));
     if (used > 0) await decreaseStock(l.code, used, pickerOrder.warehouse);
   }
   await updateDoc(doc(db, "orders", pickerOrder.id), {
@@ -533,7 +553,6 @@ async function finishPick() {
   });
   alert("Toplama tamamlandı!");
 }
-
 
 // ================== YÖNETİCİ ==================
 document.getElementById("refreshOrdersBtn")?.addEventListener("click", loadAllOrders);
@@ -570,7 +589,11 @@ window.sendToQC = async function(id) {
 // ================== QC (KONTROL) ==================
 console.log("✅ QC Modülü Yüklendi");
 
+// Durumlar
+let qcOrder = null;
+let qcScanner = null;
 
+// Kısa seçici
 const $ = (id) => document.getElementById(id);
 
 // 🔗 Buton bağla
@@ -580,6 +603,14 @@ $("startQCScanBtn")?.addEventListener("click", startQCScanner);
 $("stopQCScanBtn")?.addEventListener("click", stopQCScanner);
 $("finishQCBtn")?.addEventListener("click", finishQC);
 $("saveQCBtn")?.addEventListener("click", saveQCProgress);
+
+// Küçük yardımcılar
+const toNum = (v) => {
+  if (v === "" || v == null) return 0;
+  const n = parseFloat(String(v).replace(",", ".")); // TR virgül desteği
+  return Number.isNaN(n) ? 0 : n;
+};
+const clamp = (v, min, max) => Math.min(Math.max(v, min), max);
 
 // ================== QC SİPARİŞLERİNİ LİSTELE ==================
 async function refreshQCOrders() {
@@ -610,8 +641,9 @@ async function openQCOrder() {
   qcOrder = { id: ds.id, ...ds.data() };
   qcOrder.lines = (qcOrder.lines || []).map((l) => ({
     ...l,
-    qc: l.qc || 0,
-    picked: l.picked || 0,
+    picked: toNum(l.picked || 0),
+    qc: toNum(l.qc || 0),
+    qty: toNum(l.qty || 0),
   }));
 
   renderQCLines();
@@ -624,132 +656,77 @@ async function openQCOrder() {
   });
 }
 
-function renderPickerLines() {
-  const tb = document.querySelector("#tbl-picker-lines tbody");
-  if (!tb) return;
+// ================== QC TABLOSUNU GÖSTER ==================
+function renderQCLines() {
+  const tb = document.querySelector("#tbl-qc-lines tbody");
+  if (!tb || !qcOrder) return;
   tb.innerHTML = "";
 
-  const toNum = (v) => {
-    if (v === "" || v == null) return 0;
-    // TR desteği: virgülü noktaya çevir
-    const n = parseFloat(String(v).replace(",", "."));
-    return Number.isNaN(n) ? 0 : n;
-  };
-  const clamp = (v, min, max) => Math.min(Math.max(v, min), max);
-
-  // Sadece ilgili satırı boyayan küçük yardımcı
-  const paintRow = (tr, qty, picked) => {
+  // Satır boyama
+  const paintRow = (tr, picked, qc) => {
     tr.classList.remove("not-picked", "partial-picked", "fully-picked");
-    tr.classList.add(
-      picked === 0 ? "not-picked" : picked < qty ? "partial-picked" : "fully-picked"
-    );
+    tr.classList.add(qc === 0 ? "not-picked" : qc < picked ? "partial-picked" : "fully-picked");
   };
 
-  pickerOrder.lines.forEach((l, i) => {
-    const qty = toNum(l.qty);
+  qcOrder.lines.forEach((l, i) => {
     const picked = toNum(l.picked);
+    const qc = clamp(toNum(l.qc), 0, picked);
+    const diff = Math.max(0, picked - qc);
 
-    tb.insertAdjacentHTML("beforeend", `
+    tb.insertAdjacentHTML(
+      "beforeend",
+      `
       <tr data-row="${i}">
         <td>${i + 1}</td>
-        <td>${l.code}</td>
+        <td>${l.code || ""}</td>
         <td>${l.name || ""}</td>
-        <td>${qty}</td>
+        <td>${toNum(l.qty)}</td>
+        <td>${picked}</td>
         <td>
           <input
             type="number"
             inputmode="decimal"
             step="0.001"
             min="0"
-            class="picked-input"
+            class="qc-input"
             data-idx="${i}"
-            value="${picked}"
+            value="${qc}"
             style="width:100px;text-align:center;"
           />
         </td>
-        <td>
-          <button class="pill" data-plus="${i}">+1</button>
-          <button class="pill" data-minus="${i}">-1</button>
-          <button class="pill" data-del="${i}">Sil</button>
-        </td>
-      </tr>
-    `);
+        <td>${diff}</td>
+      </tr>`
+    );
+
     // İlk boyama
     const tr = tb.querySelector(`tr[data-row="${i}"]`);
-    paintRow(tr, qty, picked);
+    paintRow(tr, picked, qc);
   });
 
-  // — Elle yazma (İNPUT): sadece değeri modele koy, clamp & boyama BLUR/CHANGE’de
-  tb.querySelectorAll(".picked-input").forEach(inp => {
-    inp.addEventListener("input", e => {
+  // Elle yazma: ara değeri modele koy; blur/enter’da clamp + boya
+  tb.querySelectorAll(".qc-input").forEach((inp) => {
+    inp.addEventListener("input", (e) => {
       const idx = Number(e.target.dataset.idx);
       const raw = e.target.value;
       const val = toNum(raw);
-      pickerOrder.lines[idx].picked = val; // ara değer
-      // burada repaint yapmıyoruz -> imeç zıplamaz
+      qcOrder.lines[idx].qc = val; // ara değer (imeç zıplamasın)
     });
 
-    // kesinleştir: blur’da sınırla + satırı boya
-    inp.addEventListener("blur", e => {
+    inp.addEventListener("blur", (e) => {
       const idx = Number(e.target.dataset.idx);
-      const line = pickerOrder.lines[idx];
-      const qty = toNum(line.qty);
-      let val = toNum(e.target.value);
-      // üst sınır: istersen qty’yi kaldırıp Infinity yap
-      val = clamp(val, 0, Number.isFinite(qty) ? qty : Infinity);
-      line.picked = val;
-      e.target.value = val; // normalize et
+      const line = qcOrder.lines[idx];
+      const picked = toNum(line.picked);
+      let val = clamp(toNum(e.target.value), 0, picked);
+      line.qc = val;
+      e.target.value = val; // normalize
       const tr = tb.querySelector(`tr[data-row="${idx}"]`);
-      paintRow(tr, qty, val);
+      paintRow(tr, picked, val);
+      // Eksik kolonu da güncelle:
+      tr.querySelector("td:last-child").textContent = Math.max(0, picked - val);
     });
 
-    // Enter’da da blur davranışı
-    inp.addEventListener("keydown", e => {
+    inp.addEventListener("keydown", (e) => {
       if (e.key === "Enter") e.target.blur();
-    });
-  });
-
-  // +1 / -1 (tam sayı artış; istersen 0.1 yap: cur + 0.1 / cur - 0.1)
-  tb.querySelectorAll("button[data-plus]").forEach(btn => {
-    btn.addEventListener("click", () => {
-      const idx = Number(btn.dataset.plus);
-      const line = pickerOrder.lines[idx];
-      const qty = toNum(line.qty);
-      const cur = toNum(line.picked);
-      const next = clamp(cur + 1, 0, Number.isFinite(qty) ? qty : Infinity);
-      line.picked = next;
-
-      const tr = tb.querySelector(`tr[data-row="${idx}"]`);
-      const inp = tr.querySelector(".picked-input");
-      inp.value = next;
-      const q = toNum(line.qty);
-      paintRow(tr, q, next);
-    });
-  });
-
-  tb.querySelectorAll("button[data-minus]").forEach(btn => {
-    btn.addEventListener("click", () => {
-      const idx = Number(btn.dataset.minus);
-      const line = pickerOrder.lines[idx];
-      const cur = toNum(line.picked);
-      const next = Math.max(cur - 1, 0);
-      line.picked = next;
-
-      const tr = tb.querySelector(`tr[data-row="${idx}"]`);
-      const inp = tr.querySelector(".picked-input");
-      inp.value = next;
-      const q = toNum(line.qty);
-      paintRow(tr, q, next);
-    });
-  });
-
-  tb.querySelectorAll("button[data-del]").forEach(btn => {
-    btn.addEventListener("click", () => {
-      const i = Number(btn.dataset.del);
-      if (confirm("Bu satırı listeden silmek istiyor musunuz?")) {
-        pickerOrder.lines.splice(i, 1);
-        renderPickerLines();
-      }
     });
   });
 }
@@ -783,14 +760,18 @@ function onQCScan(code) {
   const idx = qcOrder.lines.findIndex((l) => l.barcode === code || l.code === code);
   if (idx === -1) return alert("Barkod bulunamadı: " + code);
 
-  const picked = qcOrder.lines[idx].picked || 0;
-  if ((qcOrder.lines[idx].qc || 0) < picked) qcOrder.lines[idx].qc++;
-  // Yalnızca bu satırı güncellemek için input event'ini tetikle
+  const picked = toNum(qcOrder.lines[idx].picked);
+  const cur = toNum(qcOrder.lines[idx].qc);
+  if (cur < picked) {
+    qcOrder.lines[idx].qc = cur + 1; // istersen 0.1 artır: cur + 0.1
+  }
+
+  // Sadece bu satırı ekranda güncelle
   const tb = document.querySelector("#tbl-qc-lines tbody");
   const input = tb?.querySelector(`.qc-input[data-idx="${idx}"]`);
   if (input) {
     input.value = qcOrder.lines[idx].qc;
-    input.dispatchEvent(new Event("input", { bubbles: true }));
+    input.dispatchEvent(new Event("blur", { bubbles: true })); // clamp + boyama
   }
 }
 
@@ -815,6 +796,7 @@ async function finishQC() {
   });
   alert("✅ QC tamamlandı!");
 }
+
 
 // ================== PALETLEME ==================
 document.getElementById("refreshPaletBtn")?.addEventListener("click", refreshPaletOrders);
