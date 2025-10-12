@@ -284,14 +284,13 @@ document.getElementById("startScanBtn")?.addEventListener("click", startPickerSc
 document.getElementById("stopScanBtn")?.addEventListener("click", stopPickerScanner);
 document.getElementById("finishPickBtn")?.addEventListener("click", finishPick);
 document.getElementById("manualAddBtn")?.addEventListener("click", manualAdd); // ✅ elle ekleme
-document.getElementById("savePickBtn")?.addEventListener("click", savePickProgress); // 💾 yeni kaydet butonu
+document.getElementById("savePickBtn")?.addEventListener("click", savePickProgress); // 💾 kaydet
 
 // ================== GÖREVLER ==================
 async function refreshAssigned() {
   const sel = document.getElementById("assignedOrders");
   if (!sel) return;
   sel.innerHTML = "";
-  // 🔄 Artık hem "Atandı" hem "Toplama Başladı" durumundakiler listelenecek
   const qs = await getDocs(query(collection(db, "orders"), where("status", "in", ["Atandı", "Toplama Başladı"])));
   qs.forEach(d => {
     const o = { id: d.id, ...d.data() };
@@ -308,76 +307,107 @@ async function openAssigned() {
   const ds = await getDoc(doc(db, "orders", id));
   if (!ds.exists()) return;
   pickerOrder = { id: ds.id, ...ds.data() };
-  pickerOrder.lines = pickerOrder.lines.map(l => ({ ...l, picked: l.picked || 0 }));
+  pickerOrder.lines = (pickerOrder.lines || []).map(l => ({ ...l, picked: l.picked || 0 }));
   renderPickerLines();
-  document.getElementById("pickerTitle").textContent = `Sipariş: ${pickerOrder.name} (${pickerOrder.warehouse})`;
+  document.getElementById("pickerTitle").textContent = `Sipariş: ${pickerOrder.name} (${pickerOrder.warehouse || "-"})`;
   document.getElementById("pickerArea").classList.remove("hidden");
 }
 
-// ================== LİSTE GÖRÜNÜMÜ ==================
+// ================== LİSTE GÖRÜNÜMÜ (satır-bazlı güncelleme) ==================
 function renderPickerLines() {
   const tb = document.querySelector("#tbl-picker-lines tbody");
   if (!tb) return;
   tb.innerHTML = "";
 
-  pickerOrder.lines.forEach((l, i) => {
-    // 🔍 Satır renk durumu
-    let rowClass = "";
-    if ((l.picked || 0) === 0) rowClass = "not-picked";              // hiç toplanmadı
-    else if ((l.picked || 0) < (l.qty || 0)) rowClass = "partial-picked"; // kısmen
-    else rowClass = "fully-picked";                                   // tamamlandı
+  // Yardımcı: satır UI’sını sadece o satır için güncelle
+  const refreshRow = (idx) => {
+    const tr = tb.querySelector(`tr[data-row="${idx}"]`);
+    if (!tr) return;
+    const line = pickerOrder.lines[idx];
+    const qty = line.qty || 0;
+    const picked = line.picked || 0;
 
-    tb.innerHTML += `
-      <tr class="${rowClass}">
+    // renk
+    tr.classList.remove("not-picked","partial-picked","fully-picked");
+    tr.classList.add(picked === 0 ? "not-picked" : picked < qty ? "partial-picked" : "fully-picked");
+
+    // input değeri
+    const inp = tr.querySelector(".picked-input");
+    if (inp) inp.value = picked;
+  };
+
+  pickerOrder.lines.forEach((l, i) => {
+    const picked = l.picked || 0;
+    const qty = l.qty || 0;
+    const rowClass = picked === 0 ? "not-picked" : picked < qty ? "partial-picked" : "fully-picked";
+
+    tb.insertAdjacentHTML("beforeend", `
+      <tr class="${rowClass}" data-row="${i}">
         <td>${i + 1}</td>
         <td>${l.code}</td>
         <td>${l.name || ""}</td>
-        <td>${l.qty}</td>
+        <td>${qty}</td>
         <td>
-          <input type="number" min="0" class="picked-input" data-idx="${i}" value="${l.picked || 0}"/>
+          <input
+            type="number"
+            min="0"
+            max="${qty || ''}"
+            class="picked-input"
+            data-idx="${i}"
+            value="${picked}"
+            style="width:72px;text-align:center;"
+          />
         </td>
         <td>
           <button class="pill" data-plus="${i}">+1</button>
           <button class="pill" data-minus="${i}">-1</button>
           <button class="pill" data-del="${i}">Sil</button>
         </td>
-      </tr>`;
+      </tr>
+    `);
   });
 
-  // input değişikliği
+  // Elle yazma
   tb.querySelectorAll(".picked-input").forEach(inp => {
     inp.addEventListener("input", e => {
       const idx = parseInt(e.target.dataset.idx, 10);
-      let v = parseInt(e.target.value, 10);
+      let v = parseInt(e.target.value || "0", 10);
       if (isNaN(v) || v < 0) v = 0;
+      const max = pickerOrder.lines[idx].qty ?? Infinity;
+      if (v > max) v = max;
       pickerOrder.lines[idx].picked = v;
-      renderPickerLines(); // 🔁 renkleri güncelle
+      refreshRow(idx); // 🔁 sadece o satırı boya/güncelle
+    });
+    inp.addEventListener("blur", e => {
+      const idx = parseInt(e.target.dataset.idx, 10);
+      e.target.value = pickerOrder.lines[idx].picked || 0;
     });
   });
 
-  // +1 / -1 / Sil işlemleri
+  // +1 / -1
   tb.querySelectorAll("button[data-plus]").forEach(btn => {
     btn.addEventListener("click", () => {
-      const i = parseInt(btn.dataset.plus, 10);
-      pickerOrder.lines[i].picked = (pickerOrder.lines[i].picked || 0) + 1;
-      renderPickerLines();
+      const idx = parseInt(btn.dataset.plus, 10);
+      const max = pickerOrder.lines[idx].qty ?? Infinity;
+      pickerOrder.lines[idx].picked = Math.min((pickerOrder.lines[idx].picked || 0) + 1, max);
+      refreshRow(idx);
     });
   });
   tb.querySelectorAll("button[data-minus]").forEach(btn => {
     btn.addEventListener("click", () => {
-      const i = parseInt(btn.dataset.minus, 10);
-      let v = (pickerOrder.lines[i].picked || 0) - 1;
-      if (v < 0) v = 0;
-      pickerOrder.lines[i].picked = v;
-      renderPickerLines();
+      const idx = parseInt(btn.dataset.minus, 10);
+      pickerOrder.lines[idx].picked = Math.max((pickerOrder.lines[idx].picked || 0) - 1, 0);
+      refreshRow(idx);
     });
   });
+
+  // Sil (indeksler değişeceği için komple yeniden çizmek mantıklı)
   tb.querySelectorAll("button[data-del]").forEach(btn => {
     btn.addEventListener("click", () => {
       const i = parseInt(btn.dataset.del, 10);
       if (confirm("Bu satırı listeden silmek istiyor musunuz?")) {
         pickerOrder.lines.splice(i, 1);
-        renderPickerLines();
+        renderPickerLines(); // indeksler değişti; tabloyu yeniden kur
       }
     });
   });
@@ -408,17 +438,15 @@ async function handleScannedCode(codeOrBarcode, askQty = false) {
 
   let idx = pickerOrder.lines.findIndex(l => (l.barcode && l.barcode === codeOrBarcode) || l.code === codeOrBarcode);
   if (idx !== -1) {
-    pickerOrder.lines[idx].picked = (pickerOrder.lines[idx].picked || 0) + qty;
+    const max = pickerOrder.lines[idx].qty ?? Infinity;
+    pickerOrder.lines[idx].picked = Math.min((pickerOrder.lines[idx].picked || 0) + qty, max);
   } else {
+    // Ürün yeni ekleniyorsa qty=0 istenen; picked = okunan
     let name = "";
     try {
       const prodSnap = await getDoc(doc(db, "products", codeOrBarcode));
-      if (prodSnap.exists()) {
-        name = prodSnap.data().name || "";
-      }
-    } catch (e) {
-      console.warn("Ürün bulunamadı:", e);
-    }
+      if (prodSnap.exists()) name = prodSnap.data().name || "";
+    } catch (e) { console.warn("Ürün bulunamadı:", e); }
     pickerOrder.lines.push({ code: codeOrBarcode, name, qty: 0, picked: qty });
   }
 
@@ -435,17 +463,14 @@ async function manualAdd() {
 
   let idx = pickerOrder.lines.findIndex(l => l.code === code || l.barcode === code);
   if (idx !== -1) {
-    pickerOrder.lines[idx].picked = (pickerOrder.lines[idx].picked || 0) + qty;
+    const max = pickerOrder.lines[idx].qty ?? Infinity;
+    pickerOrder.lines[idx].picked = Math.min((pickerOrder.lines[idx].picked || 0) + qty, max);
   } else {
     let name = "";
     try {
       const prodSnap = await getDoc(doc(db, "products", code));
-      if (prodSnap.exists()) {
-        name = prodSnap.data().name || "";
-      }
-    } catch (e) {
-      console.warn("Elle eklenen ürün bulunamadı:", e);
-    }
+      if (prodSnap.exists()) name = prodSnap.data().name || "";
+    } catch (e) { console.warn("Elle eklenen ürün bulunamadı:", e); }
     pickerOrder.lines.push({ code, name, qty: 0, picked: qty });
   }
 
@@ -454,7 +479,7 @@ async function manualAdd() {
   document.getElementById("manualScanQty").value = "1";
 }
 
-// ================== TOPLAMA KAYDET (Yeni) ==================
+// ================== TOPLAMA KAYDET ==================
 async function savePickProgress() {
   if (!pickerOrder) return alert("Önce bir sipariş açın!");
   await updateDoc(doc(db, "orders", pickerOrder.id), {
@@ -478,6 +503,7 @@ async function finishPick() {
   });
   alert("Toplama tamamlandı!");
 }
+
 
 // ================== YÖNETİCİ ==================
 document.getElementById("refreshOrdersBtn")?.addEventListener("click", loadAllOrders);
