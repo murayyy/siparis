@@ -514,13 +514,10 @@ window.sendToQC = async function(id) {
 // ================== QC (KONTROL) ==================
 console.log("✅ QC Modülü Yüklendi");
 
+
 const $ = (id) => document.getElementById(id);
 
-// 🎯 Butonlar
-["refreshQCBtn", "openQCBtn", "startQCScanBtn", "stopQCScanBtn", "finishQCBtn", "saveQCBtn"].forEach(id => {
-  if (!$(id)) console.warn("Eksik eleman:", id);
-});
-
+// 🔗 Buton bağla
 $("refreshQCBtn")?.addEventListener("click", refreshQCOrders);
 $("openQCBtn")?.addEventListener("click", openQCOrder);
 $("startQCScanBtn")?.addEventListener("click", startQCScanner);
@@ -531,11 +528,13 @@ $("saveQCBtn")?.addEventListener("click", saveQCProgress);
 // ================== QC SİPARİŞLERİNİ LİSTELE ==================
 async function refreshQCOrders() {
   const sel = $("qcOrders");
-  if (!sel) return alert("Seçim kutusu bulunamadı!");
+  if (!sel) return;
 
   sel.innerHTML = "";
-  const qs = await getDocs(query(collection(db, "orders"), where("status", "in", ["Kontrol", "Kontrol Başladı"])));
-  qs.forEach(d => {
+  const qs = await getDocs(
+    query(collection(db, "orders"), where("status", "in", ["Kontrol", "Kontrol Başladı"]))
+  );
+  qs.forEach((d) => {
     const o = { id: d.id, ...d.data() };
     const opt = document.createElement("option");
     opt.value = o.id;
@@ -553,7 +552,11 @@ async function openQCOrder() {
   if (!ds.exists()) return alert("Sipariş bulunamadı!");
 
   qcOrder = { id: ds.id, ...ds.data() };
-  qcOrder.lines = (qcOrder.lines || []).map(l => ({ ...l, qc: l.qc || 0, picked: l.picked || 0 }));
+  qcOrder.lines = (qcOrder.lines || []).map((l) => ({
+    ...l,
+    qc: l.qc || 0,
+    picked: l.picked || 0,
+  }));
 
   renderQCLines();
   $("qcTitle").textContent = `Sipariş: ${qcOrder.name}`;
@@ -561,7 +564,7 @@ async function openQCOrder() {
 
   await updateDoc(doc(db, "orders", qcOrder.id), {
     status: "Kontrol Başladı",
-    lastUpdate: new Date()
+    lastUpdate: new Date(),
   });
 }
 
@@ -569,33 +572,63 @@ async function openQCOrder() {
 function renderQCLines() {
   const tb = document.querySelector("#tbl-qc-lines tbody");
   if (!tb) return;
+
   tb.innerHTML = "";
 
   qcOrder.lines.forEach((l, i) => {
     const picked = l.picked || 0;
     const qc = l.qc || 0;
     const diff = Math.max(0, picked - qc);
+    const rowClass = qc === 0 ? "not-picked" : qc < picked ? "partial-picked" : "fully-picked";
 
-    let rowClass = qc === 0 ? "not-picked" : qc < picked ? "partial-picked" : "fully-picked";
-
-    tb.innerHTML += `
+    tb.insertAdjacentHTML(
+      "beforeend",
+      `
       <tr class="${rowClass}">
         <td>${i + 1}</td>
         <td>${l.code || ""}</td>
         <td>${l.name || ""}</td>
         <td>${l.qty || 0}</td>
         <td>${picked}</td>
-        <td><input type="number" class="qc-input" data-idx="${i}" min="0" max="${picked}" value="${qc}" style="width:70px;text-align:center;"/></td>
-        <td>${diff}</td>
-      </tr>`;
+        <td>
+          <input
+            type="number"
+            class="qc-input"
+            data-idx="${i}"
+            min="0"
+            max="${picked}"
+            value="${qc}"
+            style="width:70px;text-align:center;"
+          />
+        </td>
+        <td class="diff-cell">${diff}</td>
+      </tr>`
+    );
   });
 
-  tb.querySelectorAll(".qc-input").forEach(inp => {
-    inp.addEventListener("input", e => {
-      const idx = parseInt(e.target.dataset.idx);
-      const val = Math.max(0, Math.min(parseInt(e.target.value) || 0, qcOrder.lines[idx].picked || 0));
+  // Sadece ilgili satırı güncelle (tam tabloyu yeniden çizme!)
+  tb.querySelectorAll(".qc-input").forEach((inp) => {
+    inp.addEventListener("input", (e) => {
+      const idx = Number(e.target.dataset.idx);
+      let val = parseInt(e.target.value || "0", 10);
+      if (isNaN(val) || val < 0) val = 0;
+
+      const picked = qcOrder.lines[idx].picked || 0;
+      if (val > picked) val = picked;
+
       qcOrder.lines[idx].qc = val;
-      renderQCLines();
+
+      const tr = e.target.closest("tr");
+      const diffCell = tr.querySelector(".diff-cell");
+      diffCell.textContent = Math.max(0, picked - val);
+
+      tr.classList.remove("not-picked", "partial-picked", "fully-picked");
+      tr.classList.add(val === 0 ? "not-picked" : val < picked ? "partial-picked" : "fully-picked");
+    });
+
+    inp.addEventListener("blur", (e) => {
+      const idx = Number(e.target.dataset.idx);
+      e.target.value = qcOrder.lines[idx].qc || 0;
     });
   });
 }
@@ -626,12 +659,18 @@ function stopQCScanner() {
 
 function onQCScan(code) {
   if (!qcOrder) return;
-  const idx = qcOrder.lines.findIndex(l => l.barcode === code || l.code === code);
+  const idx = qcOrder.lines.findIndex((l) => l.barcode === code || l.code === code);
   if (idx === -1) return alert("Barkod bulunamadı: " + code);
 
   const picked = qcOrder.lines[idx].picked || 0;
   if ((qcOrder.lines[idx].qc || 0) < picked) qcOrder.lines[idx].qc++;
-  renderQCLines();
+  // Yalnızca bu satırı güncellemek için input event'ini tetikle
+  const tb = document.querySelector("#tbl-qc-lines tbody");
+  const input = tb?.querySelector(`.qc-input[data-idx="${idx}"]`);
+  if (input) {
+    input.value = qcOrder.lines[idx].qc;
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  }
 }
 
 // ================== QC KAYDET & BİTİR ==================
@@ -640,7 +679,7 @@ async function saveQCProgress() {
   await updateDoc(doc(db, "orders", qcOrder.id), {
     lines: qcOrder.lines,
     status: "Kontrol Başladı",
-    lastUpdate: new Date()
+    lastUpdate: new Date(),
   });
   alert("💾 QC kaydedildi!");
 }
@@ -651,11 +690,10 @@ async function finishQC() {
   await updateDoc(doc(db, "orders", qcOrder.id), {
     lines: qcOrder.lines,
     status: "Tamamlandı",
-    lastUpdate: new Date()
+    lastUpdate: new Date(),
   });
   alert("✅ QC tamamlandı!");
 }
-
 
 // ================== PALETLEME ==================
 document.getElementById("refreshPaletBtn")?.addEventListener("click", refreshPaletOrders);
