@@ -954,3 +954,307 @@ document.getElementById("btnStockOut")?.addEventListener("click", async () => {
   alert("Stok çıkışı yapıldı.");
   loadStockManage();
 });
+// ================== SAYIM (CYCLE COUNT) ==================
+// Not: Mevcut koda DOKUNMADAN ekleme yapar.
+
+let countSession = { warehouse: null, lines: [] }; // {code,name,sysQty,countQty,diff}
+let countScanner = null;
+
+const $$ = (id) => document.getElementById(id);
+
+// NAV butonu: “Sayım”a tıklanınca, depo default seçilsin ve liste boşalsın
+document.querySelector("button[data-view='view-count']")?.addEventListener("click", () => {
+  if (!countSession.warehouse) {
+    countSession.warehouse = $$("#countWarehouse")?.value || "MERKEZ";
+  }
+  renderCountLines();
+  refreshCountSessions();
+});
+
+// Depo değiştiğinde oturum depo set edilir
+$$("#countWarehouse")?.addEventListener("change", (e) => {
+  countSession.warehouse = e.target.value;
+});
+
+// Barkod başlat/durdur
+$$("#startCountScanBtn")?.addEventListener("click", startCountScanner);
+$$("#stopCountScanBtn")?.addEventListener("click", stopCountScanner);
+
+// Elle ekleme
+$$("#countManualAddBtn")?.addEventListener("click", async () => {
+  const code = ($$("#countManualCode")?.value || "").trim();
+  let qty = $$("#countManualQty")?.value ?? "0";
+  if (!code) return alert("Kod/barkod girin.");
+  qty = toNum(qty);
+  if (qty < 0) qty = 0;
+  await addOrUpdateCountLine(code, qty);
+  $$("#countManualCode").value = "";
+  $$("#countManualQty").value = "1";
+});
+
+// Oturumu kaydet / uygula / sıfırla
+$$("#saveCountSessionBtn")?.addEventListener("click", saveCountSession);
+$$("#applyCountBtn")?.addEventListener("click", applyCountToStocks);
+$$("#newCountSessionBtn")?.addEventListener("click", () => {
+  if (!confirm("Bu sayım oturumunu sıfırlamak istiyor musunuz?")) return;
+  countSession = { warehouse: $$("#countWarehouse")?.value || "MERKEZ", lines: [] };
+  renderCountLines();
+});
+
+// Eski oturumları listele
+$$("#refreshCountSessionsBtn")?.addEventListener("click", refreshCountSessions);
+
+// ---------- Yardımcılar ----------
+function toNum(v) {
+  if (v === "" || v == null) return 0;
+  const n = parseFloat(String(v).replace(",", "."));
+  return Number.isNaN(n) ? 0 : n;
+}
+function format3(n) {
+  // 3 basamak ve ondalık destek; trim’li gösterim
+  const s = Number(n).toLocaleString("tr-TR", { maximumFractionDigits: 3 });
+  return s;
+}
+function diffClass(d) {
+  if (d > 0) return "diff-pos";
+  if (d < 0) return "diff-neg";
+  return "";
+}
+
+// ---------- Satır Ekle/Güncelle ----------
+async function addOrUpdateCountLine(code, addQty) {
+  const wh = countSession.warehouse || ($$("#countWarehouse")?.value || "MERKEZ");
+
+  // Stok bilgisini getir
+  const ref = doc(db, "stocks", `${wh}_${code}`);
+  let sysQty = 0;
+  let name = "";
+
+  try {
+    const snap = await getDoc(ref);
+    if (snap.exists()) {
+      const d = snap.data();
+      sysQty = toNum(d.qty || 0);
+      name = d.name || code;
+    } else {
+      // stokta hiç yoksa, ürün isminden çekmeye çalış
+      const pSnap = await getDoc(doc(db, "products", code));
+      name = pSnap.exists() ? (pSnap.data().name || code) : code;
+      sysQty = 0;
+    }
+  } catch (e) {
+    console.warn("Stok okunamadı:", e);
+  }
+
+  // Oturumda varsa birleştir
+  const idx = countSession.lines.findIndex(x => x.code === code);
+  if (idx >= 0) {
+    const line = countSession.lines[idx];
+    line.countQty = toNum(line.countQty) + toNum(addQty);
+    line.sysQty = sysQty; // güncelle
+    line.diff = toNum(line.countQty) - toNum(line.sysQty);
+  } else {
+    countSession.lines.push({
+      code, name, sysQty, countQty: toNum(addQty), diff: toNum(addQty) - sysQty
+    });
+  }
+  renderCountLines();
+}
+
+// ---------- Render ----------
+function renderCountLines() {
+  const tb = document.querySelector("#tbl-count-lines tbody");
+  if (!tb) return;
+  tb.innerHTML = "";
+
+  countSession.lines.forEach((l, i) => {
+    const diff = toNum(l.countQty) - toNum(l.sysQty);
+    const cls = diffClass(diff);
+
+    tb.insertAdjacentHTML("beforeend", `
+      <tr data-row="${i}" class="${cls}">
+        <td>${i + 1}</td>
+        <td>${l.code}</td>
+        <td>${l.name || ""}</td>
+        <td>${format3(l.sysQty)}</td>
+        <td>
+          <input
+            type="number"
+            inputmode="decimal"
+            step="0.001"
+            min="0"
+            class="count-input"
+            data-idx="${i}"
+            value="${String(l.countQty).replace(".", ",")}"
+            style="width:110px;text-align:center;"
+          />
+        </td>
+        <td>${format3(diff)}</td>
+        <td>
+          <button class="pill" data-plus="${i}">+1</button>
+          <button class="pill" data-minus="${i}">-1</button>
+          <button class="pill" data-del="${i}">Sil</button>
+        </td>
+      </tr>
+    `);
+  });
+
+  // input davranışı (ondalık stabil)
+  tb.querySelectorAll(".count-input").forEach(inp => {
+    inp.addEventListener("input", (e) => {
+      const idx = Number(e.target.dataset.idx);
+      // ara değer; repaint yok
+      countSession.lines[idx].countQty = String(e.target.value).replace(",", ".");
+    });
+    inp.addEventListener("blur", (e) => {
+      const idx = Number(e.target.dataset.idx);
+      let v = toNum(e.target.value);
+      if (v < 0) v = 0;
+      const line = countSession.lines[idx];
+      line.countQty = v;
+      line.diff = toNum(line.countQty) - toNum(line.sysQty);
+      // normalize gösterim
+      e.target.value = String(v).replace(".", ",");
+      renderCountLines();
+    });
+    inp.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") e.target.blur();
+    });
+  });
+
+  // +1 / -1
+  tb.querySelectorAll("button[data-plus]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const idx = Number(btn.dataset.plus);
+      const line = countSession.lines[idx];
+      line.countQty = toNum(line.countQty) + 1;
+      line.diff = toNum(line.countQty) - toNum(line.sysQty);
+      renderCountLines();
+    });
+  });
+  tb.querySelectorAll("button[data-minus]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const idx = Number(btn.dataset.minus);
+      const line = countSession.lines[idx];
+      line.countQty = Math.max(0, toNum(line.countQty) - 1);
+      line.diff = toNum(line.countQty) - toNum(line.sysQty);
+      renderCountLines();
+    });
+  });
+
+  // Sil
+  tb.querySelectorAll("button[data-del]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const i = Number(btn.dataset.del);
+      if (!confirm("Bu satırı silmek istiyor musunuz?")) return;
+      countSession.lines.splice(i, 1);
+      renderCountLines();
+    });
+  });
+}
+
+// ---------- Barkod ----------
+async function startCountScanner() {
+  if (typeof Html5Qrcode === "undefined") return alert("📷 Barkod kütüphanesi yüklenmemiş!");
+  if (countScanner) await stopCountScanner();
+
+  countScanner = new Html5Qrcode("countReader");
+  try {
+    await countScanner.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 }, async (code) => {
+      // her okutmada miktar sor (istenirse sabit 1 de yapabilirsin)
+      let qty = prompt(`Okunan: ${code}\nMiktar?`, "1");
+      qty = toNum(qty);
+      if (qty < 0) qty = 0;
+      await addOrUpdateCountLine(code, qty);
+    });
+  } catch (err) {
+    console.error(err);
+    alert("Tarayıcı başlatılamadı!");
+  }
+}
+function stopCountScanner() {
+  if (!countScanner) return;
+  return countScanner.stop().then(() => { countScanner.clear(); countScanner = null; });
+}
+
+// ---------- Kaydet & Uygula & Liste ----------
+async function saveCountSession() {
+  if (!countSession.lines.length) return alert("Oturum boş.");
+  const wh = countSession.warehouse || ($$("#countWarehouse")?.value || "MERKEZ");
+  const payload = {
+    warehouse: wh,
+    createdAt: serverTimestamp(),
+    createdBy: (currentUser && currentUser.uid) || null,
+    lines: countSession.lines.map(l => ({
+      code: l.code,
+      name: l.name || "",
+      sysQty: toNum(l.sysQty),
+      countQty: toNum(l.countQty),
+      diff: toNum(l.countQty) - toNum(l.sysQty)
+    }))
+  };
+  await addDoc(collection(db, "stock_counts"), payload);
+  alert("Sayım oturumu kaydedildi.");
+  refreshCountSessions();
+}
+
+async function applyCountToStocks() {
+  if (!countSession.lines.length) return alert("Oturum boş.");
+  const wh = countSession.warehouse || ($$("#countWarehouse")?.value || "MERKEZ");
+
+  // Onay
+  const totalDiff = countSession.lines.reduce((s, l) => s + (toNum(l.countQty) - toNum(l.sysQty)), 0);
+  if (!confirm(`Toplam fark: ${format3(totalDiff)}\nStokları sayım değerlerine set etmek istiyor musunuz?`)) return;
+
+  // Hepsini güncelle (SET: stok qty = sayım qty)
+  for (const l of countSession.lines) {
+    const ref = doc(db, "stocks", `${wh}_${l.code}`);
+    const snap = await getDoc(ref);
+    const newQty = toNum(l.countQty);
+    if (snap.exists()) {
+      await updateDoc(ref, { qty: newQty, name: snap.data().name || l.name || l.code, warehouse: wh });
+    } else {
+      await setDoc(ref, { code: l.code, name: l.name || l.code, qty: newQty, warehouse: wh });
+    }
+  }
+
+  // Logla
+  await addDoc(collection(db, "stock_counts"), {
+    warehouse: wh,
+    appliedAt: serverTimestamp(),
+    appliedBy: (currentUser && currentUser.uid) || null,
+    lines: countSession.lines.map(l => ({
+      code: l.code, name: l.name || "",
+      before: toNum(l.sysQty),
+      after: toNum(l.countQty),
+      diff: toNum(l.countQty) - toNum(l.sysQty)
+    }))
+  });
+
+  alert("Stoklar sayım değerlerine güncellendi.");
+  // Yeni oturum
+  countSession = { warehouse: wh, lines: [] };
+  renderCountLines();
+  refreshCountSessions();
+}
+
+async function refreshCountSessions() {
+  const tb = document.querySelector("#tbl-count-sessions tbody");
+  if (!tb) return;
+  tb.innerHTML = "";
+  const qy = query(collection(db, "stock_counts"), orderBy("createdAt", "desc"));
+  const snap = await getDocs(qy);
+  snap.forEach(d => {
+    const it = d.data();
+    const dateStr = it.createdAt?.toDate ? it.createdAt.toDate().toLocaleString("tr-TR") : "-";
+    const totalDiff = (it.lines || []).reduce((s, l) => s + toNum(l.diff || 0), 0);
+    tb.insertAdjacentHTML("beforeend", `
+      <tr>
+        <td>${dateStr}</td>
+        <td>${it.warehouse || "-"}</td>
+        <td>${(it.lines && it.lines.length) || 0}</td>
+        <td>${format3(totalDiff)}</td>
+      </tr>
+    `);
+  });
+}
