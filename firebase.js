@@ -8,7 +8,7 @@ import {
   query, where, orderBy, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
-// 🔧 Firebase config (senin projen)
+// 🔧 Firebase config
 const firebaseConfig = {
   apiKey: "AIzaSyDcLQB4UggXlYA9x8AKw-XybJjcF6U_KA4",
   authDomain: "depo1-4668f.firebaseapp.com",
