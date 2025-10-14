@@ -271,4 +271,6 @@ table tr.fully-picked  { background-color: #d7ffd7 !important; }
   opacity: 0.5;
   cursor: not-allowed;
 }
+.diff-pos { background: #eaffea; }   /* artı (sayım > sistem) */
+.diff-neg { background: #ffecec; }   /* eksi (sayım < sistem) */
 
