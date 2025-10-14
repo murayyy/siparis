@@ -49,6 +49,65 @@
       </select><br/>
       <button id="registerBtn">Kayıt Ol</button>
     </section>
+<!-- Sayım (Cycle Count) -->
+<section id="view-count" class="view hidden">
+  <h2>📋 Basit Sayım</h2>
+
+  <div class="card">
+    <div class="row">
+      <label for="countWarehouse">Depo:</label>
+      <select id="countWarehouse">
+        <option value="MERKEZ">MERKEZ</option>
+        <option value="ATIŞALANI">ATIŞALANI</option>
+        <option value="YEŞİLPINAR">YEŞİLPINAR</option>
+        <option value="ALAŞEHİR">ALAŞEHİR</option>
+        <option value="SAKARYA 2">SAKARYA 2</option>
+        <option value="EMEK">EMEK</option>
+      </select>
+
+      <button id="startCountScanBtn" class="btn-light">📷 Tarayıcıyı Başlat</button>
+      <button id="stopCountScanBtn" class="btn-light">⛔ Durdur</button>
+    </div>
+
+    <div id="countReader" style="width:300px; margin:10px 0;"></div>
+
+    <div class="row">
+      <input id="countManualCode" class="input" placeholder="Kod veya Barkod" />
+      <input id="countManualQty" class="input" inputmode="decimal" step="0.001" type="number" value="1" min="0" placeholder="Sayım Miktarı" />
+      <button id="countManualAddBtn" class="btn-light">Ekle</button>
+    </div>
+  </div>
+
+  <table id="tbl-count-lines" style="margin-top:12px;">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Kod</th>
+        <th>Ürün</th>
+        <th>Mevcut (Sistem)</th>
+        <th>Sayım</th>
+        <th>Fark</th>
+        <th>İşlem</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <div class="row" style="margin-top:12px;">
+    <button id="saveCountSessionBtn" class="btn-light">💾 Oturumu Kaydet</button>
+    <button id="applyCountBtn" class="success">✔️ Stoka Uygula</button>
+    <button id="newCountSessionBtn" class="danger">🗑️ Yeni Oturum</button>
+  </div>
+
+  <div class="card" style="margin-top:16px;">
+    <h3>🧾 Son Sayım Oturumları</h3>
+    <button id="refreshCountSessionsBtn" class="btn-light">Yenile</button>
+    <table id="tbl-count-sessions">
+      <thead><tr><th>Tarih</th><th>Depo</th><th>Satır</th><th>Toplam Fark</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</section>
 
     <!-- Şube -->
     <section id="view-branch" class="view hidden">
@@ -91,6 +150,7 @@
     <section id="view-manager" class="view hidden">
       <h2>👨‍💼 Yönetici Paneli</h2>
       <button id="refreshOrdersBtn" class="btn-light">Yenile</button>
+      <button data-view="view-count" class="btn-light">Sayım</button>
       <table id="tbl-orders">
         <thead><tr><th>ID</th><th>Ad</th><th>Depo</th><th>Durum</th><th>İşlem</th></tr></thead>
         <tbody></tbody>
