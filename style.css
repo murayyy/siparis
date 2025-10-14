@@ -38,8 +38,8 @@ header h1 {
 
 /* ================= Navbar Butonları ================= */
 nav button {
-  color: #111;              /* yazılar siyah (desktop) */
-  background: #f8fafc;      /* açık gri arka plan */
+  color: #111;
+  background: #f8fafc;
   border: 1px solid #cbd5e1;
   padding: 8px 12px;
   border-radius: 6px;
@@ -49,10 +49,10 @@ nav button {
 }
 
 nav button:hover {
-  background: #e2e8f0;      /* hover daha koyu gri */
+  background: #e2e8f0;
 }
 
-/* Logout (çıkış) ve danger buton */
+/* Logout */
 #logoutBtn {
   background: #ef4444;
   color: #fff;
@@ -169,16 +169,10 @@ tr:nth-child(even) {
   background: #f9fafb;
 }
 
-/* ================= Satır Renkleri (Toplayıcı) ================= */
-.not-picked {
-  background-color: #ffd6d6; /* hiç toplanmamış */
-}
-.partial-picked {
-  background-color: #fff6c5; /* kısmen toplanmış */
-}
-.fully-picked {
-  background-color: #d7ffd7; /* tamamen toplanmış */
-}
+/* ================= Satır Renkleri (Toplayıcı/QC) ================= */
+.not-picked { background-color: #ffd6d6; }
+.partial-picked { background-color: #fff6c5; }
+.fully-picked { background-color: #d7ffd7; }
 
 /* ================= Paletleme ================= */
 #paletResult {
@@ -188,20 +182,14 @@ tr:nth-child(even) {
   border-radius: 8px;
   background: #f0f9ff;
 }
-#paletQr {
-  margin-top: 10px;
-}
+#paletQr { margin-top: 10px; }
 
 /* ================= Stok Yönetimi ================= */
-#tbl-stock-manage {
-  margin-top: 15px;
-}
+#tbl-stock-manage { margin-top: 15px; }
 
-/* ================= Mobil için düzenleme ================= */
+/* ================= Mobil ================= */
 @media (max-width: 768px) {
-  .menu-btn {
-    display: block;
-  }
+  .menu-btn { display: block; }
   .nav-menu {
     display: none;
     flex-direction: column;
@@ -209,25 +197,23 @@ tr:nth-child(even) {
     position: absolute;
     top: 50px;
     right: 0;
-    width: 180px;
+    width: 220px;
     padding: 10px;
     border-radius: 8px;
   }
-  .nav-menu.show {
-    display: flex;
-  }
+  .nav-menu.show { display: flex; }
   .nav-menu button {
     margin: 8px 0;
     text-align: left;
     width: 100%;
-    color: #fff;       /* mobilde beyaz yazı */
-    background: none;  /* arka planı kaldır */
+    color: #fff;
+    background: none;
     border: none;
   }
 
-  /* Toplayıcı elle toplama alanı için ufak iyileştirme */
-  #tbl-picker-lines input[type="number"] {
-    width: 72px;
+  #tbl-picker-lines input[type="number"],
+  #tbl-qc-lines input[type="number"] {
+    width: 90px;
     padding: 4px;
     text-align: center;
   }
@@ -239,38 +225,5 @@ tr:nth-child(even) {
     background: #f8fafc;
     cursor: pointer;
   }
-  .pill:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
+  .pill:disabled { opacity: 0.5; cursor: not-allowed; }
 }
-/* ---- Satır renklendirme: zebra çizgisini ez ---- */
-table tr.not-picked    { background-color: #ffd6d6 !important; }
-table tr.partial-picked{ background-color: #fff6c5 !important; }
-table tr.fully-picked  { background-color: #d7ffd7 !important; }
-
-/* ---- Sayısal inputlar masaüstünde de dar görünsün ---- */
-#tbl-picker-lines input[type="number"],
-#tbl-qc-lines input[type="number"],
-.picked-input,
-.qc-input {
-  width: 72px;
-  padding: 4px;
-  text-align: center;
-}
-
-/* ---- .pill butonlarını global yap (sadece mobile değil) ---- */
-.pill {
-  padding: 4px 8px;
-  border-radius: 999px;
-  border: 1px solid #cbd5e1;
-  background: #f8fafc;
-  cursor: pointer;
-}
-.pill:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-.diff-pos { background: #eaffea; }   /* artı (sayım > sistem) */
-.diff-neg { background: #ffecec; }   /* eksi (sayım < sistem) */
-
