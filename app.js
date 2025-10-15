@@ -78,6 +78,26 @@ onAuthStateChanged(auth, async (user) => {
   currentUser = user;
   $("logoutBtn")?.classList.remove("hidden");
   document.querySelector("header nav").classList.remove("hidden");
+function applyRoleVisibility(role) {
+  console.log("🎭 Aktif rol:", role);
+
+  // Tüm menüleri gizle
+  document.querySelectorAll("nav button[data-role]").forEach(btn => {
+    btn.style.display = "none";
+  });
+
+  // Role uygun olanları göster
+  document.querySelectorAll(`nav button[data-role="${role}"], nav button[data-role="common"], #logoutBtn`).forEach(btn => {
+    btn.style.display = "inline-block";
+  });
+
+  // Admin her şeyi görebilir
+  if (role === "admin") {
+    document.querySelectorAll("nav button[data-role]").forEach(btn => {
+      btn.style.display = "inline-block";
+    });
+  }
+}
 
   // rol
   let role = "sube";
