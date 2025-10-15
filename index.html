@@ -37,15 +37,19 @@
   </select>
 </div>
 
-      <button data-view="view-picker" class="btn-light">Toplayıcı</button>
-      <button data-view="view-qc" class="btn-light">QC</button>
-      <button data-view="view-palet" class="btn-light">Paletleme</button>
-      <button data-view="view-count" class="btn-light">Sayım</button>
-      <button data-view="view-dashboard" class="btn-light">Dashboard</button>
-      <button data-view="view-stock" class="btn-light">Stok Yönetimi</button>
-      <button data-view="view-products" class="btn-light">Ürünler</button>
-      <button data-view="view-login" id="logoutBtn" class="danger hidden">Çıkış</button>
-    </nav>
+    <nav id="mainNav" class="nav-menu hidden">
+  <button data-view="view-branch" data-role="sube" class="btn-light">Şube</button>
+  <button data-view="view-manager" data-role="yonetici" class="btn-light">Yönetici</button>
+  <button data-view="view-picker" data-role="toplayici" class="btn-light">Toplayıcı</button>
+  <button data-view="view-qc" data-role="qc" class="btn-light">QC</button>
+  <button data-view="view-palet" data-role="palet" class="btn-light">Paletleme</button>
+  <button data-view="view-dashboard" data-role="admin" class="btn-light">Dashboard</button>
+  <button data-view="view-stock" data-role="admin" class="btn-light">Stok Yönetimi</button>
+  <button data-view="view-products" data-role="admin" class="btn-light">Ürünler</button>
+  <button data-view="view-count" data-role="yonetici" class="btn-light">Sayım</button>
+  <button data-view="view-login" id="logoutBtn" class="danger hidden">Çıkış</button>
+</nav>
+
   </header>
 
   <main>
