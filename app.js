@@ -88,6 +88,20 @@ function applyRoleVisibility(role) {
     });
   }
 }
+// ================== ÇIKIŞ (LOGOUT) ==================
+$("logoutBtn")?.addEventListener("click", async () => {
+  try {
+    await signOut(auth); // Firebase oturumunu kapat
+    console.log("🚪 Oturum kapatıldı");
+    currentUser = null;
+    document.querySelector("header nav").classList.add("hidden");
+    showView("view-login");
+  } catch (err) {
+    console.error("Çıkış hatası:", err);
+    alert("Çıkış yapılamadı: " + err.message);
+  }
+});
+
 
 // ================== GİRİŞ DURUMU KONTROLÜ ==================
 onAuthStateChanged(auth, async (user) => {
