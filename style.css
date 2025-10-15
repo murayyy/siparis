@@ -410,6 +410,57 @@ tbody tr:hover {
   background: rgba(100,140,255,0.12);
   transform: scale(1.01);
 }
+/* === Genel Buton Stili === */
+button {
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 500;
+  letter-spacing: .2px;
+  transition: all 0.25s ease;
+  padding: 8px 14px;
+}
+
+/* Temel renkler */
+.btn-light {
+  background: #283559;
+  color: #d5e2ff;
+}
+.btn-light:hover {
+  background: #3a4c7a;
+  color: #fff;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+}
+
+/* Yeşil (success) */
+.success {
+  background: #1e824c;
+  color: #fff;
+}
+.success:hover {
+  background: #28a35e;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+}
+
+/* Kırmızı (danger) */
+.danger {
+  background: #b33939;
+  color: #fff;
+}
+.danger:hover {
+  background: #e55039;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+}
+
+/* Aktif basma efekti */
+button:active {
+  transform: scale(0.97);
+  box-shadow: none;
+  opacity: 0.9;
+}
 
 
 
