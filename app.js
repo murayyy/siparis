@@ -66,6 +66,19 @@ $("registerBtn")?.addEventListener("click", async () => {
 });
 
 $("logoutBtn")?.addEventListener("click", async () => { await signOut(auth); });
+// ================== KULLANICI BİLGİSİ GÖSTER ==================
+function updateUserInfo(email, role) {
+  const infoEl = document.getElementById("userInfo");
+  if (!infoEl) return;
+  if (!email) {
+    infoEl.textContent = "👤 Giriş yapılmadı";
+  } else {
+    // ilk harf büyük yazalım
+    const roleName = role.charAt(0).toUpperCase() + role.slice(1);
+    infoEl.textContent = `👤 ${email} — ${roleName}`;
+  }
+}
+
 
 // ================== ROL GÖRÜNÜRLÜĞÜ ==================
 function applyRoleVisibility(role) {
@@ -106,20 +119,18 @@ $("logoutBtn")?.addEventListener("click", async () => {
 // ================== GİRİŞ DURUMU KONTROLÜ ==================
 onAuthStateChanged(auth, async (user) => {
   if (!user) {
-    // Kullanıcı çıkış yaptıysa
     currentUser = null;
     $("logoutBtn")?.classList.add("hidden");
     document.querySelector("header nav").classList.add("hidden");
     showView("view-login");
+    updateUserInfo(null, null); // 👈 çıkışta temizle
     return;
   }
 
-  // 🔹 Kullanıcı giriş yaptıysa:
   currentUser = user;
   $("logoutBtn")?.classList.remove("hidden");
   document.querySelector("header nav").classList.remove("hidden");
 
-  // 🔹 Rol bilgisi Firestore'dan çekiliyor
   let role = "sube";
   try {
     const userSnap = await getDoc(doc(db, "users", user.uid));
@@ -130,26 +141,16 @@ onAuthStateChanged(auth, async (user) => {
     console.error("Rol alınamadı:", err);
   }
 
-  // 🔹 Menü görünürlüğünü role göre ayarla
   applyRoleVisibility(role);
+  updateUserInfo(user.email, role); // 👈 girişte göster
 
-  // 🔹 Rol bazlı varsayılan ekran yönlendirmesi
-  if (role === "sube") {
-    showView("view-branch");
-  } else if (role === "yonetici") {
-    showView("view-manager");
-  } else if (role === "toplayici") {
-    showView("view-picker");
-    refreshAssigned(); // görevleri yükle
-  } else if (role === "qc") {
-    showView("view-qc");
-  } else if (role === "palet") {
-    showView("view-palet");
-  } else if (role === "admin") {
-    showView("view-products");
-  } else {
-    showView("view-branch");
-  }
+  if (role === "sube") showView("view-branch");
+  else if (role === "yonetici") showView("view-manager");
+  else if (role === "toplayici") { showView("view-picker"); refreshAssigned(); }
+  else if (role === "qc") showView("view-qc");
+  else if (role === "palet") showView("view-palet");
+  else if (role === "admin") showView("view-products");
+  else showView("view-branch");
 });
 
 
