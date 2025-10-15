@@ -386,3 +386,31 @@ tr:nth-child(even) {
   }
   .pill:disabled { opacity: 0.5; cursor: not-allowed; }
 }
+/* === Tablo Satır Efektleri === */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  border: 1px solid #222c44;
+  background: rgba(255,255,255,0.02);
+}
+
+th, td {
+  border-bottom: 1px solid #1f2a44;
+  padding: 8px 10px;
+  text-align: center;
+  color: #e0e6f0;
+  transition: all 0.2s ease;
+}
+
+tbody tr {
+  transition: background-color 0.25s ease, transform 0.15s ease;
+}
+
+tbody tr:hover {
+  background: rgba(100,140,255,0.12);
+  transform: scale(1.01);
+}
+
+
+
+
