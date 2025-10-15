@@ -461,6 +461,46 @@ button:active {
   box-shadow: none;
   opacity: 0.9;
 }
+/* === Başlıklar & Tablo Kutuları === */
+h2, h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  color: #e0e6ff;
+}
+
+h2::before, h3::before {
+  font-size: 20px;
+  display: inline-block;
+  opacity: 0.85;
+}
+
+/* Özel ikon stilleri */
+#view-branch h2::before { content: "🏪"; }
+#view-manager h2::before { content: "👨‍💼"; }
+#view-picker h2::before { content: "🧺"; }
+#view-qc h2::before { content: "🔍"; }
+#view-palet h2::before { content: "📦"; }
+#view-stock h2::before { content: "📊"; }
+#view-products h2::before { content: "🗂"; }
+#view-count h2::before { content: "📋"; }
+
+/* Kart kenarlıkları ve hafif gölgeler */
+.card {
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 10px;
+  background: rgba(255,255,255,0.03);
+  box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+  padding: 12px;
+  margin-top: 12px;
+  transition: box-shadow 0.3s ease, transform 0.3s ease;
+}
+
+.card:hover {
+  box-shadow: 0 6px 18px rgba(0,0,0,0.35);
+  transform: translateY(-2px);
+}
 
 
 
