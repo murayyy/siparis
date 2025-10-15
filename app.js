@@ -67,17 +67,7 @@ $("registerBtn")?.addEventListener("click", async () => {
 
 $("logoutBtn")?.addEventListener("click", async () => { await signOut(auth); });
 
-onAuthStateChanged(auth, async (user) => {
-  if (!user) {
-    currentUser = null;
-    $("logoutBtn")?.classList.add("hidden");
-    document.querySelector("header nav").classList.add("hidden");
-    showView("view-login");
-    return;
-  }
-  currentUser = user;
-  $("logoutBtn")?.classList.remove("hidden");
-  document.querySelector("header nav").classList.remove("hidden");
+// ================== ROL GÖRÜNÜRLÜĞÜ ==================
 function applyRoleVisibility(role) {
   console.log("🎭 Aktif rol:", role);
 
@@ -99,21 +89,55 @@ function applyRoleVisibility(role) {
   }
 }
 
-  // rol
+// ================== GİRİŞ DURUMU KONTROLÜ ==================
+onAuthStateChanged(auth, async (user) => {
+  if (!user) {
+    // Kullanıcı çıkış yaptıysa
+    currentUser = null;
+    $("logoutBtn")?.classList.add("hidden");
+    document.querySelector("header nav").classList.add("hidden");
+    showView("view-login");
+    return;
+  }
+
+  // 🔹 Kullanıcı giriş yaptıysa:
+  currentUser = user;
+  $("logoutBtn")?.classList.remove("hidden");
+  document.querySelector("header nav").classList.remove("hidden");
+
+  // 🔹 Rol bilgisi Firestore'dan çekiliyor
   let role = "sube";
   try {
-    const udoc = await getDoc(doc(db, "users", user.uid));
-    if (udoc.exists() && udoc.data().role) role = udoc.data().role;
-  } catch {}
+    const userSnap = await getDoc(doc(db, "users", user.uid));
+    if (userSnap.exists() && userSnap.data().role) {
+      role = userSnap.data().role;
+    }
+  } catch (err) {
+    console.error("Rol alınamadı:", err);
+  }
 
-  if (role === "sube") showView("view-branch");
-  else if (role === "yonetici") showView("view-manager");
-  else if (role === "toplayici") { showView("view-picker"); refreshAssigned(); }
-  else if (role === "qc") showView("view-qc");
-  else if (role === "palet") showView("view-palet");
-  else if (role === "admin") showView("view-products");
-  else showView("view-branch");
+  // 🔹 Menü görünürlüğünü role göre ayarla
+  applyRoleVisibility(role);
+
+  // 🔹 Rol bazlı varsayılan ekran yönlendirmesi
+  if (role === "sube") {
+    showView("view-branch");
+  } else if (role === "yonetici") {
+    showView("view-manager");
+  } else if (role === "toplayici") {
+    showView("view-picker");
+    refreshAssigned(); // görevleri yükle
+  } else if (role === "qc") {
+    showView("view-qc");
+  } else if (role === "palet") {
+    showView("view-palet");
+  } else if (role === "admin") {
+    showView("view-products");
+  } else {
+    showView("view-branch");
+  }
 });
+
 
 // ================== ÜRÜN KATALOĞU ==================
 async function listProductsIntoTable() {
