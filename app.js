@@ -548,8 +548,6 @@ window.sendToQC = async function(id) {
 // ================== ATAMA SİSTEMİ ==================
 console.log("✅ Atama Modülü yüklendi");
 
-import { collection, getDocs, query, where, updateDoc, doc } from "./firebase.js";
-
 let pickerList = [];
 let qcList = [];
 
@@ -606,8 +604,6 @@ document.getElementById("assignOrderBtn")?.addEventListener("click", async () =>
 
 // Sayfa yüklendiğinde listeleri getir
 loadUserLists();
-
-
 // ================== QC (KONTROL) ==================
 console.log("✅ QC Modülü Yüklendi");
 // Butonlar
