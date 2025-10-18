@@ -154,6 +154,8 @@ onAuthStateChanged(auth, async (user) => {
   }
 
   currentUser = user;
+  document.getElementById("mainNav")?.classList.remove("hidden");
+
   $("logoutBtn")?.classList.remove("hidden");
   document.querySelector("header nav")?.classList.remove("hidden");
 
