@@ -555,6 +555,7 @@ $("startQCScanBtn")?.addEventListener("click", startQCScanner);
 $("stopQCScanBtn")?.addEventListener("click", stopQCScanner);
 $("finishQCBtn")?.addEventListener("click", finishQC);
 $("saveQCBtn")?.addEventListener("click", saveQCProgress);
+$("exportQCBtn")?.addEventListener("click", exportQCToExcel); // ✅ Excel’e Aktar butonu
 
 async function refreshQCOrders() {
   const sel = $("qcOrders");
@@ -635,7 +636,6 @@ function renderQCLines() {
       e.target.value = val;
       const tr = tb.querySelector(`tr[data-row="${idx}"]`);
       paintRow(tr, picked, val);
-      // diff hücresini güncelle
       tr.querySelectorAll("td")[6].textContent = Math.max(0, picked - val);
     });
     inp.addEventListener("keydown", e => { if (e.key === "Enter") e.target.blur(); });
@@ -688,13 +688,12 @@ function onQCScan(code) {
   const picked = toNum(qcOrder.lines[idx].picked);
   const cur = toNum(qcOrder.lines[idx].qc);
   if (cur < picked) qcOrder.lines[idx].qc = cur + 1;
-  // inputu güncelle
   const tb = document.querySelector("#tbl-qc-lines tbody");
   const tr = tb?.querySelector(`tr[data-row="${idx}"]`);
   if (tr) {
     const inp = tr.querySelector(".qc-input");
     inp.value = qcOrder.lines[idx].qc;
-    inp.dispatchEvent(new Event("blur", { bubbles: true })); // normalize & boya
+    inp.dispatchEvent(new Event("blur", { bubbles: true }));
   }
 }
 async function saveQCProgress() {
@@ -711,6 +710,29 @@ async function finishQC() {
     lines: qcOrder.lines, status: "Tamamlandı", lastUpdate: new Date()
   });
   alert("✅ QC tamamlandı!");
+}
+
+// ✅ Excel’e Aktarım Fonksiyonu
+async function exportQCToExcel() {
+  const qcTable = document.querySelector("#tbl-qc-lines tbody");
+  if (!qcTable || qcTable.rows.length === 0) {
+    alert("Tabloda aktarılacak veri yok!");
+    return;
+  }
+  const data = [["#", "Kod", "Ürün", "İstenen", "Toplanan", "QC (Kontrol)", "Eksik"]];
+  [...qcTable.rows].forEach(row => {
+    const cells = [...row.cells].map(td => td.innerText.trim());
+    data.push(cells);
+  });
+  const ws = XLSX.utils.aoa_to_sheet(data);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "QC_Kontrol");
+
+  const orderName = document.getElementById("qcTitle")?.innerText.replace("Sipariş: ", "") || "Kontrol";
+  const date = new Date().toISOString().split("T")[0];
+  const fileName = `QC_Kontrol_${orderName}_${date}.xlsx`;
+
+  XLSX.writeFile(wb, fileName);
 }
 
 // ================== PALETLEME ==================
