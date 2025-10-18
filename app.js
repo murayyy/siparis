@@ -336,7 +336,7 @@ async function refreshAssigned() {
     sel.appendChild(opt);
   });
 }
-async function openAssigned() {
+window.openAssignModal = async function(orderId, roleType) {
   const id = $("assignedOrders").value;
   if (!id) return;
   const ds = await getDoc(doc(db, "orders", id));
