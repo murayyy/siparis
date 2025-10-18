@@ -41,16 +41,30 @@ const clamp = (v, min, max) => Math.min(Math.max(v, min), max);
 
 // ================== VIEW DEĞİŞTİR ==================
 function showView(id) {
+  // Tüm view’ları gizle
   document.querySelectorAll(".view").forEach(v => v.classList.add("hidden"));
-  document.getElementById(id)?.classList.remove("hidden");
+  // İstenen view’ı göster
+  const target = document.getElementById(id);
+  if (target) target.classList.remove("hidden");
+  else console.warn("❌ Görünüm bulunamadı:", id);
 }
 
-// Menü butonlarıyla görünüm değişimi
-document
-  .querySelectorAll("nav button[data-view], section#view-manager button[data-view]")
-  .forEach(btn => {
+// 🔁 Menü butonları dinleyicilerini her yüklemede bağla
+function bindViewButtons() {
+  const buttons = document.querySelectorAll("nav button[data-view], section#view-manager button[data-view]");
+  if (!buttons.length) {
+    // DOM tam yüklenmeden çağrılırsa bekle
+    setTimeout(bindViewButtons, 500);
+    return;
+  }
+  buttons.forEach(btn => {
     btn.addEventListener("click", () => showView(btn.dataset.view));
   });
+  console.log("✅ Görünüm butonları bağlandı");
+}
+
+// Sayfa yüklendiğinde bağla
+document.addEventListener("DOMContentLoaded", bindViewButtons);
 
 // ================== AUTH ==================
 $("loginBtn")?.addEventListener("click", async () => {
