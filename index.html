@@ -46,55 +46,71 @@
     <h1>📦 Depo Otomasyonu</h1>
     <button id="menuToggle" class="menu-btn">☰</button>
 
-    <!-- 🔹 Kullanıcı Bilgisi -->
-    <div id="userInfo">👤 Giriş yapılmadı</div>
+  <!-- 🔹 Kullanıcı Bilgisi -->
+<div id="userInfo">👤 Giriş yapılmadı</div>
 
-    <!-- 🔹 Ana Menü -->
-    <nav id="mainNav" class="nav-menu hidden">
-      <button data-view="view-branch" data-role="sube" class="btn-light">Şube</button>
-      <button data-view="view-manager" data-role="yonetici" class="btn-light">Yönetici</button>
-      <button data-view="view-picker" data-role="toplayici" class="btn-light">Toplayıcı</button>
-      <button data-view="view-qc" data-role="qc" class="btn-light">QC</button>
-      <button data-view="view-palet" data-role="palet" class="btn-light">Paletleme</button>
-      <button data-view="view-dashboard" data-role="admin" class="btn-light">Dashboard</button>
-      <button data-view="view-stock" data-role="admin" class="btn-light">Stok Yönetimi</button>
-      <button data-view="view-products" data-role="admin" class="btn-light">Ürünler</button>
-      <button data-view="view-count" data-role="yonetici" class="btn-light">Sayım</button>
-      <button id="logoutBtn" class="danger hidden">Çıkış</button>
-    </nav>
-  </header>
+<!-- 🔹 Ana Menü -->
+<nav id="mainNav" class="nav-menu hidden">
+  <button data-view="view-branch" data-role="sube" class="btn-light">Şube</button>
+  <button data-view="view-manager" data-role="yonetici" class="btn-light">Yönetici</button>
+  <button data-view="view-picker" data-role="toplayici" class="btn-light">Toplayıcı</button>
+  <button data-view="view-qc" data-role="qc" class="btn-light">QC</button>
+  <button data-view="view-palet" data-role="palet" class="btn-light">Paletleme</button>
+  <button data-view="view-dashboard" data-role="admin" class="btn-light">Dashboard</button>
+  <button data-view="view-stock" data-role="admin" class="btn-light">Stok Yönetimi</button>
+  <button data-view="view-products" data-role="admin" class="btn-light">Ürünler</button>
+  <button data-view="view-count" data-role="yonetici" class="btn-light">Sayım</button>
+  <button id="logoutBtn" class="danger hidden">Çıkış</button>
+</nav>
+</header>
 
-  <main>
-<div class="row" style="margin-top:10px;">
-  <label>Toplayıcı:</label>
-  <select id="assignPickerSelect" class="input"></select>
+<main>
 
-  <label>Kontrol Eden (QC):</label>
-  <select id="assignQCSelect" class="input"></select>
+  <!-- 🔐 Login -->
+  <section id="view-login" class="view">
+    <h2>🔑 Giriş</h2>
+    <input type="email" id="login-email" placeholder="Email"/><br/>
+    <input type="password" id="login-pass" placeholder="Şifre"/><br/>
+    <button id="loginBtn">Giriş</button>
+    <hr/>
+    <h3>Yeni Kayıt</h3>
+    <input type="email" id="reg-email" placeholder="Email"/><br/>
+    <input type="password" id="reg-pass" placeholder="Şifre"/><br/>
+    <select id="reg-role">
+      <option value="sube">Şube</option>
+      <option value="yonetici">Yönetici</option>
+      <option value="toplayici">Toplayıcı</option>
+      <option value="qc">QC</option>
+      <option value="palet">Palet</option>
+      <option value="admin">Admin</option>
+    </select><br/>
+    <button id="registerBtn">Kayıt Ol</button>
+  </section>
 
-  <button id="assignOrderBtn" class="btn-light">🧺 Ata</button>
-</div>
+  <!-- 👨‍💼 Yönetici Paneli -->
+  <section id="view-manager" class="view hidden">
+    <h2>👨‍💼 Yönetici Paneli</h2>
+    <button id="refreshOrdersBtn" class="btn-light">Yenile</button>
 
-    <!-- 🔐 Login -->
-    <section id="view-login" class="view">
-      <h2>🔑 Giriş</h2>
-      <input type="email" id="login-email" placeholder="Email"/><br/>
-      <input type="password" id="login-pass" placeholder="Şifre"/><br/>
-      <button id="loginBtn">Giriş</button>
-      <hr/>
-      <h3>Yeni Kayıt</h3>
-      <input type="email" id="reg-email" placeholder="Email"/><br/>
-      <input type="password" id="reg-pass" placeholder="Şifre"/><br/>
-      <select id="reg-role">
-        <option value="sube">Şube</option>
-        <option value="yonetici">Yönetici</option>
-        <option value="toplayici">Toplayıcı</option>
-        <option value="qc">QC</option>
-        <option value="palet">Palet</option>
-        <option value="admin">Admin</option>
-      </select><br/>
-      <button id="registerBtn">Kayıt Ol</button>
-    </section>
+    <!-- 🧺 Atama Alanı -->
+    <div class="row" style="margin-top:10px;">
+      <label>Toplayıcı:</label>
+      <select id="assignPickerSelect" class="input"></select>
+
+      <label>Kontrol Eden (QC):</label>
+      <select id="assignQCSelect" class="input"></select>
+
+      <button id="assignOrderBtn" class="btn-light">🧺 Ata</button>
+    </div>
+
+    <table id="tbl-orders">
+      <thead>
+        <tr><th>ID</th><th>Ad</th><th>Depo</th><th>Durum</th><th>İşlem</th></tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </section>
+</main>
 
     <!-- 📋 Sayım -->
     <section id="view-count" class="view hidden">
