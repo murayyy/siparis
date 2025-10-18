@@ -545,6 +545,68 @@ window.sendToQC = async function(id) {
   await updateDoc(doc(db, "orders", id), { status: "Kontrol" });
   loadAllOrders();
 };
+// ================== ATAMA SİSTEMİ ==================
+console.log("✅ Atama Modülü yüklendi");
+
+import { collection, getDocs, query, where, updateDoc, doc } from "./firebase.js";
+
+let pickerList = [];
+let qcList = [];
+
+// 🔄 Kullanıcı listelerini doldur
+async function loadUserLists() {
+  pickerList = [];
+  qcList = [];
+
+  const usersSnap = await getDocs(collection(db, "users"));
+  usersSnap.forEach(u => {
+    const d = u.data();
+    if (d.role === "toplayici") pickerList.push({ id: u.id, ...d });
+    if (d.role === "qc") qcList.push({ id: u.id, ...d });
+  });
+
+  const pickerSel = document.getElementById("assignPickerSelect");
+  const qcSel = document.getElementById("assignQCSelect");
+  if (!pickerSel || !qcSel) return;
+
+  pickerSel.innerHTML = `<option value="">Seç...</option>`;
+  qcSel.innerHTML = `<option value="">Seç...</option>`;
+
+  pickerList.forEach(p => {
+    const opt = document.createElement("option");
+    opt.value = p.id;
+    opt.textContent = p.email;
+    pickerSel.appendChild(opt);
+  });
+
+  qcList.forEach(q => {
+    const opt = document.createElement("option");
+    opt.value = q.id;
+    opt.textContent = q.email;
+    qcSel.appendChild(opt);
+  });
+}
+
+// 🔘 Siparişe kullanıcı ata
+document.getElementById("assignOrderBtn")?.addEventListener("click", async () => {
+  const orderId = prompt("Atanacak sipariş ID’sini girin:");
+  const pickerId = document.getElementById("assignPickerSelect").value;
+  const qcId = document.getElementById("assignQCSelect").value;
+
+  if (!orderId) return alert("Sipariş ID gerekli!");
+  if (!pickerId && !qcId) return alert("En az bir kullanıcı seçmelisiniz!");
+
+  const payload = {};
+  if (pickerId) payload.assignedPicker = pickerId;
+  if (qcId) payload.assignedQC = qcId;
+
+  await updateDoc(doc(db, "orders", orderId), payload);
+  alert("✅ Atama başarıyla yapıldı!");
+});
+
+// Sayfa yüklendiğinde listeleri getir
+loadUserLists();
+
 
 // ================== QC (KONTROL) ==================
 console.log("✅ QC Modülü Yüklendi");
