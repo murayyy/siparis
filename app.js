@@ -517,6 +517,7 @@ async function finishPick() {
 
 // ================== YÖNETİCİ ==================
 $("refreshOrdersBtn")?.addEventListener("click", loadAllOrders);
+
 async function loadAllOrders() {
   const snap = await getDocs(collection(db, "orders"));
   const tbody = document.querySelector("#tbl-orders tbody");
@@ -531,79 +532,72 @@ async function loadAllOrders() {
         <td>${o.warehouse || "-"}</td>
         <td>${o.status}</td>
         <td>
-          ${o.status === "Yeni" ? `<button onclick="assignOrder('${o.id}')">Toplayıcıya Ata</button>` : ""}
-          ${o.status === "Toplandı" ? `<button onclick="sendToQC('${o.id}')">Kontrole Gönder</button>` : ""}
+          ${o.status === "Yeni" ? `<button onclick="openAssignModal('${o.id}', 'toplayici')">Toplayıcıya Ata</button>` : ""}
+          ${o.status === "Toplandı" ? `<button onclick="openAssignModal('${o.id}', 'qc')">Kontrole Ata</button>` : ""}
         </td>
       </tr>`;
   });
 }
-window.assignOrder = async function(id) {
-  await updateDoc(doc(db, "orders", id), { status: "Atandı" });
-  loadAllOrders();
-};
-window.sendToQC = async function(id) {
-  await updateDoc(doc(db, "orders", id), { status: "Kontrol" });
-  loadAllOrders();
-};
+
 // ================== ATAMA SİSTEMİ ==================
-console.log("✅ Atama Modülü yüklendi");
+console.log("✅ Dinamik Atama Modülü yüklendi");
 
-let pickerList = [];
-let qcList = [];
-
-// 🔄 Kullanıcı listelerini doldur
-async function loadUserLists() {
-  pickerList = [];
-  qcList = [];
-
+// 🔹 Modal benzeri basit popup oluşturma
+async function openAssignModal(orderId, roleType) {
   const usersSnap = await getDocs(collection(db, "users"));
+  const filteredUsers = [];
   usersSnap.forEach(u => {
     const d = u.data();
-    if (d.role === "toplayici") pickerList.push({ id: u.id, ...d });
-    if (d.role === "qc") qcList.push({ id: u.id, ...d });
+    if (d.role === roleType) filteredUsers.push({ id: u.id, ...d });
   });
 
-  const pickerSel = document.getElementById("assignPickerSelect");
-  const qcSel = document.getElementById("assignQCSelect");
-  if (!pickerSel || !qcSel) return;
+  if (filteredUsers.length === 0) {
+    alert(`${roleType === "toplayici" ? "Toplayıcı" : "QC"} bulunamadı!`);
+    return;
+  }
 
-  pickerSel.innerHTML = `<option value="">Seç...</option>`;
-  qcSel.innerHTML = `<option value="">Seç...</option>`;
+  // Seçim penceresi oluştur
+  const selectHtml = filteredUsers
+    .map(u => `<option value="${u.id}">${u.email}</option>`)
+    .join("");
 
-  pickerList.forEach(p => {
-    const opt = document.createElement("option");
-    opt.value = p.id;
-    opt.textContent = p.email;
-    pickerSel.appendChild(opt);
+  const container = document.createElement("div");
+  container.innerHTML = `
+    <div style="
+      position:fixed;top:0;left:0;width:100%;height:100%;
+      background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:9999;">
+      <div style="background:#fff;padding:20px;border-radius:10px;text-align:center;min-width:300px;">
+        <h3>${roleType === "toplayici" ? "Toplayıcı Seç" : "Kontrolcü Seç"}</h3>
+        <select id="userSelect" style="width:90%;padding:6px;margin:10px 0;">${selectHtml}</select><br>
+        <button id="assignConfirm" style="padding:6px 12px;">Ata</button>
+        <button id="assignCancel" style="padding:6px 12px;">İptal</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(container);
+
+  const modal = container.querySelector("div");
+  const confirmBtn = container.querySelector("#assignConfirm");
+  const cancelBtn = container.querySelector("#assignCancel");
+
+  confirmBtn.addEventListener("click", async () => {
+    const selectedUser = container.querySelector("#userSelect").value;
+    if (!selectedUser) return alert("Lütfen bir kullanıcı seçin!");
+
+    const payload = {};
+    if (roleType === "toplayici") payload.assignedPicker = selectedUser;
+    if (roleType === "qc") payload.assignedQC = selectedUser;
+    payload.status = roleType === "toplayici" ? "Atandı" : "Kontrol";
+
+    await updateDoc(doc(db, "orders", orderId), payload);
+    alert("✅ Atama tamamlandı!");
+    document.body.removeChild(container);
+    loadAllOrders();
   });
 
-  qcList.forEach(q => {
-    const opt = document.createElement("option");
-    opt.value = q.id;
-    opt.textContent = q.email;
-    qcSel.appendChild(opt);
-  });
+  cancelBtn.addEventListener("click", () => document.body.removeChild(container));
 }
 
-// 🔘 Siparişe kullanıcı ata
-document.getElementById("assignOrderBtn")?.addEventListener("click", async () => {
-  const orderId = prompt("Atanacak sipariş ID’sini girin:");
-  const pickerId = document.getElementById("assignPickerSelect").value;
-  const qcId = document.getElementById("assignQCSelect").value;
-
-  if (!orderId) return alert("Sipariş ID gerekli!");
-  if (!pickerId && !qcId) return alert("En az bir kullanıcı seçmelisiniz!");
-
-  const payload = {};
-  if (pickerId) payload.assignedPicker = pickerId;
-  if (qcId) payload.assignedQC = qcId;
-
-  await updateDoc(doc(db, "orders", orderId), payload);
-  alert("✅ Atama başarıyla yapıldı!");
-});
-
-// Sayfa yüklendiğinde listeleri getir
-loadUserLists();
 // ================== QC (KONTROL) ==================
 console.log("✅ QC Modülü Yüklendi");
 // Butonlar
