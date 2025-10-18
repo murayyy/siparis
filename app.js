@@ -540,10 +540,9 @@ async function loadAllOrders() {
 }
 
 // ================== ATAMA SİSTEMİ ==================
-console.log("✅ Dinamik Atama Modülü yüklendi");
+console.log("✅ Dinamik Atama Modülü aktif");
 
-// 🔹 Modal benzeri basit popup oluşturma
-async function openAssignModal(orderId, roleType) {
+window.openAssignModal = async function(orderId, roleType) {
   const usersSnap = await getDocs(collection(db, "users"));
   const filteredUsers = [];
   usersSnap.forEach(u => {
@@ -556,32 +555,30 @@ async function openAssignModal(orderId, roleType) {
     return;
   }
 
-  // Seçim penceresi oluştur
+  // Modal oluştur
   const selectHtml = filteredUsers
     .map(u => `<option value="${u.id}">${u.email}</option>`)
     .join("");
 
-  const container = document.createElement("div");
-  container.innerHTML = `
+  const overlay = document.createElement("div");
+  overlay.innerHTML = `
     <div style="
-      position:fixed;top:0;left:0;width:100%;height:100%;
-      background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:9999;">
-      <div style="background:#fff;padding:20px;border-radius:10px;text-align:center;min-width:300px;">
+      position:fixed;inset:0;
+      background:rgba(0,0,0,.6);
+      display:flex;align-items:center;justify-content:center;
+      z-index:9999;">
+      <div style="background:#1b223a;color:#fff;padding:20px;border-radius:12px;min-width:320px;text-align:center;">
         <h3>${roleType === "toplayici" ? "Toplayıcı Seç" : "Kontrolcü Seç"}</h3>
-        <select id="userSelect" style="width:90%;padding:6px;margin:10px 0;">${selectHtml}</select><br>
-        <button id="assignConfirm" style="padding:6px 12px;">Ata</button>
-        <button id="assignCancel" style="padding:6px 12px;">İptal</button>
+        <select id="userSelect" style="width:90%;padding:6px;margin:10px 0;border-radius:6px;">${selectHtml}</select><br>
+        <button id="assignConfirm" style="padding:8px 16px;background:#2563eb;color:#fff;border:none;border-radius:6px;">Ata</button>
+        <button id="assignCancel" style="padding:8px 16px;margin-left:8px;background:#dc2626;color:#fff;border:none;border-radius:6px;">İptal</button>
       </div>
     </div>
   `;
-  document.body.appendChild(container);
+  document.body.appendChild(overlay);
 
-  const modal = container.querySelector("div");
-  const confirmBtn = container.querySelector("#assignConfirm");
-  const cancelBtn = container.querySelector("#assignCancel");
-
-  confirmBtn.addEventListener("click", async () => {
-    const selectedUser = container.querySelector("#userSelect").value;
+  overlay.querySelector("#assignConfirm").addEventListener("click", async () => {
+    const selectedUser = overlay.querySelector("#userSelect").value;
     if (!selectedUser) return alert("Lütfen bir kullanıcı seçin!");
 
     const payload = {};
@@ -591,12 +588,14 @@ async function openAssignModal(orderId, roleType) {
 
     await updateDoc(doc(db, "orders", orderId), payload);
     alert("✅ Atama tamamlandı!");
-    document.body.removeChild(container);
+    document.body.removeChild(overlay);
     loadAllOrders();
   });
 
-  cancelBtn.addEventListener("click", () => document.body.removeChild(container));
-}
+  overlay.querySelector("#assignCancel").addEventListener("click", () => {
+    document.body.removeChild(overlay);
+  });
+};
 
 // ================== QC (KONTROL) ==================
 console.log("✅ QC Modülü Yüklendi");
