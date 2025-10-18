@@ -8,58 +8,65 @@
   <style>
     .hidden { display: none !important; }
     nav.hidden { display: none !important; }
+
+    header {
+      position: relative;
+      background: #2d3748;
+      color: #fff;
+      padding: 10px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+    }
+    #userInfo {
+      position: absolute;
+      right: 15px;
+      top: 12px;
+      font-size: 14px;
+      color: #fff;
+      opacity: 0.9;
+    }
+    #logoutBtn {
+      background: #e53e3e;
+      color: #fff;
+      border: none;
+      padding: 6px 10px;
+      border-radius: 5px;
+      cursor: pointer;
+      margin-left: 8px;
+    }
+    .nav-menu button {
+      margin: 3px;
+    }
   </style>
 </head>
 <body>
   <header>
     <h1>📦 Depo Otomasyonu</h1>
     <button id="menuToggle" class="menu-btn">☰</button>
+
+    <!-- 🔹 Kullanıcı Bilgisi -->
+    <div id="userInfo">👤 Giriş yapılmadı</div>
+
+    <!-- 🔹 Ana Menü -->
     <nav id="mainNav" class="nav-menu hidden">
-      <button data-view="view-branch" class="btn-light">Şube</button>
-      <button data-view="view-manager" class="btn-light">Yönetici</button>
-      <div class="row" style="margin:8px 0;">
-  <input id="orderSearch" class="input" placeholder="Ara: ad, depo, id..." />
-  <select id="orderStatusFilter" class="input">
-    <option value="">Tümü</option>
-    <option>Yeni</option>
-    <option>Atandı</option>
-    <option>Toplama Başladı</option>
-    <option>Toplandı</option>
-    <option>Kontrol</option>
-    <option>Kontrol Başladı</option>
-    <option>Tamamlandı</option>
-  </select>
-  <select id="orderSort" class="input" title="Sıralama">
-    <option value="createdAt-desc">Tarih ↓ (Yeni–Eski)</option>
-    <option value="createdAt-asc">Tarih ↑ (Eski–Yeni)</option>
-    <option value="name-asc">Ad A→Z</option>
-    <option value="name-desc">Ad Z→A</option>
-  </select>
-</div>
-
-    <nav id="mainNav" class="nav-menu hidden">
-  <button data-view="view-branch" data-role="sube" class="btn-light">Şube</button>
-  <button data-view="view-manager" data-role="yonetici" class="btn-light">Yönetici</button>
-  <button data-view="view-picker" data-role="toplayici" class="btn-light">Toplayıcı</button>
-  <button data-view="view-qc" data-role="qc" class="btn-light">QC</button>
-  <button data-view="view-palet" data-role="palet" class="btn-light">Paletleme</button>
-  <button data-view="view-dashboard" data-role="admin" class="btn-light">Dashboard</button>
-  <button data-view="view-stock" data-role="admin" class="btn-light">Stok Yönetimi</button>
-  <button data-view="view-products" data-role="admin" class="btn-light">Ürünler</button>
-  <button data-view="view-count" data-role="yonetici" class="btn-light">Sayım</button>
-  <button data-view="view-login" id="logoutBtn" class="danger hidden">Çıkış</button>
-  
-
-</nav>
-
+      <button data-view="view-branch" data-role="sube" class="btn-light">Şube</button>
+      <button data-view="view-manager" data-role="yonetici" class="btn-light">Yönetici</button>
+      <button data-view="view-picker" data-role="toplayici" class="btn-light">Toplayıcı</button>
+      <button data-view="view-qc" data-role="qc" class="btn-light">QC</button>
+      <button data-view="view-palet" data-role="palet" class="btn-light">Paletleme</button>
+      <button data-view="view-dashboard" data-role="admin" class="btn-light">Dashboard</button>
+      <button data-view="view-stock" data-role="admin" class="btn-light">Stok Yönetimi</button>
+      <button data-view="view-products" data-role="admin" class="btn-light">Ürünler</button>
+      <button data-view="view-count" data-role="yonetici" class="btn-light">Sayım</button>
+      <button id="logoutBtn" class="danger hidden">Çıkış</button>
+    </nav>
   </header>
 
   <main>
-    <main class="container">
-  <!-- mevcut tüm section'ların olduğu yer; içerik değişmiyor -->
-  ...
-</main>
-    <!-- Login -->
+
+    <!-- 🔐 Login -->
     <section id="view-login" class="view">
       <h2>🔑 Giriş</h2>
       <input type="email" id="login-email" placeholder="Email"/><br/>
@@ -78,17 +85,11 @@
         <option value="admin">Admin</option>
       </select><br/>
       <button id="registerBtn">Kayıt Ol</button>
-      
-      <div id="userInfo" style="position:absolute; right:15px; font-size:14px; color:#fff; opacity:0.9;">
-  👤 Giriş yapılmadı
-</div>
-
     </section>
 
-    <!-- Sayım (Cycle Count) -->
+    <!-- 📋 Sayım -->
     <section id="view-count" class="view hidden">
       <h2>📋 Basit Sayım</h2>
-
       <div class="card">
         <div class="row">
           <label for="countWarehouse">Depo:</label>
@@ -100,20 +101,16 @@
             <option value="SAKARYA 2">SAKARYA 2</option>
             <option value="EMEK">EMEK</option>
           </select>
-
           <button id="startCountScanBtn" class="btn-light">📷 Tarayıcıyı Başlat</button>
           <button id="stopCountScanBtn" class="btn-light">⛔ Durdur</button>
         </div>
-
         <div id="countReader" style="width:300px; margin:10px 0;"></div>
-
         <div class="row">
           <input id="countManualCode" class="input" placeholder="Kod veya Barkod" />
           <input id="countManualQty" class="input" inputmode="decimal" step="0.001" type="number" value="1" min="0" placeholder="Sayım Miktarı" />
           <button id="countManualAddBtn" class="btn-light">Ekle</button>
         </div>
       </div>
-
       <table id="tbl-count-lines" style="margin-top:12px;">
         <thead>
           <tr>
@@ -128,13 +125,11 @@
         </thead>
         <tbody></tbody>
       </table>
-
       <div class="row" style="margin-top:12px;">
         <button id="saveCountSessionBtn" class="btn-light">💾 Oturumu Kaydet</button>
         <button id="applyCountBtn" class="success">✔️ Stoka Uygula</button>
         <button id="newCountSessionBtn" class="danger">🗑️ Yeni Oturum</button>
       </div>
-
       <div class="card" style="margin-top:16px;">
         <h3>🧾 Son Sayım Oturumları</h3>
         <button id="refreshCountSessionsBtn" class="btn-light">Yenile</button>
@@ -145,7 +140,7 @@
       </div>
     </section>
 
-    <!-- Şube -->
+    <!-- 🏪 Şube -->
     <section id="view-branch" class="view hidden">
       <h2>🏪 Şube Siparişi</h2>
       <div class="row">
@@ -182,7 +177,7 @@
       </table>
     </section>
 
-    <!-- Yönetici -->
+    <!-- 👨‍💼 Yönetici -->
     <section id="view-manager" class="view hidden">
       <h2>👨‍💼 Yönetici Paneli</h2>
       <button id="refreshOrdersBtn" class="btn-light">Yenile</button>
@@ -193,23 +188,19 @@
       </table>
     </section>
 
-    <!-- Toplayıcı -->
+    <!-- 🧺 Toplayıcı -->
     <section id="view-picker" class="view hidden">
       <h2>🧺 Toplayıcı</h2>
-
       <button id="refreshAssignedBtn" class="btn-light">Yenile</button>
       <select id="assignedOrders"></select>
       <button id="openAssignedBtn">Aç</button>
-
       <div id="pickerArea" class="card hidden">
         <h3 id="pickerTitle">Sipariş:</h3>
-
         <div class="row">
           <button id="startScanBtn" class="btn-light">📷 Barkod Tarayıcıyı Başlat</button>
           <button id="stopScanBtn" class="danger">⛔ Durdur</button>
         </div>
         <div id="reader" style="width:300px; margin:10px auto;"></div>
-
         <div class="card" style="margin-top:15px;">
           <h3>✍️ Elle Toplama & Ürün Ekle</h3>
           <div class="row">
@@ -218,69 +209,42 @@
             <button id="manualAddBtn" class="btn-light">Ekle / Topla</button>
           </div>
         </div>
-
         <table id="tbl-picker-lines" style="margin-top:15px;">
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>Kod</th>
-              <th>Ürün</th>
-              <th>İstenen</th>
-              <th>Toplanan</th>
-              <th>İşlem</th>
-            </tr>
-          </thead>
+          <thead><tr><th>#</th><th>Kod</th><th>Ürün</th><th>İstenen</th><th>Toplanan</th><th>İşlem</th></tr></thead>
           <tbody></tbody>
         </table>
-
         <button id="savePickBtn" class="btn-light">💾 Kaydet</button>
         <button id="finishPickBtn" class="success" style="margin-top:15px;">Toplamayı Bitir</button>
       </div>
     </section>
 
-    <!-- QC – Kontrol -->
+    <!-- 🔍 QC -->
     <section id="view-qc" class="view hidden">
       <h2>🔍 QC – Kontrol</h2>
-
       <div class="row">
         <button id="refreshQCBtn" class="btn-light">Yenile</button>
         <select id="qcOrders" class="input"></select>
         <button id="openQCBtn" class="btn-light">Aç</button>
       </div>
-
       <div id="qcArea" class="card hidden">
         <h3 id="qcTitle">Sipariş:</h3>
-
         <div class="row" style="gap:6px;margin-bottom:10px;">
           <button id="startQCScanBtn" class="btn-light">📷 Tarayıcıyı Başlat</button>
           <button id="stopQCScanBtn" class="btn-light">⛔ Tarayıcıyı Durdur</button>
           <button id="saveQCBtn" class="btn-light">💾 Kaydet</button>
         </div>
-
         <div id="qcReader" style="width:300px; margin:10px auto;"></div>
-
         <table id="tbl-qc-lines">
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>Kod</th>
-              <th>Ürün</th>
-              <th>İstenen</th>
-              <th>Toplanan</th>
-              <th>QC (Kontrol)</th>
-              <th>Eksik</th>
-            </tr>
-          </thead>
+          <thead><tr><th>#</th><th>Kod</th><th>Ürün</th><th>İstenen</th><th>Toplanan</th><th>QC (Kontrol)</th><th>Eksik</th></tr></thead>
           <tbody></tbody>
         </table>
-
         <div class="row" style="margin-top:12px;">
           <button id="finishQCBtn" class="success">Kontrolü Bitir</button>
         </div>
       </div>
     </section>
 
-    <!-- Paletleme -->
+    <!-- 📦 Paletleme -->
     <section id="view-palet" class="view hidden">
       <h2>📦 Paletleme</h2>
       <div class="row">
@@ -303,7 +267,7 @@
       </div>
     </section>
 
-    <!-- Dashboard -->
+    <!-- 📊 Dashboard -->
     <section id="view-dashboard" class="view hidden">
       <h2>📊 Dashboard</h2>
       <div class="row">
@@ -315,14 +279,31 @@
       <div class="card"><canvas id="chartDaily"></canvas></div>
     </section>
 
-    <!-- Stok Yönetimi -->
+    <!-- 📦 Stok Yönetimi -->
     <section id="view-stock" class="view hidden">
       <h2>📦 Stok Yönetimi</h2>
       <div class="row">
         <select id="stockWarehouse">
           <option value="MERKEZ">MERKEZ</option>
-          <option value="KOCAELİ">KOCAELİ</option>
-          <option value="ADAPAZARI">ADAPAZARI</option>
+          <option value="ATIŞALANI">ATIŞALANI</option>
+          <option value="YEŞİLPINAR">YEŞİLPINAR</option>
+            <option value="ALAŞEHİR">ALAŞEHİR</option>
+            <option value="SAKARYA 2">SAKARYA 2</option>
+            <option value="EMEK">EMEK</option>
+            <option value="BOZÜYÜK">BOZÜYÜK</option>
+            <option value="AKYAZI">AKYAZI</option>
+            <option value="KÜTAHYA">KÜTAHYA</option>
+            <option value="BİLECİK">BİLECİK</option>
+            <option value="BURDUR">BURDUR</option>
+            <option value="BOZÜYÜK 2">BOZÜYÜK 2</option>
+            <option value="AKŞEHİR">AKŞEHİR</option>
+            <option value="BEYŞEHİR">BEYŞEHİR</option>
+            <option value="TİRE">TİRE</option>
+            <option value="BİLECİK 2">BİLECİK 2</option>
+            <option value="SEYDİŞEHİR">SEYDİŞEHİR</option>
+            <option value="ÇAMLICA">ÇAMLICA</option>
+            <option value="SANDIKLI">SANDIKLI</option>
+            <option value="KAYSERİ">KAYSERİ</option>
         </select>
         <input id="stockCode" class="input" placeholder="Ürün Kodu"/>
         <input id="stockName" class="input" placeholder="Ürün Adı"/>
@@ -336,7 +317,7 @@
       </table>
     </section>
 
-    <!-- Ürünler -->
+    <!-- 🗂 Ürünler -->
     <section id="view-products" class="view hidden">
       <h2>🗂 Ürün Kataloğu</h2>
       <div class="card">
@@ -352,6 +333,7 @@
         <tbody></tbody>
       </table>
     </section>
+
   </main>
 
   <!-- Libs -->
@@ -361,6 +343,8 @@
 
   <!-- App -->
   <script type="module" src="./app.js"></script>
+
+  <!-- Yükleniyor animasyonu -->
   <div id="appLoading" class="loading hidden"><div class="spinner"></div></div>
 </body>
 </html>
