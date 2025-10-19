@@ -72,17 +72,6 @@
     }
   </style>
 </head>
-  <script>
-window.addEventListener("DOMContentLoaded", async () => {
-  console.log("🔥 DOM yüklendi, görünüm kontrol ediliyor...");
-  if (typeof showView === "function") {
-    showView("view-login");
-    console.log("✅ Zorla giriş ekranı açıldı (view-login)");
-  } else {
-    console.warn("⚠️ showView fonksiyonu tanımsız, app.js yüklenmemiş olabilir!");
-  }
-});
-</script>
 
 <body>
 
@@ -217,7 +206,22 @@ window.addEventListener("DOMContentLoaded", async () => {
 
 <!-- App -->
 <script type="module" src="./app.js"></script>
+<script>
+window.addEventListener("DOMContentLoaded", async () => {
+  console.log("🔥 DOM yüklendi, görünüm kontrol ediliyor...");
+  if (typeof showView === "function") {
+    showView("view-login");
+    console.log("✅ Zorla giriş ekranı açıldı (view-login)");
+  } else {
+    console.warn("⚠️ showView fonksiyonu tanımsız, app.js yüklenmemiş olabilir!");
+  }
+});
+</script>
 
+<!-- Yükleniyor animasyonu -->
+<div id="appLoading" class="loading hidden"><div class="spinner"></div></div>
+</body>
+</html>
 <!-- Modal JS -->
 <script>
 window.openAssignModal = async function(orderId, roleType) {
