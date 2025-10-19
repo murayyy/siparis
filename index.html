@@ -72,7 +72,20 @@
     }
   </style>
 </head>
+  <script>
+window.addEventListener("DOMContentLoaded", async () => {
+  console.log("🔥 DOM yüklendi, görünüm kontrol ediliyor...");
+  if (typeof showView === "function") {
+    showView("view-login");
+    console.log("✅ Zorla giriş ekranı açıldı (view-login)");
+  } else {
+    console.warn("⚠️ showView fonksiyonu tanımsız, app.js yüklenmemiş olabilir!");
+  }
+});
+</script>
+
 <body>
+
   <header>
     <h1>📦 TUĞLUBEY</h1>
     <button id="menuToggle" class="menu-btn">☰</button>
