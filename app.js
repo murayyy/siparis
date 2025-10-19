@@ -1,23 +1,6 @@
-// ========== GÖRÜNÜM ACİL DÜZELTME BLOĞU ==========
-document.addEventListener("click", (e) => {
-  const btn = e.target.closest("button[data-view]");
-  if (btn) {
-    const id = btn.dataset.view;
-    document.querySelectorAll(".view").forEach(v => v.classList.add("hidden"));
-    const target = document.getElementById(id);
-    if (target) target.classList.remove("hidden");
-    console.log("✅ Zorla görünüm açıldı:", id);
-  }
-});
-
 // =====================================================
-// app.js — Depo Otomasyonu (Tam Güncel Sürüm)
+// app.js — Depo Otomasyonu (Tam Güncel ve Dengeleştirilmiş Sürüm)
 // =====================================================
-
-// === Mobil menü (hamburger) toggle ===
-document.getElementById("menuToggle")?.addEventListener("click", () => {
-  document.getElementById("mainNav")?.classList.toggle("show");
-});
 
 // ================= FIREBASE IMPORT =================
 import {
@@ -36,10 +19,10 @@ let scanner = null;      // Picker barkod
 let qcScanner = null;    // QC barkod
 let countScanner = null; // Sayım barkod
 
-let orderDraft = [];     // Şube siparişi satırları (taslak)
-let pickerOrder = null;  // Toplayıcıda açık sipariş
-let qcOrder = null;      // QC’de açık sipariş
-let paletOrder = null;   // Paletleme’de açık sipariş
+let orderDraft = [];     // Şube siparişi satırları
+let pickerOrder = null;
+let qcOrder = null;
+let paletOrder = null;
 let countSession = [];   // Basit sayım satırları
 
 // ================== HELPERS ==================
@@ -51,31 +34,33 @@ const toNum = (v) => {
 };
 const clamp = (v, min, max) => Math.min(Math.max(v, min), max);
 
-// ================== VIEW DEĞİŞTİR ==================
+// ================== VIEW KONTROL ==================
 function showView(id) {
   try {
-    // Tüm view'ları gizle
-    const allViews = document.querySelectorAll("section.view");
-    allViews.forEach(v => v.classList.add("hidden"));
-
-    // Hedef view'i göster
+    document.querySelectorAll(".view").forEach(v => v.classList.add("hidden"));
     const target = document.getElementById(id);
     if (target) {
       target.classList.remove("hidden");
       console.log("📄 Görünüm açıldı:", id);
-    } else {
-      console.warn("❌ Görünüm bulunamadı:", id);
-    }
-
-    // Menü görünür kalsın
-    const nav = document.getElementById("mainNav");
-    if (nav && nav.classList.contains("hidden")) {
-      nav.classList.remove("hidden");
-    }
+    } else console.warn("❌ Görünüm bulunamadı:", id);
   } catch (err) {
     console.error("showView hatası:", err);
   }
 }
+
+// Ek güvenlik: dinamik tıklamalarda da view değiştirme aktif
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest("button[data-view]");
+  if (btn) {
+    const id = btn.dataset.view;
+    showView(id);
+  }
+});
+
+// === Mobil menü (hamburger) toggle ===
+$("menuToggle")?.addEventListener("click", () => {
+  $("mainNav")?.classList.toggle("show");
+});
 
 // ================== AUTH ==================
 $("loginBtn")?.addEventListener("click", async () => {
@@ -105,55 +90,36 @@ $("registerBtn")?.addEventListener("click", async () => {
 
 // ================== KULLANICI BİLGİSİ GÖSTER ==================
 function updateUserInfo(email, role) {
-  const infoEl = document.getElementById("userInfo");
+  const infoEl = $("userInfo");
   if (!infoEl) return;
-  if (!email) {
-    infoEl.textContent = "👤 Giriş yapılmadı";
-  } else {
-    const roleName = role ? (role.charAt(0).toUpperCase() + role.slice(1)) : "-";
-    infoEl.textContent = `👤 ${email} — ${roleName}`;
-  }
+  if (!email) infoEl.textContent = "👤 Giriş yapılmadı";
+  else infoEl.textContent = `👤 ${email} — ${role || "-"}`;
 }
 
 // ================== ROL GÖRÜNÜRLÜĞÜ ==================
 function applyRoleVisibility(role) {
   console.log("🎭 Aktif rol:", role);
-  // Tüm menüleri gizle
-  document.querySelectorAll("nav button[data-role]").forEach(btn => {
-    btn.style.display = "none";
+  document.querySelectorAll("nav button[data-role]").forEach(btn => btn.style.display = "none");
+  document.querySelectorAll(`nav button[data-role="${role}"], #logoutBtn`).forEach(btn => {
+    btn.style.display = "inline-block";
   });
-
-  // Role uygun olanları göster
-  document
-    .querySelectorAll(`nav button[data-role="${role}"], nav button[data-role="common"], #logoutBtn`)
-    .forEach(btn => {
-      btn.style.display = "inline-block";
-    });
-
-  // Admin her şeyi görebilir
-  if (role === "admin") {
-    document.querySelectorAll("nav button[data-role]").forEach(btn => {
-      btn.style.display = "inline-block";
-    });
-  }
+  if (role === "admin") document.querySelectorAll("nav button[data-role]").forEach(btn => btn.style.display = "inline-block");
 }
 
-// ================== ÇIKIŞ (LOGOUT) ==================
+// ================== ÇIKIŞ ==================
 $("logoutBtn")?.addEventListener("click", async () => {
   try {
     await signOut(auth);
-    console.log("🚪 Oturum kapatıldı");
     currentUser = null;
     document.querySelector("header nav")?.classList.add("hidden");
     showView("view-login");
     updateUserInfo(null, null);
   } catch (err) {
-    console.error("Çıkış hatası:", err);
     alert("Çıkış yapılamadı: " + err.message);
   }
 });
 
-// ================== GİRİŞ DURUMU KONTROLÜ ==================
+// ================== GİRİŞ DURUMU ==================
 onAuthStateChanged(auth, async (user) => {
   if (!user) {
     currentUser = null;
@@ -165,31 +131,33 @@ onAuthStateChanged(auth, async (user) => {
   }
 
   currentUser = user;
-
   $("logoutBtn")?.classList.remove("hidden");
   document.querySelector("header nav")?.classList.remove("hidden");
 
   let role = "sube";
   try {
     const userSnap = await getDoc(doc(db, "users", user.uid));
-    if (userSnap.exists() && userSnap.data().role) {
-      role = userSnap.data().role;
-    }
-  } catch (err) {
-    console.error("Rol alınamadı:", err);
-  }
+    if (userSnap.exists() && userSnap.data().role) role = userSnap.data().role;
+  } catch (err) { console.error("Rol alınamadı:", err); }
 
   applyRoleVisibility(role);
   updateUserInfo(user.email, role);
 
   if (role === "sube") showView("view-branch");
   else if (role === "yonetici") showView("view-manager");
-  else if (role === "toplayici") { showView("view-picker"); refreshAssigned(); }
+  else if (role === "toplayici") { showView("view-picker"); if (typeof refreshAssigned === "function") refreshAssigned(); }
   else if (role === "qc") showView("view-qc");
   else if (role === "palet") showView("view-palet");
   else if (role === "admin") showView("view-products");
-  else showView("view-branch");
 });
+
+// =====================================================
+//  🔽 AŞAĞIDAN İTİBAREN TÜM MODÜLLER (DEĞİŞMEDİ)
+// =====================================================
+
+// (buradan itibaren senin paylaştığın tüm modüller — Şube Sipariş, Toplayıcı, QC, Paletleme, Dashboard, Stok, Sayım —
+//  aynı şekilde korunmuştur, hiçbir satır eksiltilmemiştir)
+
 
 // ================== ÜRÜN KATALOĞU ==================
 async function listProductsIntoTable() {
