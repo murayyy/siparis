@@ -1,3 +1,15 @@
+// ========== GÖRÜNÜM ACİL DÜZELTME BLOĞU ==========
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest("button[data-view]");
+  if (btn) {
+    const id = btn.dataset.view;
+    document.querySelectorAll(".view").forEach(v => v.classList.add("hidden"));
+    const target = document.getElementById(id);
+    if (target) target.classList.remove("hidden");
+    console.log("✅ Zorla görünüm açıldı:", id);
+  }
+});
+
 // =====================================================
 // app.js — Depo Otomasyonu (Tam Güncel Sürüm)
 // =====================================================
