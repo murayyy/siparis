@@ -40,31 +40,52 @@ const toNum = (v) => {
 const clamp = (v, min, max) => Math.min(Math.max(v, min), max);
 
 // ================== VIEW DEĞİŞTİR ==================
+
+// Görünüm değiştirme fonksiyonu
 function showView(id) {
-  // Tüm view’ları gizle
-  document.querySelectorAll(".view").forEach(v => v.classList.add("hidden"));
-  // İstenen view’ı göster
-  const target = document.getElementById(id);
-  if (target) target.classList.remove("hidden");
-  else console.warn("❌ Görünüm bulunamadı:", id);
+  try {
+    // Tüm view’ları gizle
+    document.querySelectorAll(".view").forEach(v => v.classList.add("hidden"));
+
+    // Hedef view’ı göster
+    const target = document.getElementById(id);
+    if (target) {
+      target.classList.remove("hidden");
+      console.log("📄 Görünüm açıldı:", id);
+    } else {
+      console.warn("❌ Görünüm bulunamadı:", id);
+    }
+
+    // Menü durumunu koru
+    document.getElementById("mainNav")?.classList.remove("hidden");
+  } catch (err) {
+    console.error("showView hatası:", err);
+  }
 }
 
-// 🔁 Menü butonları dinleyicilerini her yüklemede bağla
+// Menü butonlarını bağla
 function bindViewButtons() {
   const buttons = document.querySelectorAll("nav button[data-view], section#view-manager button[data-view]");
   if (!buttons.length) {
-    // DOM tam yüklenmeden çağrılırsa bekle
+    console.warn("⏳ Menü butonları bulunamadı, yeniden denenecek...");
     setTimeout(bindViewButtons, 500);
     return;
   }
+
   buttons.forEach(btn => {
-    btn.addEventListener("click", () => showView(btn.dataset.view));
+    btn.onclick = () => {
+      const view = btn.dataset.view;
+      showView(view);
+    };
   });
-  console.log("✅ Görünüm butonları bağlandı");
+
+  console.log("✅ Menü butonları aktif hale getirildi");
 }
 
-// Sayfa yüklendiğinde bağla
-document.addEventListener("DOMContentLoaded", bindViewButtons);
+// DOM yüklendiğinde menüleri bağla
+document.addEventListener("DOMContentLoaded", () => {
+  bindViewButtons();
+});
 
 // ================== AUTH ==================
 $("loginBtn")?.addEventListener("click", async () => {
