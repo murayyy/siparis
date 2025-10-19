@@ -3,9 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Depo Otomasyonu</title>
+  <title>TUĞLUBEY Depo Otomasyonu</title>
   <link rel="stylesheet" href="style.css"/>
   <style>
+    body { background: #0f172a; color: #fff; font-family: Arial, sans-serif; margin:0; }
     .hidden { display: none !important; }
     nav.hidden { display: none !important; }
 
@@ -29,6 +30,7 @@
       color: #fff;
       opacity: 0.9;
     }
+
     #logoutBtn {
       background: #e53e3e;
       color: #fff;
@@ -38,7 +40,19 @@
       cursor: pointer;
       margin-left: 8px;
     }
-    .nav-menu button { margin: 3px; }
+
+    nav button {
+      margin: 3px;
+      padding: 6px 12px;
+      background: #243154;
+      border: none;
+      border-radius: 6px;
+      color: #fff;
+      cursor: pointer;
+    }
+
+    h2 { color: #38bdf8; }
+    main { padding: 20px; }
 
     /* 🧩 Modal tasarımı */
     #assignModal {
@@ -67,7 +81,15 @@
     #assignModal button {
       margin-top: 10px;
       padding: 8px 12px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
     }
+    .success { background: #22c55e; color: #fff; }
+    .danger { background: #ef4444; color: #fff; }
+    .btn-light { background: #334155; color: #fff; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { border: 1px solid #334155; padding: 5px; text-align: center; }
   </style>
 </head>
 
@@ -75,7 +97,9 @@
   <header>
     <h1>📦 TUĞLUBEY</h1>
     <button id="menuToggle" class="menu-btn">☰</button>
+
     <div id="userInfo">👤 Giriş yapılmadı</div>
+
     <nav id="mainNav" class="nav-menu hidden">
       <button data-view="view-branch" class="btn-light">Şube</button>
       <button data-view="view-manager" class="btn-light">Yönetici</button>
@@ -113,21 +137,81 @@
       <button id="registerBtn">Kayıt Ol</button>
     </section>
 
+    <!-- 🏪 Şube -->
+    <section id="view-branch" class="view hidden">
+      <h2>🏪 Şube Paneli</h2>
+      <p>Burada şube sipariş oluşturabilir.</p>
+      <button class="btn-light" onclick="alert('Yeni sipariş eklendi!')">Yeni Sipariş</button>
+    </section>
+
+    <!-- 👨‍💼 Yönetici -->
+    <section id="view-manager" class="view hidden">
+      <h2>👨‍💼 Yönetici Paneli</h2>
+      <table>
+        <thead><tr><th>ID</th><th>Şube</th><th>Durum</th><th>İşlem</th></tr></thead>
+        <tbody>
+          <tr><td>1001</td><td>ALAŞEHİR</td><td>Yeni</td><td><button onclick="openAssignModal('1001','toplayici')">Toplayıcıya Ata</button></td></tr>
+          <tr><td>1002</td><td>MERKEZ</td><td>Toplandı</td><td><button onclick="openAssignModal('1002','qc')">Kontrole Ata</button></td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- 🧺 Toplayıcı -->
+    <section id="view-picker" class="view hidden">
+      <h2>🧺 Toplayıcı Ekranı</h2>
+      <p>Atandığınız siparişleri buradan görüntüleyebilirsiniz.</p>
+      <button class="btn-light">Siparişi Aç</button>
+    </section>
+
+    <!-- 🔍 QC -->
+    <section id="view-qc" class="view hidden">
+      <h2>🔍 QC Kontrol Ekranı</h2>
+      <p>Toplanan siparişleri kontrol edin.</p>
+      <button class="btn-light">Kontrolü Başlat</button>
+    </section>
+
+    <!-- 📦 Paletleme -->
+    <section id="view-palet" class="view hidden">
+      <h2>📦 Paletleme</h2>
+      <p>Palet oluşturma işlemleri burada yapılır.</p>
+      <button class="btn-light">Yeni Palet</button>
+    </section>
+
     <!-- 📋 Sayım -->
     <section id="view-count" class="view hidden">
       <h2>📋 Basit Sayım</h2>
-      <div class="card">
-        <div class="row">
-          <label for="countWarehouse">Depo:</label>
-          <select id="countWarehouse">
-            <option value="MERKEZ">MERKEZ</option>
-            <option value="ATIŞALANI">ATIŞALANI</option>
-            <option value="YEŞİLPINAR">YEŞİLPINAR</option>
-          </select>
-          <button id="startCountScanBtn" class="btn-light">📷 Tarayıcıyı Başlat</button>
-          <button id="stopCountScanBtn" class="btn-light">⛔ Durdur</button>
-        </div>
-      </div>
+      <table>
+        <thead><tr><th>Kod</th><th>Ürün</th><th>Sayım</th></tr></thead>
+        <tbody>
+          <tr><td>101</td><td>Badem</td><td>50</td></tr>
+          <tr><td>102</td><td>Kaju</td><td>30</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- 📊 Dashboard -->
+    <section id="view-dashboard" class="view hidden">
+      <h2>📊 Dashboard</h2>
+      <p>Genel sistem istatistikleri burada görüntülenecek.</p>
+      <canvas id="chartOrders"></canvas>
+    </section>
+
+    <!-- 🗂 Ürünler -->
+    <section id="view-products" class="view hidden">
+      <h2>🗂 Ürünler</h2>
+      <table>
+        <thead><tr><th>Kod</th><th>Ad</th><th>Fiyat</th></tr></thead>
+        <tbody>
+          <tr><td>001</td><td>Kavrulmuş Fındık</td><td>120 TL</td></tr>
+          <tr><td>002</td><td>Çiğ Badem</td><td>150 TL</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- 📦 Stok Yönetimi -->
+    <section id="view-stock" class="view hidden">
+      <h2>📦 Stok Yönetimi</h2>
+      <p>Depo stok giriş ve çıkış işlemleri buradan yapılır.</p>
     </section>
 
   </main>
@@ -136,22 +220,16 @@
   <div id="assignModal">
     <div class="modal-content">
       <h3 id="assignTitle">Atama Yap</h3>
-      <select id="assignUserSelect"></select>
-      <button id="assignConfirmBtn" class="success">Atamayı Onayla</button>
+      <select id="assignUserSelect">
+        <option>Personel Seç</option>
+      </select>
+      <button id="assignConfirmBtn" class="success">Onayla</button>
       <button id="assignCancelBtn" class="danger">İptal</button>
     </div>
   </div>
 
-  <!-- Libs -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
-  <script src="https://unpkg.com/html5-qrcode@2.3.10/minified/html5-qrcode.min.js"></script>
-
-  <!-- App -->
-  <script type="module" src="./app.js"></script>
-
-  <!-- Modal JS -->
   <script>
+  // Görünüm değişimi
   function showView(id) {
     document.querySelectorAll("section.view").forEach(v => v.classList.add("hidden"));
     const target = document.getElementById(id);
@@ -159,22 +237,26 @@
     console.log("📄 Görünüm açıldı:", id);
   }
 
+  // Menü tıklamaları
   document.addEventListener("DOMContentLoaded", () => {
     document.querySelectorAll("nav button[data-view]").forEach(btn => {
       btn.addEventListener("click", () => showView(btn.dataset.view));
     });
   });
 
-  window.openAssignModal = async function(orderId, roleType) {
-    const modal = document.getElementById('assignModal');
-    const select = document.getElementById('assignUserSelect');
-    select.innerHTML = '<option>Yükleniyor...</option>';
-    modal.style.display = 'flex';
-    document.getElementById('assignTitle').innerText = roleType === 'qc' ? 'Kontrole Ata' : 'Toplayıcıya Ata';
-  };
-  </script>
+  // Modal
+  function openAssignModal(orderId, roleType) {
+    const modal = document.getElementById("assignModal");
+    document.getElementById("assignTitle").innerText =
+      roleType === "qc" ? "Kontrole Ata" : "Toplayıcıya Ata";
+    modal.style.display = "flex";
 
-  <!-- Yükleniyor animasyonu -->
-  <div id="appLoading" class="loading hidden"><div class="spinner"></div></div>
+    document.getElementById("assignConfirmBtn").onclick = () => {
+      alert(`✅ ${orderId} numaralı sipariş atandı.`);
+      modal.style.display = "none";
+    };
+    document.getElementById("assignCancelBtn").onclick = () => modal.style.display = "none";
+  }
+  </script>
 </body>
 </html>
