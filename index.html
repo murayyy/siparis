@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Depo Otomasyonu</title>
   <link rel="stylesheet" href="style.css"/>
- <style>
-  .hidden { display: none; }
-  nav.hidden { display: none; }
+  <style>
+    .hidden { display: none; }
+    nav.hidden { display: none; }
 
     header {
       position: sticky;
@@ -38,9 +38,7 @@
       cursor: pointer;
       margin-left: 8px;
     }
-    .nav-menu button {
-      margin: 3px;
-    }
+    .nav-menu button { margin: 3px; }
 
     /* 🧩 Modal tasarımı */
     #assignModal {
@@ -74,189 +72,150 @@
 </head>
 
 <body>
-
   <header>
     <h1>📦 TUĞLUBEY</h1>
     <button id="menuToggle" class="menu-btn">☰</button>
 
-  <!-- 🔹 Kullanıcı Bilgisi -->
-<div id="userInfo">👤 Giriş yapılmadı</div>
+    <!-- 🔹 Kullanıcı Bilgisi -->
+    <div id="userInfo">👤 Giriş yapılmadı</div>
 
-<!-- 🔹 Ana Menü -->
-<nav id="mainNav" class="nav-menu hidden">
-  <button data-view="view-branch" data-role="sube" class="btn-light">Şube</button>
-  <button data-view="view-manager" data-role="yonetici" class="btn-light">Yönetici</button>
-  <button data-view="view-picker" data-role="toplayici" class="btn-light">Toplayıcı</button>
-  <button data-view="view-qc" data-role="qc" class="btn-light">QC</button>
-  <button data-view="view-palet" data-role="palet" class="btn-light">Paletleme</button>
-  <button data-view="view-dashboard" data-role="admin" class="btn-light">Dashboard</button>
-  <button data-view="view-stock" data-role="admin" class="btn-light">Stok Yönetimi</button>
-  <button data-view="view-products" data-role="admin" class="btn-light">Ürünler</button>
-  <button data-view="view-count" data-role="yonetici" class="btn-light">Sayım</button>
-  <button id="logoutBtn" class="danger hidden">Çıkış</button>
-</nav>
-</header>
+    <!-- 🔹 Ana Menü -->
+    <nav id="mainNav" class="nav-menu hidden">
+      <button data-view="view-branch" data-role="sube" class="btn-light">Şube</button>
+      <button data-view="view-manager" data-role="yonetici" class="btn-light">Yönetici</button>
+      <button data-view="view-picker" data-role="toplayici" class="btn-light">Toplayıcı</button>
+      <button data-view="view-qc" data-role="qc" class="btn-light">QC</button>
+      <button data-view="view-palet" data-role="palet" class="btn-light">Paletleme</button>
+      <button data-view="view-dashboard" data-role="admin" class="btn-light">Dashboard</button>
+      <button data-view="view-stock" data-role="admin" class="btn-light">Stok Yönetimi</button>
+      <button data-view="view-products" data-role="admin" class="btn-light">Ürünler</button>
+      <button data-view="view-count" data-role="yonetici" class="btn-light">Sayım</button>
+      <button id="logoutBtn" class="danger hidden">Çıkış</button>
+    </nav>
+  </header>
 
-<main>
+  <main>
+    <!-- 🔐 Login -->
+    <section id="view-login" class="view">
+      <h2>🔑 Giriş</h2>
+      <input type="email" id="login-email" placeholder="Email"/><br/>
+      <input type="password" id="login-pass" placeholder="Şifre"/><br/>
+      <button id="loginBtn">Giriş</button>
+      <hr/>
+      <h3>Yeni Kayıt</h3>
+      <input type="email" id="reg-email" placeholder="Email"/><br/>
+      <input type="password" id="reg-pass" placeholder="Şifre"/><br/>
+      <select id="reg-role">
+        <option value="sube">Şube</option>
+        <option value="yonetici">Yönetici</option>
+        <option value="toplayici">Toplayıcı</option>
+        <option value="qc">QC</option>
+        <option value="palet">Palet</option>
+        <option value="admin">Admin</option>
+      </select><br/>
+      <button id="registerBtn">Kayıt Ol</button>
+    </section>
 
-  <!-- 🔐 Login -->
-  <section id="view-login" class="view">
-    <h2>🔑 Giriş</h2>
-    <input type="email" id="login-email" placeholder="Email"/><br/>
-    <input type="password" id="login-pass" placeholder="Şifre"/><br/>
-    <button id="loginBtn">Giriş</button>
-    <hr/>
-    <h3>Yeni Kayıt</h3>
-    <input type="email" id="reg-email" placeholder="Email"/><br/>
-    <input type="password" id="reg-pass" placeholder="Şifre"/><br/>
-    <select id="reg-role">
-      <option value="sube">Şube</option>
-      <option value="yonetici">Yönetici</option>
-      <option value="toplayici">Toplayıcı</option>
-      <option value="qc">QC</option>
-      <option value="palet">Palet</option>
-      <option value="admin">Admin</option>
-    </select><br/>
-    <button id="registerBtn">Kayıt Ol</button>
-  </section>
-
-  <!-- 📋 Sayım -->
-  <section id="view-count" class="view hidden">
-    <h2>📋 Basit Sayım</h2>
-    <div class="card">
-      <div class="row">
-        <label for="countWarehouse">Depo:</label>
-        <select id="countWarehouse">
-          <option value="MERKEZ">MERKEZ</option>
-          <option value="ATIŞALANI">ATIŞALANI</option>
-          <option value="YEŞİLPINAR">YEŞİLPINAR</option>
-          <option value="ALAŞEHİR">ALAŞEHİR</option>
-          <option value="SAKARYA 2">SAKARYA 2</option>
-          <option value="EMEK">EMEK</option>
-          <option value="BOZÜYÜK">BOZÜYÜK</option>
-          <option value="AKYAZI">AKYAZI</option>
-          <option value="KÜTAHYA">KÜTAHYA</option>
-          <option value="BİLECİK">BİLECİK</option>
-          <option value="BURDUR">BURDUR</option>
-          <option value="BOZÜYÜK 2">BOZÜYÜK 2</option>
-          <option value="AKŞEHİR">AKŞEHİR</option>
-          <option value="BEYŞEHİR">BEYŞEHİR</option>
-          <option value="TİRE">TİRE</option>
-          <option value="BİLECİK 2">BİLECİK 2</option>
-          <option value="SEYDİŞEHİR">SEYDİŞEHİR</option>
-          <option value="ÇAMLICA">ÇAMLICA</option>
-          <option value="SANDIKLI">SANDIKLI</option>
-          <option value="KAYSERİ">KAYSERİ</option>
-        </select>
-        <button id="startCountScanBtn" class="btn-light">📷 Tarayıcıyı Başlat</button>
-        <button id="stopCountScanBtn" class="btn-light">⛔ Durdur</button>
+    <!-- 📋 Sayım -->
+    <section id="view-count" class="view hidden">
+      <h2>📋 Basit Sayım</h2>
+      <div class="card">
+        <div class="row">
+          <label for="countWarehouse">Depo:</label>
+          <select id="countWarehouse">
+            <option value="MERKEZ">MERKEZ</option>
+            <option value="ATIŞALANI">ATIŞALANI</option>
+            <option value="YEŞİLPINAR">YEŞİLPINAR</option>
+            <option value="ALAŞEHİR">ALAŞEHİR</option>
+            <option value="SAKARYA 2">SAKARYA 2</option>
+            <option value="EMEK">EMEK</option>
+            <option value="BOZÜYÜK">BOZÜYÜK</option>
+            <option value="AKYAZI">AKYAZI</option>
+            <option value="KÜTAHYA">KÜTAHYA</option>
+            <option value="BİLECİK">BİLECİK</option>
+            <option value="BURDUR">BURDUR</option>
+            <option value="BOZÜYÜK 2">BOZÜYÜK 2</option>
+            <option value="AKŞEHİR">AKŞEHİR</option>
+            <option value="BEYŞEHİR">BEYŞEHİR</option>
+            <option value="TİRE">TİRE</option>
+            <option value="BİLECİK 2">BİLECİK 2</option>
+            <option value="SEYDİŞEHİR">SEYDİŞEHİR</option>
+            <option value="ÇAMLICA">ÇAMLICA</option>
+            <option value="SANDIKLI">SANDIKLI</option>
+            <option value="KAYSERİ">KAYSERİ</option>
+          </select>
+          <button id="startCountScanBtn" class="btn-light">📷 Tarayıcıyı Başlat</button>
+          <button id="stopCountScanBtn" class="btn-light">⛔ Durdur</button>
+        </div>
+        <div id="countReader" style="width:300px; margin:10px 0;"></div>
+        <div class="row">
+          <input id="countManualCode" class="input" placeholder="Kod veya Barkod" />
+          <input id="countManualQty" class="input" inputmode="decimal" step="0.001" type="number" value="1" min="0" placeholder="Sayım Miktarı" />
+          <button id="countManualAddBtn" class="btn-light">Ekle</button>
+        </div>
       </div>
-      <div id="countReader" style="width:300px; margin:10px 0;"></div>
-      <div class="row">
-        <input id="countManualCode" class="input" placeholder="Kod veya Barkod" />
-        <input id="countManualQty" class="input" inputmode="decimal" step="0.001" type="number" value="1" min="0" placeholder="Sayım Miktarı" />
-        <button id="countManualAddBtn" class="btn-light">Ekle</button>
-      </div>
-    </div>
-    <table id="tbl-count-lines" style="margin-top:12px;">
-      <thead>
-        <tr>
-          <th>#</th>
-          <th>Kod</th>
-          <th>Ürün</th>
-          <th>Mevcut (Sistem)</th>
-          <th>Sayım</th>
-          <th>Fark</th>
-          <th>İşlem</th>
-        </tr>
-      </thead>
-      <tbody></tbody>
-    </table>
-    <div class="row" style="margin-top:12px;">
-      <button id="saveCountSessionBtn" class="btn-light">💾 Oturumu Kaydet</button>
-      <button id="applyCountBtn" class="success">✔️ Stoka Uygula</button>
-      <button id="newCountSessionBtn" class="danger">🗑️ Yeni Oturum</button>
-    </div>
-    <div class="card" style="margin-top:16px;">
-      <h3>🧾 Son Sayım Oturumları</h3>
-      <button id="refreshCountSessionsBtn" class="btn-light">Yenile</button>
-      <table id="tbl-count-sessions">
-        <thead><tr><th>Tarih</th><th>Depo</th><th>Satır</th><th>Toplam Fark</th></tr></thead>
+      <table id="tbl-count-lines" style="margin-top:12px;">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Kod</th>
+            <th>Ürün</th>
+            <th>Mevcut (Sistem)</th>
+            <th>Sayım</th>
+            <th>Fark</th>
+            <th>İşlem</th>
+          </tr>
+        </thead>
         <tbody></tbody>
       </table>
+      <div class="row" style="margin-top:12px;">
+        <button id="saveCountSessionBtn" class="btn-light">💾 Oturumu Kaydet</button>
+        <button id="applyCountBtn" class="success">✔️ Stoka Uygula</button>
+        <button id="newCountSessionBtn" class="danger">🗑️ Yeni Oturum</button>
+      </div>
+      <div class="card" style="margin-top:16px;">
+        <h3>🧾 Son Sayım Oturumları</h3>
+        <button id="refreshCountSessionsBtn" class="btn-light">Yenile</button>
+        <table id="tbl-count-sessions">
+          <thead><tr><th>Tarih</th><th>Depo</th><th>Satır</th><th>Toplam Fark</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <!-- 🧩 Atama Modal -->
+  <div id="assignModal">
+    <div class="modal-content">
+      <h3 id="assignTitle">Atama Yap</h3>
+      <select id="assignUserSelect"></select>
+      <button id="assignConfirmBtn" class="success">Atamayı Onayla</button>
+      <button id="assignCancelBtn" class="danger">İptal</button>
     </div>
-  </section>
-
-</main>
-
-<!-- 🧩 Atama Modal -->
-<div id="assignModal">
-  <div class="modal-content">
-    <h3 id="assignTitle">Atama Yap</h3>
-    <select id="assignUserSelect"></select>
-    <button id="assignConfirmBtn" class="success">Atamayı Onayla</button>
-    <button id="assignCancelBtn" class="danger">İptal</button>
   </div>
-</div>
 
-<!-- Libs -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
-<script src="https://unpkg.com/html5-qrcode@2.3.10/minified/html5-qrcode.min.js"></script>
+  <!-- Libs -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
+  <script src="https://unpkg.com/html5-qrcode@2.3.10/minified/html5-qrcode.min.js"></script>
 
-<!-- App -->
-<script type="module" src="./app.js"></script>
-<script>
-window.addEventListener("DOMContentLoaded", async () => {
-  console.log("🔥 DOM yüklendi, görünüm kontrol ediliyor...");
-  if (typeof showView === "function") {
-    showView("view-login");
-    console.log("✅ Zorla giriş ekranı açıldı (view-login)");
-  } else {
-    console.warn("⚠️ showView fonksiyonu tanımsız, app.js yüklenmemiş olabilir!");
-  }
-});
-</script>
+  <!-- App -->
+  <script type="module" src="./app.js"></script>
 
-<!-- Yükleniyor animasyonu -->
-<div id="appLoading" class="loading hidden"><div class="spinner"></div></div>
-</body>
-</html>
-<!-- Modal JS -->
-<script>
-window.openAssignModal = async function(orderId, roleType) {
-  const modal = document.getElementById('assignModal');
-  const select = document.getElementById('assignUserSelect');
-  select.innerHTML = '<option>Yükleniyor...</option>';
-  modal.style.display = 'flex';
-  document.getElementById('assignTitle').innerText = roleType === 'qc' ? 'Kontrole Ata' : 'Toplayıcıya Ata';
-
-  import('./app.js').then(async ({ db, collection, getDocs }) => {
-    const usersSnap = await getDocs(collection(db, "users"));
-    select.innerHTML = '';
-    usersSnap.forEach(u => {
-      const d = u.data();
-      if (d.role === roleType) {
-        const opt = document.createElement('option');
-        opt.value = u.id;
-        opt.textContent = d.email || u.id;
-        select.appendChild(opt);
-      }
-    });
+  <!-- Zorla Giriş Ekranı Aç -->
+  <script>
+  window.addEventListener("DOMContentLoaded", async () => {
+    console.log("🔥 DOM yüklendi, görünüm kontrol ediliyor...");
+    if (typeof showView === "function") {
+      showView("view-login");
+      console.log("✅ Zorla giriş ekranı açıldı (view-login)");
+    } else {
+      console.warn("⚠️ showView fonksiyonu tanımsız, app.js yüklenmemiş olabilir!");
+    }
   });
+  </script>
 
-  document.getElementById('assignConfirmBtn').onclick = async () => {
-    const selectedUser = select.value;
-    if (!selectedUser) return alert("Kullanıcı seçin!");
-    alert(`✅ ${roleType === 'qc' ? 'Kontrolcü' : 'Toplayıcı'} olarak atandı: ${selectedUser}`);
-    modal.style.display = 'none';
-  };
-
-  document.getElementById('assignCancelBtn').onclick = () => modal.style.display = 'none';
-};
-</script>
-
-<!-- Yükleniyor animasyonu -->
-<div id="appLoading" class="loading hidden"><div class="spinner"></div></div>
+  <!-- Yükleniyor animasyonu -->
+  <div id="appLoading" class="loading hidden"><div class="spinner"></div></div>
 </body>
 </html>
