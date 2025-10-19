@@ -55,9 +55,11 @@ const clamp = (v, min, max) => Math.min(Math.max(v, min), max);
 function showView(id) {
   try {
     // Tüm görünümleri gizle
-    document.querySelectorAll(".view").forEach(v => v.classList.add("hidden"));
+    document.querySelectorAll("section.view").forEach(v => {
+      v.classList.add("hidden");
+    });
 
-    // Hedef görünümü göster
+    // Hedef görünümü aç
     const target = document.getElementById(id);
     if (target) {
       target.classList.remove("hidden");
@@ -65,16 +67,12 @@ function showView(id) {
     } else {
       console.warn("❌ Görünüm bulunamadı:", id);
     }
-
-    // Menü görünür kalsın
-    const nav = document.getElementById("mainNav");
-    if (nav && nav.classList.contains("hidden")) {
-      nav.classList.remove("hidden");
-    }
   } catch (err) {
     console.error("showView hatası:", err);
   }
 }
+
+
 
 // Menü butonlarını bağla
 function bindViewButtons() {
