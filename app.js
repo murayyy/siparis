@@ -40,14 +40,12 @@ const toNum = (v) => {
 const clamp = (v, min, max) => Math.min(Math.max(v, min), max);
 
 // ================== VIEW DEĞİŞTİR ==================
-
-// Görünüm değiştirme fonksiyonu
 function showView(id) {
   try {
-    // Tüm view’ları gizle
+    // Tüm görünümleri gizle
     document.querySelectorAll(".view").forEach(v => v.classList.add("hidden"));
 
-    // Hedef view’ı göster
+    // Hedef görünümü göster
     const target = document.getElementById(id);
     if (target) {
       target.classList.remove("hidden");
@@ -56,8 +54,11 @@ function showView(id) {
       console.warn("❌ Görünüm bulunamadı:", id);
     }
 
-    // Menü durumunu koru
-    document.getElementById("mainNav")?.classList.remove("hidden");
+    // Menü görünür kalsın
+    const nav = document.getElementById("mainNav");
+    if (nav && nav.classList.contains("hidden")) {
+      nav.classList.remove("hidden");
+    }
   } catch (err) {
     console.error("showView hatası:", err);
   }
@@ -67,7 +68,7 @@ function showView(id) {
 function bindViewButtons() {
   const buttons = document.querySelectorAll("nav button[data-view], section#view-manager button[data-view]");
   if (!buttons.length) {
-    console.warn("⏳ Menü butonları bulunamadı, yeniden denenecek...");
+    console.warn("Menü butonları henüz yüklenmedi, yeniden denenecek...");
     setTimeout(bindViewButtons, 500);
     return;
   }
@@ -78,14 +79,11 @@ function bindViewButtons() {
       showView(view);
     };
   });
-
-  console.log("✅ Menü butonları aktif hale getirildi");
+  console.log("✅ Menü butonları aktif");
 }
 
-// DOM yüklendiğinde menüleri bağla
-document.addEventListener("DOMContentLoaded", () => {
-  bindViewButtons();
-});
+// DOM yüklendiğinde butonları bağla
+document.addEventListener("DOMContentLoaded", bindViewButtons);
 
 // ================== AUTH ==================
 $("loginBtn")?.addEventListener("click", async () => {
