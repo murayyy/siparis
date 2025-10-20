@@ -539,7 +539,7 @@ async function loadAllOrders() {
   });
 
   // Butonlara tek seferde dinleyici
-  tbody.querySelectorAll("button[data-assign]").forEach(btn => {
+ tbody.querySelectorAll("button[data-assign]").forEach(btn => {
   btn.addEventListener("click", async () => {
     const orderId = btn.dataset.id;
     const roleType = btn.dataset.role;
