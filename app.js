@@ -540,9 +540,37 @@ async function loadAllOrders() {
 
   // Butonlara tek seferde dinleyici
   tbody.querySelectorAll("button[data-assign]").forEach(btn => {
-    btn.addEventListener("click", () => openAssignModal(btn.dataset.id, btn.dataset.role));
+  btn.addEventListener("click", async () => {
+    const orderId = btn.dataset.id;
+    const roleType = btn.dataset.role;
+    try {
+      // İlgili role ait ilk kullanıcıyı bul
+      const usersSnap = await getDocs(collection(db, "users"));
+      let firstUser = null;
+      usersSnap.forEach(u => {
+        const d = u.data();
+        if (!firstUser && d.role === roleType) firstUser = { id: u.id, email: d.email };
+      });
+
+      if (!firstUser) return alert(`${roleType} rolünde kullanıcı bulunamadı!`);
+
+      const payload = {};
+      if (roleType === "toplayici") {
+        payload.assignedPicker = firstUser.id;
+        payload.status = "Atandı";
+      } else if (roleType === "qc") {
+        payload.assignedQC = firstUser.id;
+        payload.status = "Kontrol";
+      }
+
+      await updateDoc(doc(db, "orders", orderId), payload);
+      alert(`✅ Sipariş '${firstUser.email}' kullanıcısına otomatik atandı.`);
+      await loadAllOrders();
+    } catch (err) {
+      alert("Atama hatası: " + err.message);
+    }
   });
-}
+});
 
 // === GERİ ALINDI: Artık kullanıcı seçmeden atama YAPILMAZ ===
 async function openAssignModal(orderId, roleType) {
