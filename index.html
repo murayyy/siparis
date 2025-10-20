@@ -20,7 +20,6 @@
       padding: 12px 20px;
       z-index: 50;
     }
-
     #userInfo {
       position: absolute;
       right: 15px;
@@ -40,10 +39,10 @@
     }
     .nav-menu button { margin: 3px; }
 
-    /* 🧩 Modal tasarımı */
+    /* Modal */
     #assignModal {
       position: fixed;
-      top: 0; left: 0;
+      inset: 0;
       width: 100%; height: 100%;
       background: rgba(0,0,0,0.6);
       display: none;
@@ -59,43 +58,31 @@
       min-width: 300px;
       box-shadow: 0 0 15px rgba(0,0,0,0.4);
     }
-    #assignModal select {
-      width: 100%;
-      margin-bottom: 10px;
-      padding: 5px;
-    }
-    #assignModal button {
-      margin-top: 10px;
-      padding: 8px 12px;
-    }
+    #assignModal select { width: 100%; margin-bottom: 10px; padding: 5px; }
+    #assignModal button { margin-top: 10px; padding: 8px 12px; }
   </style>
 </head>
-
 <body>
   <header>
     <h1>📦 TUĞLUBEY</h1>
     <button id="menuToggle" class="menu-btn">☰</button>
-
-    <!-- 🔹 Kullanıcı Bilgisi -->
     <div id="userInfo">👤 Giriş yapılmadı</div>
-
-    <!-- 🔹 Ana Menü -->
     <nav id="mainNav" class="nav-menu hidden">
-      <button data-view="view-branch" data-role="sube" class="btn-light">Şube</button>
-      <button data-view="view-manager" data-role="yonetici" class="btn-light">Yönetici</button>
-      <button data-view="view-picker" data-role="toplayici" class="btn-light">Toplayıcı</button>
-      <button data-view="view-qc" data-role="qc" class="btn-light">QC</button>
-      <button data-view="view-palet" data-role="palet" class="btn-light">Paletleme</button>
-      <button data-view="view-dashboard" data-role="admin" class="btn-light">Dashboard</button>
-      <button data-view="view-stock" data-role="admin" class="btn-light">Stok Yönetimi</button>
-      <button data-view="view-products" data-role="admin" class="btn-light">Ürünler</button>
-      <button data-view="view-count" data-role="yonetici" class="btn-light">Sayım</button>
+      <button data-view="view-branch"   data-role="sube"     class="btn-light">Şube</button>
+      <button data-view="view-manager"  data-role="yonetici" class="btn-light">Yönetici</button>
+      <button data-view="view-picker"   data-role="toplayici"class="btn-light">Toplayıcı</button>
+      <button data-view="view-qc"       data-role="qc"       class="btn-light">QC</button>
+      <button data-view="view-palet"    data-role="palet"    class="btn-light">Paletleme</button>
+      <button data-view="view-dashboard"data-role="admin"    class="btn-light">Dashboard</button>
+      <button data-view="view-stock"    data-role="admin"    class="btn-light">Stok Yönetimi</button>
+      <button data-view="view-products" data-role="admin"    class="btn-light">Ürünler</button>
+      <button data-view="view-count"    data-role="yonetici" class="btn-light">Sayım</button>
       <button id="logoutBtn" class="danger hidden">Çıkış</button>
     </nav>
   </header>
 
   <main>
-    <!-- 🔐 Login -->
+    <!-- LOGIN -->
     <section id="view-login" class="view">
       <h2>🔑 Giriş</h2>
       <input type="email" id="login-email" placeholder="Email"/><br/>
@@ -116,7 +103,7 @@
       <button id="registerBtn">Kayıt Ol</button>
     </section>
 
-    <!-- 📋 Sayım -->
+    <!-- SAYIM -->
     <section id="view-count" class="view hidden">
       <h2>📋 Basit Sayım</h2>
       <div class="card">
@@ -157,13 +144,7 @@
       <table id="tbl-count-lines" style="margin-top:12px;">
         <thead>
           <tr>
-            <th>#</th>
-            <th>Kod</th>
-            <th>Ürün</th>
-            <th>Mevcut (Sistem)</th>
-            <th>Sayım</th>
-            <th>Fark</th>
-            <th>İşlem</th>
+            <th>#</th><th>Kod</th><th>Ürün</th><th>Mevcut (Sistem)</th><th>Sayım</th><th>Fark</th><th>İşlem</th>
           </tr>
         </thead>
         <tbody></tbody>
@@ -184,13 +165,13 @@
     </section>
   </main>
 
-  <!-- 🧩 Atama Modal -->
+  <!-- Atama Modal -->
   <div id="assignModal">
     <div class="modal-content">
       <h3 id="assignTitle">Atama Yap</h3>
       <select id="assignUserSelect"></select>
       <button id="assignConfirmBtn" class="success">Atamayı Onayla</button>
-      <button id="assignCancelBtn" class="danger">İptal</button>
+      <button id="assignCancelBtn"  class="danger">İptal</button>
     </div>
   </div>
 
@@ -202,20 +183,13 @@
   <!-- App -->
   <script type="module" src="./app.js"></script>
 
-  <!-- Zorla Giriş Ekranı Aç -->
+  <!-- İlk yüklemede login'i zorla aç (app.js global showView ekliyor) -->
   <script>
-  window.addEventListener("DOMContentLoaded", async () => {
-    console.log("🔥 DOM yüklendi, görünüm kontrol ediliyor...");
-    if (typeof showView === "function") {
-      showView("view-login");
-      console.log("✅ Zorla giriş ekranı açıldı (view-login)");
-    } else {
-      console.warn("⚠️ showView fonksiyonu tanımsız, app.js yüklenmemiş olabilir!");
-    }
-  });
+    window.addEventListener("DOMContentLoaded", () => {
+      if (window.showView) window.showView("view-login");
+    });
   </script>
 
-  <!-- Yükleniyor animasyonu -->
   <div id="appLoading" class="loading hidden"><div class="spinner"></div></div>
 </body>
 </html>
