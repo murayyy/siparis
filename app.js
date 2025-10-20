@@ -538,39 +538,72 @@ async function loadAllOrders() {
     `);
   });
 
-  // Butonlara tek seferde dinleyici
- tbody.querySelectorAll("button[data-assign]").forEach(btn => {
-  btn.addEventListener("click", async () => {
-    const orderId = btn.dataset.id;
-    const roleType = btn.dataset.role;
-    try {
-      // İlgili role ait ilk kullanıcıyı bul
-      const usersSnap = await getDocs(collection(db, "users"));
-      let firstUser = null;
-      usersSnap.forEach(u => {
-        const d = u.data();
-        if (!firstUser && d.role === roleType) firstUser = { id: u.id, email: d.email };
-      });
-
-      if (!firstUser) return alert(`${roleType} rolünde kullanıcı bulunamadı!`);
-
-      const payload = {};
-      if (roleType === "toplayici") {
-        payload.assignedPicker = firstUser.id;
-        payload.status = "Atandı";
-      } else if (roleType === "qc") {
-        payload.assignedQC = firstUser.id;
-        payload.status = "Kontrol";
-      }
-
-      await updateDoc(doc(db, "orders", orderId), payload);
-      alert(`✅ Sipariş '${firstUser.email}' kullanıcısına otomatik atandı.`);
-      await loadAllOrders();
-    } catch (err) {
-      alert("Atama hatası: " + err.message);
-    }
+  // Butonlara tıklayınca modal açılır (ESKİ HAL)
+  tbody.querySelectorAll("button[data-assign]").forEach(btn => {
+    btn.addEventListener("click", () => openAssignModal(btn.dataset.id, btn.dataset.role));
   });
-});
+}
+
+async function openAssignModal(orderId, roleType) {
+  const modal = $("assignModal");
+  const title = $("assignTitle");
+  const select = $("assignUserSelect");
+  const confirmBtn = $("assignConfirmBtn");
+  const cancelBtn = $("assignCancelBtn");
+
+  title.textContent = roleType === "qc" ? "Kontrolcü Seç" : "Toplayıcı Seç";
+  select.innerHTML = `<option value="">Yükleniyor...</option>`;
+  modal.style.display = "flex";
+
+  try {
+    const usersSnap = await getDocs(collection(db, "users"));
+    const list = [];
+    usersSnap.forEach(u => {
+      const d = u.data();
+      if (d.role === roleType) list.push({ id: u.id, email: d.email || u.id });
+    });
+    select.innerHTML = "";
+    if (list.length === 0) {
+      const opt = document.createElement("option");
+      opt.value = "";
+      opt.textContent = roleType === "qc" ? "QC bulunamadı" : "Toplayıcı bulunamadı";
+      select.appendChild(opt);
+    } else {
+      list.forEach(u => {
+        const opt = document.createElement("option");
+        opt.value = u.id;
+        opt.textContent = u.email;
+        select.appendChild(opt);
+      });
+    }
+  } catch (e) {
+    alert("Kullanıcı listesi alınamadı.");
+    select.innerHTML = `<option value="">Hata</option>`;
+  }
+
+  const onConfirm = async () => {
+    const uid = select.value;
+    if (!uid) { alert("Lütfen bir kullanıcı seçin!"); return; }
+    const payload = {};
+    if (roleType === "toplayici") { payload.assignedPicker = uid; payload.status = "Atandı"; }
+    else if (roleType === "qc")   { payload.assignedQC    = uid; payload.status = "Kontrol"; }
+    await updateDoc(doc(db, "orders", orderId), payload);
+    modal.style.display = "none";
+    loadAllOrders();
+    alert("✅ Atama tamamlandı");
+    confirmBtn.removeEventListener("click", onConfirm);
+    cancelBtn.removeEventListener("click", onCancel);
+  };
+  const onCancel = () => {
+    modal.style.display = "none";
+    confirmBtn.removeEventListener("click", onConfirm);
+    cancelBtn.removeEventListener("click", onCancel);
+  };
+
+  confirmBtn.addEventListener("click", onConfirm);
+  cancelBtn.addEventListener("click", onCancel);
+}
+window.openAssignModal = openAssignModal;
 
 // === GERİ ALINDI: Artık kullanıcı seçmeden atama YAPILMAZ ===
 async function openAssignModal(orderId, roleType) {
