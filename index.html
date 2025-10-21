@@ -8,14 +8,19 @@
   <style>
     :root { --bg:#0f172a; --card:#111827; --text:#e5e7eb; --muted:#94a3b8; }
     body { background:var(--bg); color:var(--text); font-family:system-ui, Arial, sans-serif; margin:0; }
-    .hidden { display:none; }
-    header { position:sticky;top:0;background:#1f2937;color:#fff;display:flex;justify-content:space-between;align-items:center;
-             padding:12px 20px;z-index:50;border-bottom:1px solid #111827; }
+    .hidden { display:none !important; }
+    header {
+      position:sticky;top:0;background:#1f2937;color:#fff;display:flex;
+      justify-content:space-between;align-items:center;padding:12px 20px;z-index:50;
+      border-bottom:1px solid #111827;
+    }
     h1 { margin:0; font-size:18px; letter-spacing:.4px; }
     .menu-btn{background:#334155;color:#fff;border:none;border-radius:8px;padding:6px 10px;cursor:pointer;}
-    .nav-menu{display:flex;gap:6px;flex-wrap:wrap;}
+    .nav-menu{display:none;gap:6px;flex-wrap:wrap;}
     .nav-menu.show{display:flex;}
-    .nav-menu button{margin:3px;background:#0ea5e9;border:none;color:#00121a;padding:6px 10px;border-radius:6px;cursor:pointer;}
+    .nav-menu button{margin:3px;background:#0ea5e9;border:none;color:#00121a;
+      padding:6px 10px;border-radius:6px;cursor:pointer;transition:0.2s;}
+    .nav-menu button:hover{background:#38bdf8;}
     .btn-light{background:#f1f5f9;color:#0f172a;border:none;padding:6px 10px;border-radius:6px;cursor:pointer;}
     .danger{background:#ef4444;color:white;border:none;padding:6px 10px;border-radius:6px;cursor:pointer;}
     .success{background:#22c55e;color:white;border:none;padding:6px 10px;border-radius:6px;cursor:pointer;}
@@ -36,16 +41,21 @@
     .fully-picked{background:#1b3321;}
     .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
     @media (max-width:900px){.grid-2{grid-template-columns:1fr;}}
+    /* küçük estetik düzeltmeler */
+    button:disabled{opacity:0.5;cursor:not-allowed;}
+    select:focus,input:focus{outline:1px solid #0ea5e9;}
   </style>
 </head>
 
 <body>
 <header>
   <h1>📦 TUĞLUBEY — Depo Otomasyonu</h1>
-  <div class="row"><button id="menuToggle" class="menu-btn">☰</button></div>
+  <div class="row">
+    <button id="menuToggle" class="menu-btn">☰</button>
+  </div>
   <div id="userInfo">👤 Giriş yapılmadı</div>
 
-  <nav id="mainNav" class="nav-menu hidden">
+  <nav id="mainNav" class="nav-menu">
     <button data-view="view-branch" data-role="sube" class="btn-light">Şube</button>
     <button data-view="view-manager" data-role="yonetici" class="btn-light">Yönetici</button>
     <button data-view="view-picker" data-role="toplayici" class="btn-light">Toplayıcı</button>
@@ -66,16 +76,16 @@
       <div class="card">
         <h2>🔑 Giriş</h2>
         <div class="col">
-          <input type="email" id="login-email" placeholder="Email"/>
-          <input type="password" id="login-pass" placeholder="Şifre"/>
+          <input type="email" id="login-email" placeholder="Email" autocomplete="username"/>
+          <input type="password" id="login-pass" placeholder="Şifre" autocomplete="current-password"/>
           <button id="loginBtn" class="success">Giriş</button>
         </div>
       </div>
       <div class="card">
-        <h2>Yeni Kayıt</h2>
+        <h2>🆕 Yeni Kayıt</h2>
         <div class="col">
-          <input type="email" id="reg-email" placeholder="Email"/>
-          <input type="password" id="reg-pass" placeholder="Şifre"/>
+          <input type="email" id="reg-email" placeholder="Email" autocomplete="email"/>
+          <input type="password" id="reg-pass" placeholder="Şifre" autocomplete="new-password"/>
           <select id="reg-role">
             <option value="sube">Şube</option>
             <option value="yonetici">Yönetici</option>
@@ -90,20 +100,34 @@
     </div>
   </section>
 
-  <!-- Diğer bölümler -->
-  <!-- (tam sürüm app.js ile senkron, burada yeniden yazmaya gerek yok) -->
+  <!-- 📋 Diğer Görünümler (Şube, Yönetici, QC, Paletleme, Dashboard, Stok, Sayım, Ürünler) -->
+  <!-- Bu kısımlar app.js ile otomatik doldurulur. -->
 </main>
 
-<!-- Libs -->
+<!-- 📦 Gerekli Kütüphaneler -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.19.3/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
 <script src="https://unpkg.com/html5-qrcode@2.3.10/minified/html5-qrcode.min.js"></script>
 
-<!-- App -->
+<!-- ⚙️ Ana Uygulama -->
 <script type="module" src="./app.js"></script>
+
+<!-- 🧩 Başlangıç -->
 <script>
 window.addEventListener("DOMContentLoaded", () => {
-  if (typeof showView === "function") showView("view-login");
+  if (typeof showView === "function") {
+    showView("view-login");
+  } else {
+    console.warn("showView tanımsız, app.js yüklenmemiş olabilir!");
+  }
+
+  // Menü toggle (mobil görünüm)
+  const menuToggle = document.getElementById("menuToggle");
+  const mainNav = document.getElementById("mainNav");
+  menuToggle?.addEventListener("click", () => {
+    mainNav?.classList.toggle("show");
+  });
 });
 </script>
 </body>
