@@ -27,12 +27,13 @@ import * as XLSX from "https://cdn.sheetjs.com/xlsx-0.19.3/package/xlsx.mjs";
 
 // ============== Firebase Config ==============
 const firebaseConfig = {
-  apiKey: "API_KEYİN_BURAYA",
-  authDomain: "AUTH_DOMAIN",
-  projectId: "PROJE_ID",
-  storageBucket: "STORAGE_BUCKET",
-  messagingSenderId: "SENDER_ID",
-  appId: "APP_ID"
+  apiKey: "AIzaSyDcLQB4UggXlYA9x8AKw-XybJjcF6U_KA4",
+  authDomain: "depo1-4668f.firebaseapp.com",
+  projectId: "depo1-4668f",
+  storageBucket: "depo1-4668f.appspot.com",
+  messagingSenderId: "1044254626353",
+  appId: "1:1044254626353:web:148c57df2456cc3d9e3b10",
+  measurementId: "G-DFGMVLK9XH"
 };
 
 // ============== Init ==============
