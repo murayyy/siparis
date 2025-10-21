@@ -1,20 +1,31 @@
-// =====================================================
-// app.js — Depo Otomasyonu (ESKİ SÜRÜM / DOĞRUDAN ATAMA — KULLANICI SEÇTİRTMEZ)
-// =====================================================
-
-// ================= FIREBASE IMPORT =================
-import {
-  app, auth, db,
-  signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged,
-  collection, doc, setDoc, getDoc, getDocs, updateDoc, addDoc,
-  query, where, orderBy, serverTimestamp
-} from "./firebase.js";
-
-// Excel (SheetJS)
-import * as XLSX from "https://cdn.sheetjs.com/xlsx-0.19.3/package/xlsx.mjs";
+// ============== FIREBASE CONFIG ==============
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
-import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
-import { getFirestore, doc, setDoc, getDoc, getDocs, updateDoc, collection } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+import {
+  getAuth,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  onAuthStateChanged,
+  signOut
+} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
+import {
+  getFirestore,
+  doc,
+  setDoc,
+  getDoc,
+  getDocs,
+  updateDoc,
+  addDoc,
+  collection,
+  query,
+  where,
+  orderBy,
+  serverTimestamp
+} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+
+// ============== Excel (SheetJS) ==============
+import * as XLSX from "https://cdn.sheetjs.com/xlsx-0.19.3/package/xlsx.mjs";
+
+// ============== Firebase Config ==============
 const firebaseConfig = {
   apiKey: "API_KEYİN_BURAYA",
   authDomain: "AUTH_DOMAIN",
@@ -23,10 +34,11 @@ const firebaseConfig = {
   messagingSenderId: "SENDER_ID",
   appId: "APP_ID"
 };
+
+// ============== Init ==============
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
-
 
 // ================== GLOBAL ==================
 let currentUser = null;
