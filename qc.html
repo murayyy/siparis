@@ -2,126 +2,83 @@
 <html lang="tr">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Toplayıcı Paneli</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>QC (Kontrol) Paneli</title>
   <style>
-    body {
-      background:#0f172a;
-      color:#e2e8f0;
-      font-family: system-ui, Arial;
-      margin:0; padding:0;
-      display:flex; flex-direction:column; align-items:center;
-      min-height:100vh;
-    }
-    header {
-      background:#111827;
-      color:#93c5fd;
-      width:100%; max-width:900px;
-      padding:16px 20px;
-      display:flex; justify-content:space-between; align-items:center;
-      border-bottom:1px solid #1e293b;
-      border-radius:0 0 10px 10px;
-    }
-    main {
-      width:100%; max-width:900px;
-      padding:20px;
-    }
-    h1 { margin:0; font-size:20px; }
-    button {
-      background:#22c55e;
-      color:white;
-      border:none;
-      border-radius:6px;
-      padding:8px 14px;
-      cursor:pointer;
-      font-weight:bold;
-      margin:5px 0;
-    }
-    button.danger { background:#ef4444; }
-    table {
-      width:100%;
-      border-collapse:collapse;
-      margin-top:15px;
-      font-size:14px;
-    }
-    th,td {
-      border-bottom:1px solid #1e293b;
-      padding:8px;
-      text-align:left;
-    }
-    tr:nth-child(even){background:#1e293b33;}
-    .input-row {
-      display:flex;
-      gap:8px;
-      margin-top:10px;
-      flex-wrap:wrap;
-    }
-    input {
-      background:#1e293b;
-      color:white;
-      border:1px solid #334155;
-      border-radius:6px;
-      padding:6px 8px;
-    }
-    #reader {
-      width:300px; height:300px; margin-top:10px;
-      border:2px dashed #334155; border-radius:10px;
-    }
-    .hidden { display:none; }
+    body{background:#0f172a;color:#e2e8f0;font-family:system-ui,Arial;margin:0;display:flex;flex-direction:column;align-items:center;min-height:100vh}
+    header{background:#111827;color:#93c5fd;width:100%;max-width:1000px;padding:16px 20px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #1e293b;border-radius:0 0 10px 10px}
+    h1{margin:0;font-size:20px}
+    main{width:100%;max-width:1000px;padding:20px}
+    .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+    select,input{background:#1e293b;color:#fff;border:1px solid #334155;border-radius:6px;padding:8px}
+    button{background:#3b82f6;color:#fff;border:none;border-radius:6px;padding:8px 14px;cursor:pointer;font-weight:600}
+    button.danger{background:#ef4444}
+    button.success{background:#22c55e}
+    #qcReader{width:300px;height:300px;border:2px dashed #334155;border-radius:10px;margin-top:10px}
+    table{width:100%;border-collapse:collapse;margin-top:14px;font-size:14px}
+    th,td{border-bottom:1px solid #1f293b;padding:8px;text-align:left}
+    tr:nth-child(even){background:#1e293b33}
+    .tag{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px}
+    .tag.warn{background:#f59e0b22;color:#fbbf24}
+    .tag.ok{background:#22c55e22;color:#86efac}
   </style>
 </head>
-
 <body>
   <header>
-    <h1>🚛 Toplayıcı Paneli</h1>
-    <button id="logoutBtn" class="danger">Çıkış</button>
+    <h1>🧪 QC — Kontrol Paneli</h1>
+    <div class="row">
+      <span id="who"></span>
+      <button id="logoutBtn" class="danger">Çıkış</button>
+    </div>
   </header>
 
   <main>
-    <p id="welcomeText">Hoş geldin...</p>
-
-    <h3>📦 Atanmış Siparişler</h3>
-    <select id="assignedOrders" style="width:100%;padding:8px;background:#1e293b;color:white;border-radius:6px;"></select>
-    <div class="input-row">
-      <button id="openAssignedBtn">Aç</button>
-      <button id="refreshAssignedBtn">Yenile</button>
+    <div class="row">
+      <button id="refreshQCBtn">Yenile</button>
+      <select id="qcOrders" style="min-width:320px"></select>
+      <button id="openQCBtn" class="success">Aç</button>
+      <button id="exportQCBtn">⬇️ Excel</button>
     </div>
 
-    <div id="pickerArea" class="hidden">
-      <h3 id="pickerTitle">Seçilen Sipariş</h3>
-      <table id="tbl-picker-lines">
+    <section id="qcArea" class="hidden" style="margin-top:16px;">
+      <div class="row" style="justify-content:space-between">
+        <h3 id="qcTitle" style="margin:0">Sipariş</h3>
+        <span id="statusTag" class="tag warn">Bekliyor</span>
+      </div>
+
+      <div class="row" style="margin:8px 0">
+        <button id="startQCScanBtn">📷 Barkod Tarayıcıyı Başlat</button>
+        <button id="stopQCScanBtn">🛑 Durdur</button>
+        <button id="saveQCBtn">💾 Kaydet</button>
+        <button id="finishQCBtn" class="danger">✅ QC Bitir</button>
+      </div>
+
+      <div id="qcReader" class="hidden"></div>
+
+      <table id="tbl-qc-lines">
         <thead>
-          <tr><th>#</th><th>Kod</th><th>Ürün</th><th>İstenen</th><th>Toplanan</th><th>İşlem</th></tr>
+          <tr>
+            <th>#</th><th>Kod</th><th>Ürün</th><th>İstenen</th><th>Toplanan</th><th>QC</th><th>Eksik</th>
+          </tr>
         </thead>
         <tbody></tbody>
       </table>
-
-      <div class="input-row">
-        <input id="manualScanCode" placeholder="Kod / Barkod" />
-        <input id="manualScanQty" type="number" step="1" min="1" value="1" style="width:80px"/>
-        <button id="manualAddBtn">Ekle</button>
-      </div>
-
-      <div class="input-row">
-        <button id="startScanBtn">📷 Barkod Tarayıcıyı Başlat</button>
-        <button id="stopScanBtn">🛑 Durdur</button>
-      </div>
-
-      <div id="reader" class="hidden"></div>
-
-      <div class="input-row">
-        <button id="savePickBtn">💾 Kaydet</button>
-        <button id="finishPickBtn" class="danger">✅ Toplamayı Bitir</button>
-      </div>
-    </div>
+    </section>
   </main>
 
+  <!-- libs -->
   <script src="https://unpkg.com/html5-qrcode@2.3.10/minified/html5-qrcode.min.js"></script>
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/xlsx.mjs" type="module"></script>
+
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
     import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
-    import { getFirestore, getDocs, getDoc, doc, updateDoc, collection, query, where, toNum } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+    import {
+      getFirestore, doc, getDoc, getDocs, updateDoc, collection, query, where
+    } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+    import * as XLSX from "https://cdn.sheetjs.com/xlsx-0.20.3/package/xlsx.mjs";
 
+    // --- Firebase config (senin verdiğin)
     const firebaseConfig = {
       apiKey: "AIzaSyDcLQB4UggXlYA9x8AKw-XybJjcF6U_KA4",
       authDomain: "depo1-4668f.firebaseapp.com",
@@ -135,148 +92,181 @@
     const auth = getAuth(app);
     const db = getFirestore(app);
 
+    // ---- state
     let currentUser = null;
-    let pickerOrder = null;
-    let scanner = null;
+    let qcOrder = null;
+    let qcScanner = null;
 
+    // ---- helpers
     const $ = (id) => document.getElementById(id);
+    const toNum = (v) => { const n = parseFloat(String(v??0).toString().replace(",", ".")); return Number.isNaN(n)?0:n; };
+    const clamp = (v,min,max)=>Math.min(Math.max(v,min),max);
 
-    // 🔐 Oturum kontrolü
+    // ---- auth / role guard
     onAuthStateChanged(auth, async (user) => {
-      if (!user) return (window.location.href = "index.html");
-      const uid = user.uid;
-      const userSnap = await getDoc(doc(db, "users", uid));
-      const role = userSnap.exists() ? userSnap.data().role : "sube";
-      if (role !== "toplayici") {
-        alert("Yetkisiz erişim. Bu sayfa sadece toplayıcılar içindir.");
-        window.location.href = "index.html";
-        return;
-      }
+      if (!user) return window.location.href = "index.html";
+      const profile = await getDoc(doc(db, "users", user.uid));
+      const role = profile.exists() ? profile.data().role : "sube";
+      if (role !== "qc") { alert("Bu sayfa sadece QC kullanıcılarına açıktır."); return window.location.href="index.html"; }
       currentUser = user;
-      $("welcomeText").innerHTML = `Hoş geldin, <strong>${user.email}</strong>`;
-      refreshAssigned();
+      $("who").textContent = user.email;
+      await refreshQCOrders();
     });
 
-    // 🚪 Çıkış
-    $("logoutBtn").addEventListener("click", async () => {
-      await signOut(auth);
-      window.location.href = "index.html";
-    });
+    $("logoutBtn").addEventListener("click", async ()=>{ await signOut(auth); window.location.href="index.html"; });
 
-    // 📦 Siparişleri listele
-    async function refreshAssigned() {
-      $("assignedOrders").innerHTML = "";
-      const qs = await getDocs(
-        query(collection(db, "orders"), where("status", "in", ["Atandı", "Toplama Başladı"]))
-      );
-      qs.forEach(d => {
-        const o = { id: d.id, ...d.data() };
+    // ---- listele
+    async function refreshQCOrders() {
+      $("qcOrders").innerHTML = "";
+      const qs = await getDocs(query(collection(db,"orders"), where("status","in",["Kontrol","Kontrol Başladı"])));
+      qs.forEach(d=>{
+        const o = { id:d.id, ...d.data() };
         const opt = document.createElement("option");
         opt.value = o.id;
-        opt.textContent = `${o.name || "(İsimsiz)"} — ${o.status}`;
-        $("assignedOrders").appendChild(opt);
+        opt.textContent = `${o.name || d.id} — ${o.status}`;
+        $("qcOrders").appendChild(opt);
       });
     }
-    $("refreshAssignedBtn").addEventListener("click", refreshAssigned);
+    $("refreshQCBtn").addEventListener("click", refreshQCOrders);
 
-    // 📋 Siparişi aç
-    $("openAssignedBtn").addEventListener("click", async () => {
-      const id = $("assignedOrders").value;
-      if (!id) return alert("Sipariş seç!");
-      const ds = await getDoc(doc(db, "orders", id));
+    // ---- aç
+    $("openQCBtn").addEventListener("click", async ()=>{
+      const id = $("qcOrders").value;
+      if (!id) return alert("Sipariş seç.");
+      const ds = await getDoc(doc(db,"orders",id));
       if (!ds.exists()) return alert("Sipariş bulunamadı.");
-      pickerOrder = { id: ds.id, ...ds.data() };
-      $("pickerTitle").textContent = `Sipariş: ${pickerOrder.name || id}`;
-      $("pickerArea").classList.remove("hidden");
-      renderPickerLines();
+      qcOrder = { id: ds.id, ...ds.data() };
+      qcOrder.lines = (qcOrder.lines||[]).map(l=>({
+        ...l,
+        qty: toNum(l.qty),
+        picked: toNum(l.picked),
+        qc: toNum(l.qc)
+      }));
+      $("qcTitle").textContent = `Sipariş: ${qcOrder.name || id}`;
+      $("statusTag").className = "tag " + (qcOrder.status==="Kontrol Başladı"?"ok":"warn");
+      $("statusTag").textContent = qcOrder.status;
+      $("qcArea").classList.remove("hidden");
+      renderQCLines();
+      // durumu başlat
+      if (qcOrder.status !== "Kontrol Başladı") {
+        await updateDoc(doc(db,"orders",qcOrder.id), { status:"Kontrol Başladı", lastUpdate: new Date() });
+        $("statusTag").className = "tag ok";
+        $("statusTag").textContent = "Kontrol Başladı";
+      }
     });
 
-    // 📄 Sipariş satırlarını tabloya yaz
-    function renderPickerLines() {
-      const tb = $("tbl-picker-lines").querySelector("tbody");
+    // ---- tablo
+    function renderQCLines() {
+      const tb = $("tbl-qc-lines").querySelector("tbody");
       tb.innerHTML = "";
-      if (!pickerOrder?.lines) return;
-      pickerOrder.lines.forEach((l, i) => {
+      qcOrder.lines.forEach((l,i)=>{
+        const diff = Math.max(0, toNum(l.picked) - toNum(l.qc));
         tb.insertAdjacentHTML("beforeend", `
-          <tr>
-            <td>${i + 1}</td>
-            <td>${l.code}</td>
-            <td>${l.name || ""}</td>
+          <tr data-row="${i}">
+            <td>${i+1}</td>
+            <td>${l.code||""}</td>
+            <td>${l.name||""}</td>
             <td>${l.qty}</td>
-            <td><input type="number" step="1" value="${l.picked || 0}" data-idx="${i}" style="width:80px;text-align:center;"></td>
-            <td><button data-save="${i}">Kaydet</button></td>
+            <td>${l.picked}</td>
+            <td>
+              <input type="number" step="0.001" min="0" max="${l.picked}" value="${toNum(l.qc)}"
+                     data-idx="${i}" style="width:90px;text-align:center;background:#1e293b;color:#fff;border:1px solid #334155;border-radius:6px;padding:6px">
+              <button data-plus="${i}">+1</button>
+              <button data-minus="${i}">-1</button>
+            </td>
+            <td class="diff">${diff}</td>
           </tr>
         `);
       });
-      tb.querySelectorAll("button[data-save]").forEach(btn => {
-        btn.addEventListener("click", async () => {
-          const i = btn.dataset.save;
-          const val = parseFloat(tb.querySelector(`input[data-idx='${i}']`).value);
-          pickerOrder.lines[i].picked = val;
-          alert(`Satır ${i * 1 + 1} güncellendi ✅`);
+
+      // input/plus/minus
+      tb.querySelectorAll("input[data-idx]").forEach(inp=>{
+        inp.addEventListener("input", e=>{
+          const i = +e.target.dataset.idx;
+          qcOrder.lines[i].qc = toNum(e.target.value);
+        });
+        inp.addEventListener("blur", e=>{
+          const i = +e.target.dataset.idx;
+          const line = qcOrder.lines[i];
+          line.qc = clamp(toNum(line.qc), 0, toNum(line.picked));
+          e.target.value = line.qc;
+          tb.querySelector(`tr[data-row="${i}"] .diff`).textContent = Math.max(0, toNum(line.picked) - toNum(line.qc));
+        });
+      });
+      tb.querySelectorAll("button[data-plus]").forEach(btn=>{
+        btn.addEventListener("click", ()=>{
+          const i = +btn.dataset.plus;
+          const line = qcOrder.lines[i];
+          line.qc = clamp(toNum(line.qc)+1,0,toNum(line.picked));
+          const row = tb.querySelector(`tr[data-row="${i}"]`);
+          row.querySelector("input").value = line.qc;
+          row.querySelector(".diff").textContent = Math.max(0, line.picked - line.qc);
+        });
+      });
+      tb.querySelectorAll("button[data-minus]").forEach(btn=>{
+        btn.addEventListener("click", ()=>{
+          const i = +btn.dataset.minus;
+          const line = qcOrder.lines[i];
+          line.qc = clamp(toNum(line.qc)-1,0,toNum(line.picked));
+          const row = tb.querySelector(`tr[data-row="${i}"]`);
+          row.querySelector("input").value = line.qc;
+          row.querySelector(".diff").textContent = Math.max(0, line.picked - line.qc);
         });
       });
     }
 
-    // 🧾 Elle ekleme
-    $("manualAddBtn").addEventListener("click", () => {
-      const code = $("manualScanCode").value.trim();
-      const qty = parseFloat($("manualScanQty").value) || 1;
-      if (!pickerOrder) return alert("Önce sipariş aç!");
-      pickerOrder.lines.push({ code, name: "Manuel Ürün", qty: 0, picked: qty });
-      renderPickerLines();
+    // ---- barkod
+    $("startQCScanBtn").addEventListener("click", async ()=>{
+      if (qcScanner) return;
+      $("qcReader").classList.remove("hidden");
+      qcScanner = new Html5Qrcode("qcReader");
+      await qcScanner.start({ facingMode:"environment" }, { fps:10, qrbox:250 }, onQCScan);
     });
-
-    // 📷 Barkod tarama
-    $("startScanBtn").addEventListener("click", async () => {
-      if (scanner) return;
-      $("reader").classList.remove("hidden");
-      scanner = new Html5Qrcode("reader");
-      await scanner.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 }, (code) => {
-        handleScannedCode(code);
-      });
+    $("stopQCScanBtn").addEventListener("click", ()=>{
+      if (!qcScanner) return;
+      qcScanner.stop().then(()=>{ qcScanner.clear(); qcScanner=null; $("qcReader").classList.add("hidden"); });
     });
-    $("stopScanBtn").addEventListener("click", () => {
-      if (!scanner) return;
-      scanner.stop().then(() => { scanner.clear(); scanner = null; $("reader").classList.add("hidden"); });
-    });
-
-    function handleScannedCode(code) {
-      if (!pickerOrder) return;
-      const idx = pickerOrder.lines.findIndex(x => x.code === code);
-      if (idx !== -1) {
-        pickerOrder.lines[idx].picked = (pickerOrder.lines[idx].picked || 0) + 1;
-        renderPickerLines();
-      } else {
-        pickerOrder.lines.push({ code, name: "Yeni Ürün", qty: 0, picked: 1 });
-        renderPickerLines();
-      }
+    function onQCScan(code){
+      if (!qcOrder) return;
+      const idx = qcOrder.lines.findIndex(l => l.barcode === code || l.code === code);
+      if (idx === -1) { alert("Barkod bulunamadı: "+code); return; }
+      const line = qcOrder.lines[idx];
+      line.qc = clamp(toNum(line.qc)+1, 0, toNum(line.picked));
+      const row = $("tbl-qc-lines").querySelector(`tbody tr[data-row="${idx}"]`);
+      row.querySelector("input").value = line.qc;
+      row.querySelector(".diff").textContent = Math.max(0, line.picked - line.qc);
     }
 
-    // 💾 Kaydet
-    $("savePickBtn").addEventListener("click", async () => {
-      if (!pickerOrder) return;
-      await updateDoc(doc(db, "orders", pickerOrder.id), {
-        lines: pickerOrder.lines,
-        status: "Toplama Başladı",
-        lastUpdate: new Date()
-      });
-      alert("Toplama kaydedildi 💾");
+    // ---- kaydet / bitir
+    $("saveQCBtn").addEventListener("click", async ()=>{
+      if (!qcOrder) return;
+      await updateDoc(doc(db,"orders",qcOrder.id), { lines: qcOrder.lines, status:"Kontrol Başladı", lastUpdate:new Date() });
+      alert("QC kaydedildi 💾");
     });
 
-    // ✅ Toplamayı bitir
-    $("finishPickBtn").addEventListener("click", async () => {
-      if (!pickerOrder) return;
-      await updateDoc(doc(db, "orders", pickerOrder.id), {
-        lines: pickerOrder.lines,
-        status: "Toplandı",
-        lastUpdate: new Date()
-      });
-      alert("Toplama tamamlandı ✅");
-      $("pickerArea").classList.add("hidden");
-      pickerOrder = null;
-      refreshAssigned();
+    $("finishQCBtn").addEventListener("click", async ()=>{
+      if (!qcOrder) return;
+      await updateDoc(doc(db,"orders",qcOrder.id), { lines: qcOrder.lines, status:"Tamamlandı", lastUpdate:new Date() });
+      alert("QC tamamlandı ✅");
+      $("qcArea").classList.add("hidden");
+      qcOrder = null;
+      await refreshQCOrders();
     });
+
+    // ---- Excel’e aktar
+    $("exportQCBtn").addEventListener("click", ()=>{
+      const tb = $("tbl-qc-lines").querySelector("tbody");
+      if (!tb || !tb.rows.length) return alert("Tabloda veri yok.");
+      const data = [["#", "Kod", "Ürün", "İstenen", "Toplanan", "QC", "Eksik"]];
+      [...tb.rows].forEach(r => data.push([...r.cells].map(td=>td.innerText.trim())));
+      const ws = XLSX.utils.aoa_to_sheet(data);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "QC");
+      const name = ($("qcTitle").innerText.replace("Sipariş: ","")||"Kontrol");
+      const date = new Date().toISOString().slice(0,10);
+      XLSX.writeFile(wb, `QC_${name}_${date}.xlsx`);
+    });
+
   </script>
 </body>
 </html>
