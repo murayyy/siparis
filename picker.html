@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Toplayıcı Paneli</title>
+  <style>
+    body {
+      background:#0f172a;
+      color:#e2e8f0;
+      font-family: system-ui, Arial;
+      margin:0; padding:0;
+      display:flex; flex-direction:column; align-items:center;
+      min-height:100vh;
+    }
+    header {
+      background:#111827;
+      color:#93c5fd;
+      width:100%; max-width:900px;
+      padding:16px 20px;
+      display:flex; justify-content:space-between; align-items:center;
+      border-bottom:1px solid #1e293b;
+      border-radius:0 0 10px 10px;
+    }
+    main {
+      width:100%; max-width:900px;
+      padding:20px;
+    }
+    h1 { margin:0; font-size:20px; }
+    button {
+      background:#22c55e;
+      color:white;
+      border:none;
+      border-radius:6px;
+      padding:8px 14px;
+      cursor:pointer;
+      font-weight:bold;
+      margin:5px 0;
+    }
+    button.danger { background:#ef4444; }
+    table {
+      width:100%;
+      border-collapse:collapse;
+      margin-top:15px;
+      font-size:14px;
+    }
+    th,td {
+      border-bottom:1px solid #1e293b;
+      padding:8px;
+      text-align:left;
+    }
+    tr:nth-child(even){background:#1e293b33;}
+    .input-row {
+      display:flex;
+      gap:8px;
+      margin-top:10px;
+      flex-wrap:wrap;
+    }
+    input {
+      background:#1e293b;
+      color:white;
+      border:1px solid #334155;
+      border-radius:6px;
+      padding:6px 8px;
+    }
+    #reader {
+      width:300px; height:300px; margin-top:10px;
+      border:2px dashed #334155; border-radius:10px;
+    }
+    .hidden { display:none; }
+  </style>
+</head>
+
+<body>
+  <header>
+    <h1>🚛 Toplayıcı Paneli</h1>
+    <button id="logoutBtn" class="danger">Çıkış</button>
+  </header>
+
+  <main>
+    <p id="welcomeText">Hoş geldin...</p>
+
+    <h3>📦 Atanmış Siparişler</h3>
+    <select id="assignedOrders" style="width:100%;padding:8px;background:#1e293b;color:white;border-radius:6px;"></select>
+    <div class="input-row">
+      <button id="openAssignedBtn">Aç</button>
+      <button id="refreshAssignedBtn">Yenile</button>
+    </div>
+
+    <div id="pickerArea" class="hidden">
+      <h3 id="pickerTitle">Seçilen Sipariş</h3>
+      <table id="tbl-picker-lines">
+        <thead>
+          <tr><th>#</th><th>Kod</th><th>Ürün</th><th>İstenen</th><th>Toplanan</th><th>İşlem</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+
+      <div class="input-row">
+        <input id="manualScanCode" placeholder="Kod / Barkod" />
+        <input id="manualScanQty" type="number" step="1" min="1" value="1" style="width:80px"/>
+        <button id="manualAddBtn">Ekle</button>
+      </div>
+
+      <div class="input-row">
+        <button id="startScanBtn">📷 Barkod Tarayıcıyı Başlat</button>
+        <button id="stopScanBtn">🛑 Durdur</button>
+      </div>
+
+      <div id="reader" class="hidden"></div>
+
+      <div class="input-row">
+        <button id="savePickBtn">💾 Kaydet</button>
+        <button id="finishPickBtn" class="danger">✅ Toplamayı Bitir</button>
+      </div>
+    </div>
+  </main>
+
+  <script src="https://unpkg.com/html5-qrcode@2.3.10/minified/html5-qrcode.min.js"></script>
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
+    import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
+    import { getFirestore, getDocs, getDoc, doc, updateDoc, collection, query, where, toNum } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDcLQB4UggXlYA9x8AKw-XybJjcF6U_KA4",
+      authDomain: "depo1-4668f.firebaseapp.com",
+      projectId: "depo1-4668f",
+      storageBucket: "depo1-4668f.appspot.com",
+      messagingSenderId: "1044254626353",
+      appId: "1:1044254626353:web:148c57df2456cc3d9e3b10"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    let currentUser = null;
+    let pickerOrder = null;
+    let scanner = null;
+
+    const $ = (id) => document.getElementById(id);
+
+    // 🔐 Oturum kontrolü
+    onAuthStateChanged(auth, async (user) => {
+      if (!user) return (window.location.href = "index.html");
+      const uid = user.uid;
+      const userSnap = await getDoc(doc(db, "users", uid));
+      const role = userSnap.exists() ? userSnap.data().role : "sube";
+      if (role !== "toplayici") {
+        alert("Yetkisiz erişim. Bu sayfa sadece toplayıcılar içindir.");
+        window.location.href = "index.html";
+        return;
+      }
+      currentUser = user;
+      $("welcomeText").innerHTML = `Hoş geldin, <strong>${user.email}</strong>`;
+      refreshAssigned();
+    });
+
+    // 🚪 Çıkış
+    $("logoutBtn").addEventListener("click", async () => {
+      await signOut(auth);
+      window.location.href = "index.html";
+    });
+
+    // 📦 Siparişleri listele
+    async function refreshAssigned() {
+      $("assignedOrders").innerHTML = "";
+      const qs = await getDocs(
+        query(collection(db, "orders"), where("status", "in", ["Atandı", "Toplama Başladı"]))
+      );
+      qs.forEach(d => {
+        const o = { id: d.id, ...d.data() };
+        const opt = document.createElement("option");
+        opt.value = o.id;
+        opt.textContent = `${o.name || "(İsimsiz)"} — ${o.status}`;
+        $("assignedOrders").appendChild(opt);
+      });
+    }
+    $("refreshAssignedBtn").addEventListener("click", refreshAssigned);
+
+    // 📋 Siparişi aç
+    $("openAssignedBtn").addEventListener("click", async () => {
+      const id = $("assignedOrders").value;
+      if (!id) return alert("Sipariş seç!");
+      const ds = await getDoc(doc(db, "orders", id));
+      if (!ds.exists()) return alert("Sipariş bulunamadı.");
+      pickerOrder = { id: ds.id, ...ds.data() };
+      $("pickerTitle").textContent = `Sipariş: ${pickerOrder.name || id}`;
+      $("pickerArea").classList.remove("hidden");
+      renderPickerLines();
+    });
+
+    // 📄 Sipariş satırlarını tabloya yaz
+    function renderPickerLines() {
+      const tb = $("tbl-picker-lines").querySelector("tbody");
+      tb.innerHTML = "";
+      if (!pickerOrder?.lines) return;
+      pickerOrder.lines.forEach((l, i) => {
+        tb.insertAdjacentHTML("beforeend", `
+          <tr>
+            <td>${i + 1}</td>
+            <td>${l.code}</td>
+            <td>${l.name || ""}</td>
+            <td>${l.qty}</td>
+            <td><input type="number" step="1" value="${l.picked || 0}" data-idx="${i}" style="width:80px;text-align:center;"></td>
+            <td><button data-save="${i}">Kaydet</button></td>
+          </tr>
+        `);
+      });
+      tb.querySelectorAll("button[data-save]").forEach(btn => {
+        btn.addEventListener("click", async () => {
+          const i = btn.dataset.save;
+          const val = parseFloat(tb.querySelector(`input[data-idx='${i}']`).value);
+          pickerOrder.lines[i].picked = val;
+          alert(`Satır ${i * 1 + 1} güncellendi ✅`);
+        });
+      });
+    }
+
+    // 🧾 Elle ekleme
+    $("manualAddBtn").addEventListener("click", () => {
+      const code = $("manualScanCode").value.trim();
+      const qty = parseFloat($("manualScanQty").value) || 1;
+      if (!pickerOrder) return alert("Önce sipariş aç!");
+      pickerOrder.lines.push({ code, name: "Manuel Ürün", qty: 0, picked: qty });
+      renderPickerLines();
+    });
+
+    // 📷 Barkod tarama
+    $("startScanBtn").addEventListener("click", async () => {
+      if (scanner) return;
+      $("reader").classList.remove("hidden");
+      scanner = new Html5Qrcode("reader");
+      await scanner.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 }, (code) => {
+        handleScannedCode(code);
+      });
+    });
+    $("stopScanBtn").addEventListener("click", () => {
+      if (!scanner) return;
+      scanner.stop().then(() => { scanner.clear(); scanner = null; $("reader").classList.add("hidden"); });
+    });
+
+    function handleScannedCode(code) {
+      if (!pickerOrder) return;
+      const idx = pickerOrder.lines.findIndex(x => x.code === code);
+      if (idx !== -1) {
+        pickerOrder.lines[idx].picked = (pickerOrder.lines[idx].picked || 0) + 1;
+        renderPickerLines();
+      } else {
+        pickerOrder.lines.push({ code, name: "Yeni Ürün", qty: 0, picked: 1 });
+        renderPickerLines();
+      }
+    }
+
+    // 💾 Kaydet
+    $("savePickBtn").addEventListener("click", async () => {
+      if (!pickerOrder) return;
+      await updateDoc(doc(db, "orders", pickerOrder.id), {
+        lines: pickerOrder.lines,
+        status: "Toplama Başladı",
+        lastUpdate: new Date()
+      });
+      alert("Toplama kaydedildi 💾");
+    });
+
+    // ✅ Toplamayı bitir
+    $("finishPickBtn").addEventListener("click", async () => {
+      if (!pickerOrder) return;
+      await updateDoc(doc(db, "orders", pickerOrder.id), {
+        lines: pickerOrder.lines,
+        status: "Toplandı",
+        lastUpdate: new Date()
+      });
+      alert("Toplama tamamlandı ✅");
+      $("pickerArea").classList.add("hidden");
+      pickerOrder = null;
+      refreshAssigned();
+    });
+  </script>
+</body>
+</html>
