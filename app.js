@@ -12,6 +12,21 @@ import {
 
 // Excel (SheetJS)
 import * as XLSX from "https://cdn.sheetjs.com/xlsx-0.19.3/package/xlsx.mjs";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
+import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
+import { getFirestore, doc, setDoc, getDoc, getDocs, updateDoc, collection } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+const firebaseConfig = {
+  apiKey: "API_KEYİN_BURAYA",
+  authDomain: "AUTH_DOMAIN",
+  projectId: "PROJE_ID",
+  storageBucket: "STORAGE_BUCKET",
+  messagingSenderId: "SENDER_ID",
+  appId: "APP_ID"
+};
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
 
 // ================== GLOBAL ==================
 let currentUser = null;
