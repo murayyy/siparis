@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Admin Paneli</title>
+  <style>
+    body{background:#0f172a;color:#e2e8f0;font-family:system-ui,Arial;margin:0;padding:0;display:flex;flex-direction:column;align-items:center;min-height:100vh}
+    header{background:#111827;width:100%;max-width:1200px;padding:16px 20px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #1e293b;border-radius:0 0 10px 10px}
+    h1{margin:0;font-size:20px;color:#93c5fd}
+    button{background:#3b82f6;color:#fff;border:none;border-radius:6px;padding:8px 12px;margin:4px;cursor:pointer;font-weight:600}
+    button.danger{background:#ef4444}
+    button.success{background:#22c55e}
+    button.warn{background:#f59e0b;color:#1f2937}
+    main{width:100%;max-width:1200px;padding:20px}
+    table{width:100%;border-collapse:collapse;margin-top:12px;font-size:14px}
+    th,td{border-bottom:1px solid #1e293b;padding:8px;text-align:left}
+    tr:nth-child(even){background:#1e293b33}
+    select,input{background:#1e293b;color:#fff;border:1px solid #334155;border-radius:6px;padding:6px 8px}
+    #reader{width:320px;height:300px;border:2px dashed #334155;border-radius:10px;margin-top:10px}
+    .hidden{display:none}
+    .tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px}
+    .tab{padding:8px 16px;border-radius:6px;background:#1e293b;cursor:pointer}
+    .tab.active{background:#2563eb}
+  </style>
+</head>
+
+<body>
+  <header>
+    <h1>⚙️ TUĞLUBEY — Admin Paneli</h1>
+    <div>
+      <span id="who"></span>
+      <button id="logoutBtn" class="danger">Çıkış</button>
+    </div>
+  </header>
+
+  <main>
+    <div class="tabs">
+      <div class="tab active" data-view="orders">📦 Siparişler</div>
+      <div class="tab" data-view="users">👥 Kullanıcılar</div>
+      <div class="tab" data-view="scanner">📷 Barkod</div>
+    </div>
+
+    <!-- Siparişler -->
+    <section id="view-orders">
+      <button id="refreshOrdersBtn">Yenile</button>
+      <button id="exportOrdersBtn">⬇️ Excel</button>
+      <table id="tbl-orders">
+        <thead><tr><th>ID</th><th>Adı</th><th>Şube</th><th>Durum</th><th>Toplam Kalem</th><th>İşlem</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </section>
+
+    <!-- Kullanıcılar -->
+    <section id="view-users" class="hidden">
+      <button id="refreshUsersBtn">Yenile</button>
+      <table id="tbl-users">
+        <thead><tr><th>Email</th><th>Rol</th><th>UID</th><th>Yeni Rol</th><th>Kaydet</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </section>
+
+    <!-- Barkod -->
+    <section id="view-scanner" class="hidden">
+      <button id="startScanBtn">Başlat</button>
+      <button id="stopScanBtn" class="warn">Durdur</button>
+      <div id="reader" class="hidden"></div>
+      <p id="scanResult"></p>
+    </section>
+  </main>
+
+  <script src="https://unpkg.com/html5-qrcode@2.3.10/minified/html5-qrcode.min.js"></script>
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/xlsx.mjs" type="module"></script>
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
+    import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
+    import { getFirestore, collection, getDocs, doc, getDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+    import * as XLSX from "https://cdn.sheetjs.com/xlsx-0.20.3/package/xlsx.mjs";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDcLQB4UggXlYA9x8AKw-XybJjcF6U_KA4",
+      authDomain: "depo1-4668f.firebaseapp.com",
+      projectId: "depo1-4668f",
+      storageBucket: "depo1-4668f.appspot.com",
+      messagingSenderId: "1044254626353",
+      appId: "1:1044254626353:web:148c57df2456cc3d9e3b10"
+    };
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    let scanner=null;
+
+    const $=(id)=>document.getElementById(id);
+
+    // 🔐 auth kontrol
+    onAuthStateChanged(auth, async (user)=>{
+      if(!user) return window.location.href="index.html";
+      const u=await getDoc(doc(db,"users",user.uid));
+      if(!u.exists()||u.data().role!=="admin"){alert("Yetkisiz erişim");window.location.href="index.html";return;}
+      $("who").textContent=user.email;
+      loadOrders();
+    });
+
+    $("logoutBtn").addEventListener("click",async()=>{await signOut(auth);window.location.href="index.html";});
+
+    // 🔄 sekmeler
+    document.querySelectorAll(".tab").forEach(t=>{
+      t.addEventListener("click",()=>{
+        document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));
+        t.classList.add("active");
+        document.querySelectorAll("main section").forEach(s=>s.classList.add("hidden"));
+        $("view-"+t.dataset.view).classList.remove("hidden");
+      });
+    });
+
+    // 📦 siparişler
+    async function loadOrders(){
+      $("tbl-orders").querySelector("tbody").innerHTML="";
+      const q=await getDocs(collection(db,"orders"));
+      q.forEach(d=>{
+        const o={id:d.id,...d.data()};
+        const tr=document.createElement("tr");
+        tr.innerHTML=`
+          <td>${o.id}</td>
+          <td>${o.name||""}</td>
+          <td>${o.branch||"-"}</td>
+          <td>${o.status||"?"}</td>
+          <td>${o.lines?o.lines.length:0}</td>
+          <td>
+            <select id="sel-${o.id}">
+              <option ${o.status=="Şube"?"selected":""}>Şube</option>
+              <option ${o.status=="Atandı"?"selected":""}>Atandı</option>
+              <option ${o.status=="Toplama Başladı"?"selected":""}>Toplama Başladı</option>
+              <option ${o.status=="Toplandı"?"selected":""}>Toplandı</option>
+              <option ${o.status=="Kontrol"?"selected":""}>Kontrol</option>
+              <option ${o.status=="Tamamlandı"?"selected":""}>Tamamlandı</option>
+            </select>
+            <button data-save="${o.id}" class="success">Kaydet</button>
+          </td>`;
+        $("tbl-orders").querySelector("tbody").appendChild(tr);
+      });
+      document.querySelectorAll("button[data-save]").forEach(b=>{
+        b.addEventListener("click",async()=>{
+          const id=b.dataset.save;
+          const val=$("sel-"+id).value;
+          await updateDoc(doc(db,"orders",id),{status:val,lastUpdate:new Date()});
+          alert(`Sipariş ${id} durumu ${val} olarak güncellendi`);
+        });
+      });
+    }
+    $("refreshOrdersBtn").addEventListener("click",loadOrders);
+
+    // 📥 Excel
+    $("exportOrdersBtn").addEventListener("click",()=>{
+      const tb=$("tbl-orders").querySelector("tbody");
+      const data=[["ID","Adı","Şube","Durum","Kalem"]];
+      [...tb.rows].forEach(r=>{
+        data.push([r.cells[0].innerText,r.cells[1].innerText,r.cells[2].innerText,r.cells[3].innerText,r.cells[4].innerText]);
+      });
+      const ws=XLSX.utils.aoa_to_sheet(data);
+      const wb=XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb,ws,"Siparişler");
+      XLSX.writeFile(wb,`TUGLUBEY_Siparisler_${new Date().toISOString().slice(0,10)}.xlsx`);
+    });
+
+    // 👥 kullanıcılar
+    async function loadUsers(){
+      $("tbl-users").querySelector("tbody").innerHTML="";
+      const q=await getDocs(collection(db,"users"));
+      q.forEach(d=>{
+        const u={id:d.id,...d.data()};
+        const tr=document.createElement("tr");
+        tr.innerHTML=`
+          <td>${u.email}</td>
+          <td>${u.role}</td>
+          <td>${u.id}</td>
+          <td>
+            <select id="role-${u.id}">
+              <option>sube</option><option>toplayici</option><option>yonetici</option>
+              <option>qc</option><option>palet</option><option>admin</option>
+            </select>
+          </td>
+          <td><button data-role="${u.id}" class="success">Kaydet</button></td>`;
+        $("tbl-users").querySelector("tbody").appendChild(tr);
+      });
+      document.querySelectorAll("button[data-role]").forEach(btn=>{
+        btn.addEventListener("click",async()=>{
+          const id=btn.dataset.role;
+          const val=$("role-"+id).value;
+          await updateDoc(doc(db,"users",id),{role:val});
+          alert(`Rol ${val} olarak güncellendi`);
+        });
+      });
+    }
+    $("refreshUsersBtn").addEventListener("click",loadUsers);
+
+    // 📷 barkod
+    $("startScanBtn").addEventListener("click",async()=>{
+      if(scanner)return;
+      $("reader").classList.remove("hidden");
+      scanner=new Html5Qrcode("reader");
+      await scanner.start({facingMode:"environment"},{fps:10,qrbox:250},code=>{
+        $("scanResult").textContent="Okunan: "+code;
+      });
+    });
+    $("stopScanBtn").addEventListener("click",()=>{
+      if(!scanner)return;
+      scanner.stop().then(()=>{scanner.clear();scanner=null;$("reader").classList.add("hidden");});
+    });
+  </script>
+</body>
+</html>
