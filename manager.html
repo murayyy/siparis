@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <title>Yönetici Paneli</title>
+  <style>
+    body { background:#0f172a; color:white; font-family:sans-serif; display:flex; flex-direction:column; align-items:center; justify-content:center; height:100vh; }
+    button { background:#ef4444; border:none; color:white; padding:10px 20px; border-radius:6px; cursor:pointer; margin-top:20px; }
+  </style>
+</head>
+<body>
+  <h1>👋 Hoş geldin, Yönetici!</h1>
+  <p>Bu sayfa sadece “yonetici” rolündeki kullanıcılar içindir.</p>
+  <button id="logoutBtn">Çıkış Yap</button>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
+    import { getAuth, signOut } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDcLQB4UggXlYA9x8AKw-XybJjcF6U_KA4",
+      authDomain: "depo1-4668f.firebaseapp.com",
+      projectId: "depo1-4668f",
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+
+    document.getElementById("logoutBtn").addEventListener("click", async () => {
+      await signOut(auth);
+      window.location.href = "index.html";
+    });
+  </script>
+</body>
+</html>
