@@ -2,133 +2,148 @@
 <html lang="tr">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Depo Otomasyonu</title>
-  <link rel="stylesheet" href="style.css"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tuğlubey Depo Giriş</title>
   <style>
-    :root { --bg:#0f172a; --card:#111827; --text:#e5e7eb; --muted:#94a3b8; }
-    body { background:var(--bg); color:var(--text); font-family:system-ui, Arial, sans-serif; margin:0; }
-    .hidden { display:none !important; }
-    header {
-      position:sticky;top:0;background:#1f2937;color:#fff;display:flex;
-      justify-content:space-between;align-items:center;padding:12px 20px;z-index:50;
-      border-bottom:1px solid #111827;
+    body {
+      background: #0f172a;
+      color: #e2e8f0;
+      font-family: system-ui, Arial;
+      margin: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
     }
-    h1 { margin:0; font-size:18px; letter-spacing:.4px; }
-    .menu-btn{background:#334155;color:#fff;border:none;border-radius:8px;padding:6px 10px;cursor:pointer;}
-    .nav-menu{display:none;gap:6px;flex-wrap:wrap;}
-    .nav-menu.show{display:flex;}
-    .nav-menu button{margin:3px;background:#0ea5e9;border:none;color:#00121a;
-      padding:6px 10px;border-radius:6px;cursor:pointer;transition:0.2s;}
-    .nav-menu button:hover{background:#38bdf8;}
-    .btn-light{background:#f1f5f9;color:#0f172a;border:none;padding:6px 10px;border-radius:6px;cursor:pointer;}
-    .danger{background:#ef4444;color:white;border:none;padding:6px 10px;border-radius:6px;cursor:pointer;}
-    .success{background:#22c55e;color:white;border:none;padding:6px 10px;border-radius:6px;cursor:pointer;}
-    .pill{background:#64748b;color:white;border:none;padding:4px 8px;border-radius:999px;cursor:pointer;}
-    .row{display:flex;gap:8px;align-items:center;}
-    .col{display:flex;flex-direction:column;gap:8px;}
-    .card{background:#0b1220;border:1px solid #1f2937;border-radius:10px;padding:12px;}
-    table{width:100%;border-collapse:collapse;}
-    th,td{border-bottom:1px solid #1f2937;padding:8px;font-size:14px;}
-    th{text-align:left;color:#cbd5e1;background:#0b1220;position:sticky;top:0;}
-    input,select{background:#0b1220;color:#e5e7eb;border:1px solid #1f2937;border-radius:6px;padding:6px 8px;}
-    main{padding:16px;max-width:1200px;margin:0 auto;}
-    .view h2{margin-top:0;}
-    #userInfo{position:absolute;right:15px;top:12px;font-size:14px;color:#fff;opacity:.9;}
-    #logoutBtn{background:#e53e3e;color:#fff;border:none;padding:6px 10px;border-radius:5px;cursor:pointer;margin-left:8px;}
-    .not-picked{background:#1b2333;}
-    .partial-picked{background:#2f2f1b;}
-    .fully-picked{background:#1b3321;}
-    .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
-    @media (max-width:900px){.grid-2{grid-template-columns:1fr;}}
-    /* küçük estetik düzeltmeler */
-    button:disabled{opacity:0.5;cursor:not-allowed;}
-    select:focus,input:focus{outline:1px solid #0ea5e9;}
+    .container {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      background: #111827;
+      padding: 40px;
+      border-radius: 10px;
+      box-shadow: 0 0 20px #0005;
+    }
+    .card {
+      background: #0b1220;
+      padding: 20px;
+      border-radius: 10px;
+      border: 1px solid #1f2937;
+    }
+    h2 {
+      margin-top: 0;
+      color: #93c5fd;
+    }
+    input, select {
+      width: 100%;
+      margin: 6px 0;
+      padding: 10px;
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 6px;
+      color: #e2e8f0;
+    }
+    button {
+      width: 100%;
+      padding: 10px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+    .success { background: #22c55e; color: white; }
+    .light { background: #f1f5f9; color: #0f172a; }
+    .msg { margin-top: 8px; font-size: 14px; text-align: center; color: #38bdf8; }
+    @media (max-width: 900px) {
+      .container { grid-template-columns: 1fr; width: 90%; }
+    }
   </style>
 </head>
-
 <body>
-<header>
-  <h1>📦 TUĞLUBEY — Depo Otomasyonu</h1>
-  <div class="row">
-    <button id="menuToggle" class="menu-btn">☰</button>
-  </div>
-  <div id="userInfo">👤 Giriş yapılmadı</div>
 
-  <nav id="mainNav" class="nav-menu">
-    <button data-view="view-branch" data-role="sube" class="btn-light">Şube</button>
-    <button data-view="view-manager" data-role="yonetici" class="btn-light">Yönetici</button>
-    <button data-view="view-picker" data-role="toplayici" class="btn-light">Toplayıcı</button>
-    <button data-view="view-qc" data-role="qc" class="btn-light">QC</button>
-    <button data-view="view-palet" data-role="palet" class="btn-light">Paletleme</button>
-    <button data-view="view-dashboard" data-role="admin" class="btn-light">Dashboard</button>
-    <button data-view="view-stock" data-role="admin" class="btn-light">Stok Yönetimi</button>
-    <button data-view="view-products" data-role="admin" class="btn-light">Ürünler</button>
-    <button data-view="view-count" data-role="yonetici" class="btn-light">Sayım</button>
-    <button id="logoutBtn" class="danger hidden">Çıkış</button>
-  </nav>
-</header>
-
-<main>
-  <!-- 🔐 Login -->
-  <section id="view-login" class="view">
-    <div class="grid-2">
-      <div class="card">
-        <h2>🔑 Giriş</h2>
-        <div class="col">
-          <input type="email" id="login-email" placeholder="Email" autocomplete="username"/>
-          <input type="password" id="login-pass" placeholder="Şifre" autocomplete="current-password"/>
-          <button id="loginBtn" class="success">Giriş</button>
-        </div>
-      </div>
-      <div class="card">
-        <h2>🆕 Yeni Kayıt</h2>
-        <div class="col">
-          <input type="email" id="reg-email" placeholder="Email" autocomplete="email"/>
-          <input type="password" id="reg-pass" placeholder="Şifre" autocomplete="new-password"/>
-          <select id="reg-role">
-            <option value="sube">Şube</option>
-            <option value="yonetici">Yönetici</option>
-            <option value="toplayici">Toplayıcı</option>
-            <option value="qc">QC</option>
-            <option value="palet">Palet</option>
-            <option value="admin">Admin</option>
-          </select>
-          <button id="registerBtn" class="btn-light">Kayıt Ol</button>
-        </div>
-      </div>
+  <div class="container">
+    <!-- 🔑 GİRİŞ -->
+    <div class="card">
+      <h2>🔑 Giriş Yap</h2>
+      <input type="email" id="loginEmail" placeholder="E-posta">
+      <input type="password" id="loginPass" placeholder="Şifre">
+      <button class="success" id="loginBtn">Giriş</button>
+      <div id="loginMsg" class="msg"></div>
     </div>
-  </section>
 
-  <!-- 📋 Diğer Görünümler (Şube, Yönetici, QC, Paletleme, Dashboard, Stok, Sayım, Ürünler) -->
-  <!-- Bu kısımlar app.js ile otomatik doldurulur. -->
-</main>
+    <!-- 🆕 KAYIT -->
+    <div class="card">
+      <h2>🆕 Yeni Kayıt</h2>
+      <input type="email" id="regEmail" placeholder="E-posta">
+      <input type="password" id="regPass" placeholder="Şifre">
+      <select id="regRole">
+        <option value="sube">Şube</option>
+        <option value="yonetici">Yönetici</option>
+        <option value="toplayici">Toplayıcı</option>
+        <option value="qc">QC</option>
+        <option value="palet">Palet</option>
+        <option value="admin">Admin</option>
+      </select>
+      <button class="light" id="regBtn">Kayıt Ol</button>
+      <div id="regMsg" class="msg"></div>
+    </div>
+  </div>
 
-<!-- 📦 Gerekli Kütüphaneler -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.19.3/dist/xlsx.full.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
-<script src="https://unpkg.com/html5-qrcode@2.3.10/minified/html5-qrcode.min.js"></script>
+  <!-- 🔥 Firebase -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
+    import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword } 
+      from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
+    import { getFirestore, doc, setDoc } 
+      from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 
-<!-- ⚙️ Ana Uygulama -->
-<script type="module" src="./app.js"></script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyDcLQB4UggXlYA9x8AKw-XybJjcF6U_KA4",
+      authDomain: "depo1-4668f.firebaseapp.com",
+      projectId: "depo1-4668f",
+      storageBucket: "depo1-4668f.appspot.com",
+      messagingSenderId: "1044254626353",
+      appId: "1:1044254626353:web:148c57df2456cc3d9e3b10",
+      measurementId: "G-DFGMVLK9XH"
+    };
 
-<!-- 🧩 Başlangıç -->
-<script>
-window.addEventListener("DOMContentLoaded", () => {
-  if (typeof showView === "function") {
-    showView("view-login");
-  } else {
-    console.warn("showView tanımsız, app.js yüklenmemiş olabilir!");
-  }
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
 
-  // Menü toggle (mobil görünüm)
-  const menuToggle = document.getElementById("menuToggle");
-  const mainNav = document.getElementById("mainNav");
-  menuToggle?.addEventListener("click", () => {
-    mainNav?.classList.toggle("show");
-  });
-});
-</script>
+    const loginBtn = document.getElementById("loginBtn");
+    const regBtn = document.getElementById("regBtn");
+
+    // 🔑 Giriş
+    loginBtn.addEventListener("click", async () => {
+      const email = loginEmail.value.trim();
+      const pass = loginPass.value.trim();
+      loginMsg.textContent = "⏳ Giriş yapılıyor...";
+      try {
+        const userCred = await signInWithEmailAndPassword(auth, email, pass);
+        loginMsg.textContent = "✅ Giriş başarılı! Hoş geldin " + userCred.user.email;
+      } catch (err) {
+        loginMsg.textContent = "❌ Giriş hatası: " + err.message;
+      }
+    });
+
+    // 🆕 Kayıt
+    regBtn.addEventListener("click", async () => {
+      const email = regEmail.value.trim();
+      const pass = regPass.value.trim();
+      const role = regRole.value;
+      regMsg.textContent = "⏳ Kayıt oluşturuluyor...";
+      try {
+        const userCred = await createUserWithEmailAndPassword(auth, email, pass);
+        await setDoc(doc(db, "users", userCred.user.uid), {
+          email, role, createdAt: new Date().toISOString()
+        });
+        regMsg.textContent = "✅ Kayıt başarılı! Artık giriş yapabilirsiniz.";
+      } catch (err) {
+        regMsg.textContent = "❌ Kayıt hatası: " + err.message;
+      }
+    });
+  </script>
+
 </body>
 </html>
