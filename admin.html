@@ -1,18 +1,18 @@
 <!DOCTYPE html>
 <html lang="tr">
 <head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Admin Paneli</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin Paneli - TUĞLUBEY</title>
   <style>
-    body{background:#0f172a;color:#e2e8f0;font-family:system-ui,Arial;margin:0;padding:0;display:flex;flex-direction:column;align-items:center;min-height:100vh}
-    header{background:#111827;width:100%;max-width:1200px;padding:16px 20px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #1e293b;border-radius:0 0 10px 10px}
+    body{background:#0f172a;color:#e2e8f0;font-family:system-ui,Arial;margin:0;display:flex;flex-direction:column;align-items:center;min-height:100vh}
+    header{background:#111827;width:100%;max-width:1250px;padding:16px 20px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #1e293b;border-radius:0 0 10px 10px}
     h1{margin:0;font-size:20px;color:#93c5fd}
     button{background:#3b82f6;color:#fff;border:none;border-radius:6px;padding:8px 12px;margin:4px;cursor:pointer;font-weight:600}
     button.danger{background:#ef4444}
     button.success{background:#22c55e}
     button.warn{background:#f59e0b;color:#1f2937}
-    main{width:100%;max-width:1200px;padding:20px}
+    main{width:100%;max-width:1250px;padding:20px}
     table{width:100%;border-collapse:collapse;margin-top:12px;font-size:14px}
     th,td{border-bottom:1px solid #1e293b;padding:8px;text-align:left}
     tr:nth-child(even){background:#1e293b33}
@@ -22,6 +22,7 @@
     .tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px}
     .tab{padding:8px 16px;border-radius:6px;background:#1e293b;cursor:pointer}
     .tab.active{background:#2563eb}
+    canvas{background:#111827;border-radius:8px;padding:10px;margin-top:15px}
   </style>
 </head>
 
@@ -38,6 +39,8 @@
     <div class="tabs">
       <div class="tab active" data-view="orders">📦 Siparişler</div>
       <div class="tab" data-view="users">👥 Kullanıcılar</div>
+      <div class="tab" data-view="dashboard">📊 Grafikler</div>
+      <div class="tab" data-view="logs">🧾 Loglar</div>
       <div class="tab" data-view="scanner">📷 Barkod</div>
     </div>
 
@@ -46,7 +49,7 @@
       <button id="refreshOrdersBtn">Yenile</button>
       <button id="exportOrdersBtn">⬇️ Excel</button>
       <table id="tbl-orders">
-        <thead><tr><th>ID</th><th>Adı</th><th>Şube</th><th>Durum</th><th>Toplam Kalem</th><th>İşlem</th></tr></thead>
+        <thead><tr><th>ID</th><th>Adı</th><th>Şube</th><th>Durum</th><th>Kalem</th><th>İşlem</th></tr></thead>
         <tbody></tbody>
       </table>
     </section>
@@ -60,6 +63,23 @@
       </table>
     </section>
 
+    <!-- Dashboard -->
+    <section id="view-dashboard" class="hidden">
+      <h2>📈 Sipariş Durumları</h2>
+      <canvas id="chartStatus" height="180"></canvas>
+      <h2>📅 Günlük Sipariş Sayısı</h2>
+      <canvas id="chartDaily" height="180"></canvas>
+    </section>
+
+    <!-- Loglar -->
+    <section id="view-logs" class="hidden">
+      <button id="refreshLogsBtn">Yenile</button>
+      <table id="tbl-logs">
+        <thead><tr><th>Tarih</th><th>Kullanıcı</th><th>İşlem</th><th>Detay</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </section>
+
     <!-- Barkod -->
     <section id="view-scanner" class="hidden">
       <button id="startScanBtn">Başlat</button>
@@ -69,12 +89,14 @@
     </section>
   </main>
 
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://unpkg.com/html5-qrcode@2.3.10/minified/html5-qrcode.min.js"></script>
   <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/xlsx.mjs" type="module"></script>
+
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
     import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
-    import { getFirestore, collection, getDocs, doc, getDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+    import { getFirestore, collection, getDocs, doc, getDoc, updateDoc, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
     import * as XLSX from "https://cdn.sheetjs.com/xlsx-0.20.3/package/xlsx.mjs";
 
     const firebaseConfig = {
@@ -88,75 +110,76 @@
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
     const db = getFirestore(app);
+    let scanner = null;
 
-    let scanner=null;
+    const $ = (id) => document.getElementById(id);
 
-    const $=(id)=>document.getElementById(id);
+    // 🧭 sekme kontrolü
+    document.querySelectorAll(".tab").forEach(tab=>{
+      tab.addEventListener("click",()=>{
+        document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
+        tab.classList.add("active");
+        document.querySelectorAll("main section").forEach(s=>s.classList.add("hidden"));
+        $("view-"+tab.dataset.view).classList.remove("hidden");
+      });
+    });
 
-    // 🔐 auth kontrol
+    // 🔐 Giriş kontrolü
     onAuthStateChanged(auth, async (user)=>{
       if(!user) return window.location.href="index.html";
-      const u=await getDoc(doc(db,"users",user.uid));
-      if(!u.exists()||u.data().role!=="admin"){alert("Yetkisiz erişim");window.location.href="index.html";return;}
-      $("who").textContent=user.email;
+      const u = await getDoc(doc(db,"users",user.uid));
+      if(!u.exists() || u.data().role!=="admin"){alert("Yetkisiz erişim!");return window.location.href="index.html";}
+      $("who").textContent = user.email;
       loadOrders();
+      loadDashboard();
+      loadLogs();
     });
 
     $("logoutBtn").addEventListener("click",async()=>{await signOut(auth);window.location.href="index.html";});
 
-    // 🔄 sekmeler
-    document.querySelectorAll(".tab").forEach(t=>{
-      t.addEventListener("click",()=>{
-        document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));
-        t.classList.add("active");
-        document.querySelectorAll("main section").forEach(s=>s.classList.add("hidden"));
-        $("view-"+t.dataset.view).classList.remove("hidden");
-      });
-    });
-
-    // 📦 siparişler
+    // 📦 Siparişler
     async function loadOrders(){
-      $("tbl-orders").querySelector("tbody").innerHTML="";
-      const q=await getDocs(collection(db,"orders"));
+      const tbody = $("tbl-orders").querySelector("tbody");
+      tbody.innerHTML="";
+      const q = await getDocs(collection(db,"orders"));
       q.forEach(d=>{
         const o={id:d.id,...d.data()};
         const tr=document.createElement("tr");
         tr.innerHTML=`
           <td>${o.id}</td>
           <td>${o.name||""}</td>
-          <td>${o.branch||"-"}</td>
+          <td>${o.warehouse||"-"}</td>
           <td>${o.status||"?"}</td>
           <td>${o.lines?o.lines.length:0}</td>
           <td>
             <select id="sel-${o.id}">
-              <option ${o.status=="Şube"?"selected":""}>Şube</option>
-              <option ${o.status=="Atandı"?"selected":""}>Atandı</option>
-              <option ${o.status=="Toplama Başladı"?"selected":""}>Toplama Başladı</option>
-              <option ${o.status=="Toplandı"?"selected":""}>Toplandı</option>
-              <option ${o.status=="Kontrol"?"selected":""}>Kontrol</option>
-              <option ${o.status=="Tamamlandı"?"selected":""}>Tamamlandı</option>
+              ${["Yeni","Atandı","Toplama Başladı","Toplandı","Kontrol","Tamamlandı"].map(s=>`<option ${o.status===s?"selected":""}>${s}</option>`).join("")}
             </select>
             <button data-save="${o.id}" class="success">Kaydet</button>
           </td>`;
-        $("tbl-orders").querySelector("tbody").appendChild(tr);
+        tbody.appendChild(tr);
       });
-      document.querySelectorAll("button[data-save]").forEach(b=>{
-        b.addEventListener("click",async()=>{
-          const id=b.dataset.save;
-          const val=$("sel-"+id).value;
+      document.querySelectorAll("button[data-save]").forEach(btn=>{
+        btn.addEventListener("click",async()=>{
+          const id = btn.dataset.save;
+          const val = $("sel-"+id).value;
           await updateDoc(doc(db,"orders",id),{status:val,lastUpdate:new Date()});
-          alert(`Sipariş ${id} durumu ${val} olarak güncellendi`);
+          await addDoc(collection(db,"logs"),{
+            user:$("who").textContent,action:"Sipariş Durumu",detail:`${id} → ${val}`,createdAt:serverTimestamp()
+          });
+          alert(`Durum ${val} olarak güncellendi`);
+          loadDashboard();
         });
       });
     }
     $("refreshOrdersBtn").addEventListener("click",loadOrders);
 
-    // 📥 Excel
+    // ⬇️ Excel
     $("exportOrdersBtn").addEventListener("click",()=>{
-      const tb=$("tbl-orders").querySelector("tbody");
-      const data=[["ID","Adı","Şube","Durum","Kalem"]];
-      [...tb.rows].forEach(r=>{
-        data.push([r.cells[0].innerText,r.cells[1].innerText,r.cells[2].innerText,r.cells[3].innerText,r.cells[4].innerText]);
+      const data=[["ID","Adı","Depo","Durum","Kalem"]];
+      $("tbl-orders").querySelectorAll("tbody tr").forEach(r=>{
+        const cells=[...r.cells].slice(0,5).map(td=>td.innerText);
+        data.push(cells);
       });
       const ws=XLSX.utils.aoa_to_sheet(data);
       const wb=XLSX.utils.book_new();
@@ -164,9 +187,10 @@
       XLSX.writeFile(wb,`TUGLUBEY_Siparisler_${new Date().toISOString().slice(0,10)}.xlsx`);
     });
 
-    // 👥 kullanıcılar
+    // 👥 Kullanıcılar
     async function loadUsers(){
-      $("tbl-users").querySelector("tbody").innerHTML="";
+      const tbody=$("tbl-users").querySelector("tbody");
+      tbody.innerHTML="";
       const q=await getDocs(collection(db,"users"));
       q.forEach(d=>{
         const u={id:d.id,...d.data()};
@@ -182,20 +206,58 @@
             </select>
           </td>
           <td><button data-role="${u.id}" class="success">Kaydet</button></td>`;
-        $("tbl-users").querySelector("tbody").appendChild(tr);
+        tbody.appendChild(tr);
       });
-      document.querySelectorAll("button[data-role]").forEach(btn=>{
-        btn.addEventListener("click",async()=>{
-          const id=btn.dataset.role;
+      document.querySelectorAll("button[data-role]").forEach(b=>{
+        b.addEventListener("click",async()=>{
+          const id=b.dataset.role;
           const val=$("role-"+id).value;
           await updateDoc(doc(db,"users",id),{role:val});
-          alert(`Rol ${val} olarak güncellendi`);
+          await addDoc(collection(db,"logs"),{
+            user:$("who").textContent,action:"Rol Güncelleme",detail:`${id} → ${val}`,createdAt:serverTimestamp()
+          });
+          alert("Rol güncellendi");
         });
       });
     }
     $("refreshUsersBtn").addEventListener("click",loadUsers);
 
-    // 📷 barkod
+    // 📊 Dashboard
+    async function loadDashboard(){
+      const snap=await getDocs(collection(db,"orders"));
+      let counts={},daily={};
+      snap.forEach(d=>{
+        const o=d.data();
+        counts[o.status]=(counts[o.status]||0)+1;
+        const date=o.createdAt?.toDate?o.createdAt.toDate().toISOString().slice(0,10):"Bilinmiyor";
+        daily[date]=(daily[date]||0)+1;
+      });
+      const ctx1=$("chartStatus").getContext("2d");
+      new Chart(ctx1,{type:"pie",data:{labels:Object.keys(counts),datasets:[{data:Object.values(counts),backgroundColor:["#22c55e","#3b82f6","#facc15","#f97316","#ef4444","#a855f7"]}]}});
+
+      const ctx2=$("chartDaily").getContext("2d");
+      const sortedDates=Object.keys(daily).sort();
+      new Chart(ctx2,{type:"bar",data:{labels:sortedDates,datasets:[{label:"Sipariş",data:sortedDates.map(d=>daily[d]),backgroundColor:"#3b82f6"}]}});
+    }
+
+    // 🧾 Loglar
+    async function loadLogs(){
+      const tbody=$("tbl-logs").querySelector("tbody");
+      tbody.innerHTML="";
+      const q=await getDocs(collection(db,"logs"));
+      const logs=[];
+      q.forEach(d=>logs.push({id:d.id,...d.data()}));
+      logs.sort((a,b)=>b.createdAt?.toDate()-a.createdAt?.toDate());
+      logs.slice(0,50).forEach(l=>{
+        const t=l.createdAt?.toDate?l.createdAt.toDate().toLocaleString():"-";
+        const tr=document.createElement("tr");
+        tr.innerHTML=`<td>${t}</td><td>${l.user}</td><td>${l.action}</td><td>${l.detail}</td>`;
+        tbody.appendChild(tr);
+      });
+    }
+    $("refreshLogsBtn").addEventListener("click",loadLogs);
+
+    // 📷 Barkod
     $("startScanBtn").addEventListener("click",async()=>{
       if(scanner)return;
       $("reader").classList.remove("hidden");
