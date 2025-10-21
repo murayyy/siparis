@@ -90,60 +90,79 @@
   </div>
 
   <!-- 🔥 Firebase -->
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
-    import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword } 
-      from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
-    import { getFirestore, doc, setDoc } 
-      from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+ <script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
+  import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut } 
+    from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
+  import { getFirestore, doc, setDoc, getDoc } 
+    from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 
-    const firebaseConfig = {
-      apiKey: "AIzaSyDcLQB4UggXlYA9x8AKw-XybJjcF6U_KA4",
-      authDomain: "depo1-4668f.firebaseapp.com",
-      projectId: "depo1-4668f",
-      storageBucket: "depo1-4668f.appspot.com",
-      messagingSenderId: "1044254626353",
-      appId: "1:1044254626353:web:148c57df2456cc3d9e3b10",
-      measurementId: "G-DFGMVLK9XH"
-    };
+  const firebaseConfig = {
+    apiKey: "AIzaSyDcLQB4UggXlYA9x8AKw-XybJjcF6U_KA4",
+    authDomain: "depo1-4668f.firebaseapp.com",
+    projectId: "depo1-4668f",
+    storageBucket: "depo1-4668f.appspot.com",
+    messagingSenderId: "1044254626353",
+    appId: "1:1044254626353:web:148c57df2456cc3d9e3b10",
+    measurementId: "G-DFGMVLK9XH"
+  };
 
-    const app = initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-    const db = getFirestore(app);
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
 
-    const loginBtn = document.getElementById("loginBtn");
-    const regBtn = document.getElementById("regBtn");
+  const loginBtn = document.getElementById("loginBtn");
+  const regBtn = document.getElementById("regBtn");
 
-    // 🔑 Giriş
-    loginBtn.addEventListener("click", async () => {
-      const email = loginEmail.value.trim();
-      const pass = loginPass.value.trim();
-      loginMsg.textContent = "⏳ Giriş yapılıyor...";
-      try {
-        const userCred = await signInWithEmailAndPassword(auth, email, pass);
-        loginMsg.textContent = "✅ Giriş başarılı! Hoş geldin " + userCred.user.email;
-      } catch (err) {
-        loginMsg.textContent = "❌ Giriş hatası: " + err.message;
-      }
-    });
+  // 🔑 GİRİŞ
+  loginBtn.addEventListener("click", async () => {
+    const email = loginEmail.value.trim();
+    const pass = loginPass.value.trim();
+    loginMsg.textContent = "⏳ Giriş yapılıyor...";
+    try {
+      const userCred = await signInWithEmailAndPassword(auth, email, pass);
+      const uid = userCred.user.uid;
 
-    // 🆕 Kayıt
-    regBtn.addEventListener("click", async () => {
-      const email = regEmail.value.trim();
-      const pass = regPass.value.trim();
-      const role = regRole.value;
-      regMsg.textContent = "⏳ Kayıt oluşturuluyor...";
-      try {
-        const userCred = await createUserWithEmailAndPassword(auth, email, pass);
-        await setDoc(doc(db, "users", userCred.user.uid), {
-          email, role, createdAt: new Date().toISOString()
-        });
-        regMsg.textContent = "✅ Kayıt başarılı! Artık giriş yapabilirsiniz.";
-      } catch (err) {
-        regMsg.textContent = "❌ Kayıt hatası: " + err.message;
-      }
-    });
-  </script>
+      // Kullanıcı rolünü getir
+      const snap = await getDoc(doc(db, "users", uid));
+      let role = "sube";
+      if (snap.exists() && snap.data().role) role = snap.data().role;
+
+      loginMsg.innerHTML = "✅ Giriş başarılı! Hoş geldin " + email;
+
+      // 2 sn bekle sonra yönlendir
+      setTimeout(() => {
+        if (role === "yonetici") window.location.href = "manager.html";
+        else if (role === "toplayici") window.location.href = "picker.html";
+        else if (role === "qc") window.location.href = "qc.html";
+        else if (role === "palet") window.location.href = "palet.html";
+        else if (role === "admin") window.location.href = "admin.html";
+        else window.location.href = "sube.html";
+      }, 1500);
+
+    } catch (err) {
+      loginMsg.textContent = "❌ Giriş hatası: " + err.message;
+    }
+  });
+
+  // 🆕 KAYIT
+  regBtn.addEventListener("click", async () => {
+    const email = regEmail.value.trim();
+    const pass = regPass.value.trim();
+    const role = regRole.value;
+    regMsg.textContent = "⏳ Kayıt oluşturuluyor...";
+    try {
+      const userCred = await createUserWithEmailAndPassword(auth, email, pass);
+      await setDoc(doc(db, "users", userCred.user.uid), {
+        email, role, createdAt: new Date().toISOString()
+      });
+      regMsg.textContent = "✅ Kayıt başarılı! Artık giriş yapabilirsiniz.";
+    } catch (err) {
+      regMsg.textContent = "❌ Kayıt hatası: " + err.message;
+    }
+  });
+</script>
+
 
 </body>
 </html>
