@@ -2,34 +2,205 @@
 <html lang="tr">
 <head>
   <meta charset="UTF-8" />
-  <title>Yönetici Paneli</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Yönetici Paneli - TUĞLUBEY</title>
   <style>
-    body { background:#0f172a; color:white; font-family:sans-serif; display:flex; flex-direction:column; align-items:center; justify-content:center; height:100vh; }
-    button { background:#ef4444; border:none; color:white; padding:10px 20px; border-radius:6px; cursor:pointer; margin-top:20px; }
+    body {
+      background: #0f172a;
+      color: #e2e8f0;
+      font-family: system-ui, Arial, sans-serif;
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    h1 {
+      color: #f9fafb;
+      font-size: 28px;
+      margin-bottom: 10px;
+    }
+    p {
+      color: #94a3b8;
+      font-size: 16px;
+      margin-bottom: 30px;
+    }
+    button {
+      background: #ef4444;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      padding: 10px 20px;
+      font-size: 16px;
+      cursor: pointer;
+      transition: 0.3s;
+    }
+    button:hover {
+      background: #dc2626;
+    }
+    table {
+      border-collapse: collapse;
+      width: 90%;
+      max-width: 900px;
+      margin-top: 25px;
+      background: #1e293b;
+      border-radius: 8px;
+    }
+    th, td {
+      border-bottom: 1px solid #334155;
+      padding: 10px;
+      text-align: left;
+      font-size: 14px;
+    }
+    th {
+      color: #cbd5e1;
+      background: #111827;
+    }
+    tr:nth-child(even) {
+      background: #0f172a;
+    }
+    .success {
+      background: #22c55e;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      padding: 6px 12px;
+      cursor: pointer;
+    }
+    .danger {
+      background: #ef4444;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      padding: 6px 12px;
+      cursor: pointer;
+    }
   </style>
 </head>
 <body>
-  <h1>👋 Hoş geldin, Yönetici!</h1>
-  <p>Bu sayfa sadece “yonetici” rolündeki kullanıcılar içindir.</p>
-  <button id="logoutBtn">Çıkış Yap</button>
+  <div style="text-align: center;">
+    <h1>👋 Hoş geldin, Yönetici!</h1>
+    <p>Bu sayfa sadece “yonetici” rolündeki kullanıcılar içindir.</p>
+    <button id="logoutBtn">Çıkış Yap</button>
+  </div>
 
+  <div id="orderSection" style="margin-top:40px; width:90%; max-width:900px;">
+    <h2>📦 Şube Siparişleri</h2>
+    <table id="tbl-orders">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Şube</th>
+          <th>Durum</th>
+          <th>Toplam Kalem</th>
+          <th>İşlem</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <!-- Firebase -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
-    import { getAuth, signOut } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
+    import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
+    import { 
+      getFirestore, collection, getDocs, updateDoc, doc, addDoc, serverTimestamp 
+    } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 
+    // 🔧 Firebase Config
     const firebaseConfig = {
       apiKey: "AIzaSyDcLQB4UggXlYA9x8AKw-XybJjcF6U_KA4",
       authDomain: "depo1-4668f.firebaseapp.com",
       projectId: "depo1-4668f",
+      storageBucket: "depo1-4668f.appspot.com",
+      messagingSenderId: "1044254626353",
+      appId: "1:1044254626353:web:148c57df2456cc3d9e3b10"
     };
 
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
+    const db = getFirestore(app);
 
-    document.getElementById("logoutBtn").addEventListener("click", async () => {
+    const $ = (id) => document.getElementById(id);
+
+    // 🔐 Giriş kontrolü
+    onAuthStateChanged(auth, async (user) => {
+      if (!user) return window.location.href = "index.html";
+
+      const res = await fetch(`https://firestore.googleapis.com/v1/projects/depo1-4668f/databases/(default)/documents/users/${user.uid}`);
+      const data = await res.json();
+      const role = data?.fields?.role?.stringValue || "";
+
+      if (role !== "yonetici") {
+        alert("Bu sayfa sadece 'yonetici' rolündeki kullanıcılar içindir.");
+        return window.location.href = "index.html";
+      }
+
+      // ✅ Siparişleri yükle
+      loadOrders();
+    });
+
+    // 🚪 Çıkış
+    $("logoutBtn").addEventListener("click", async () => {
       await signOut(auth);
       window.location.href = "index.html";
     });
+
+    // 📦 Siparişleri yükle
+    async function loadOrders() {
+      const tbody = $("tbl-orders").querySelector("tbody");
+      tbody.innerHTML = "";
+      const q = await getDocs(collection(db, "orders"));
+      q.forEach(d => {
+        const o = { id: d.id, ...d.data() };
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${o.id}</td>
+          <td>${o.branch || "-"}</td>
+          <td>${o.status || "Bekliyor"}</td>
+          <td>${o.lines ? o.lines.length : 0}</td>
+          <td>
+            <button class="success" data-approve="${o.id}">Onayla</button>
+            <button class="danger" data-reject="${o.id}">İptal</button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      // ✅ Onay
+      document.querySelectorAll("[data-approve]").forEach(btn => {
+        btn.addEventListener("click", async () => {
+          const id = btn.dataset.approve;
+          await updateDoc(doc(db, "orders", id), { status: "Onaylandı", lastUpdate: new Date() });
+          await addDoc(collection(db, "logs"), {
+            user: "Yönetici",
+            action: "Sipariş Onaylandı",
+            detail: `Sipariş ${id} onaylandı`,
+            createdAt: serverTimestamp()
+          });
+          alert(`Sipariş ${id} onaylandı ✅`);
+          loadOrders();
+        });
+      });
+
+      // ❌ İptal
+      document.querySelectorAll("[data-reject]").forEach(btn => {
+        btn.addEventListener("click", async () => {
+          const id = btn.dataset.reject;
+          await updateDoc(doc(db, "orders", id), { status: "İptal Edildi", lastUpdate: new Date() });
+          await addDoc(collection(db, "logs"), {
+            user: "Yönetici",
+            action: "Sipariş İptal Edildi",
+            detail: `Sipariş ${id} iptal edildi`,
+            createdAt: serverTimestamp()
+          });
+          alert(`Sipariş ${id} iptal edildi ❌`);
+          loadOrders();
+        });
+      });
+    }
   </script>
 </body>
 </html>
