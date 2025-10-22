@@ -489,21 +489,37 @@ async function loadAllOrders() {
   const tbody = document.querySelector("#tbl-orders tbody");
   if (!tbody) return;
   tbody.innerHTML = "";
+
   snap.forEach(docu => {
     const o = { id: docu.id, ...docu.data() };
+
+    // Durum rengi
+    const colorMap = {
+      "Yeni": "#3b82f6",
+      "Atandı": "#f59e0b",
+      "Toplama Başladı": "#eab308",
+      "Toplandı": "#10b981",
+      "Kontrol": "#a855f7",
+      "Kontrol Başladı": "#9333ea",
+      "Tamamlandı": "#16a34a"
+    };
+    const color = colorMap[o.status] || "#ccc";
+
     tbody.innerHTML += `
       <tr>
         <td>${o.id}</td>
-        <td>${o.name}</td>
+        <td>${o.name || "-"}</td>
         <td>${o.warehouse || "-"}</td>
-        <td>${o.status}</td>
+        <td><span style="color:${color};font-weight:bold;">${o.status}</span></td>
         <td>
+          <button onclick="viewOrderDetails('${o.id}')">Aç</button>
           ${o.status === "Yeni" ? `<button onclick="assignOrder('${o.id}')">Toplayıcıya Ata</button>` : ""}
           ${o.status === "Toplandı" ? `<button onclick="sendToQC('${o.id}')">Kontrole Gönder</button>` : ""}
         </td>
       </tr>`;
   });
 }
+
 window.assignOrder = async function(id) {
   await updateDoc(doc(db, "orders", id), { status: "Atandı" });
   loadAllOrders();
