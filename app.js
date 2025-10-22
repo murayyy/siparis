@@ -109,7 +109,9 @@ async function listProductsIntoTable() {
       <td>${p.barcode || ""}</td>
       <td>${p.reyon || ""}</td>
       <td>${p.birim || ""}</td>
-    </tr>;
+    </tr>
+    `;
+    
   });
 }
 async function refreshBranchProductSelect() {
