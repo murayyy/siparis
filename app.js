@@ -569,6 +569,7 @@ window.viewOrderDetails = async function(id) {
 
   // Basit popup (modal)
   const modal = document.createElement("div");
+  modal.classList.add("modal-overlay");
   modal.style = `
     position: fixed; top: 0; left: 0; width: 100%; height: 100%;
     background: rgba(0,0,0,0.75); display: flex; align-items: center; justify-content: center;
