@@ -1,103 +1,284 @@
 <!DOCTYPE html>
 <html lang="tr">
 <head>
-  <meta charset="UTF-8"/>
+  <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>⚙️ TUĞLUBEY — Admin Paneli</title>
+  <title>Depo Otomasyonu</title>
+  <link rel="stylesheet" href="style.css"/>
   <style>
-    body{background:#0f172a;color:#e2e8f0;font-family:system-ui,Arial;margin:0;display:flex;flex-direction:column;align-items:center;min-height:100vh}
-    header{background:#111827;width:100%;max-width:1350px;padding:16px 20px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #1e293b;border-radius:0 0 10px 10px}
-    h1{margin:0;font-size:22px;color:#93c5fd}
-    button{background:#3b82f6;color:#fff;border:none;border-radius:6px;padding:8px 12px;margin:3px;cursor:pointer;font-weight:600}
-    button.danger{background:#ef4444}
-    button.success{background:#22c55e}
-    button.warn{background:#f59e0b;color:#1f2937}
-    main{width:100%;max-width:1350px;padding:20px}
-    table{width:100%;border-collapse:collapse;margin-top:12px;font-size:14px}
-    th,td{border-bottom:1px solid #1e293b;padding:8px;text-align:left}
-    tr:nth-child(even){background:#1e293b33}
-    select,input{background:#1e293b;color:#fff;border:1px solid #334155;border-radius:6px;padding:6px 8px}
-    #reader{width:320px;height:300px;border:2px dashed #334155;border-radius:10px;margin-top:10px}
-    .hidden{display:none}
-    .tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px}
-    .tab{padding:8px 16px;border-radius:6px;background:#1e293b;cursor:pointer}
-    .tab.active{background:#2563eb}
-    canvas{background:#111827;border-radius:8px;padding:10px;margin-top:15px}
-    h2{margin-top:25px;color:#bae6fd}
-    .card{background:#1e293b;padding:16px;border-radius:8px;margin-top:10px}
-    .row{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:8px}
-    .input{padding:6px 8px;border-radius:6px;border:1px solid #334155;background:#0f172a;color:#fff}
+    .hidden { display: none !important; }
+    nav.hidden { display: none !important; }
   </style>
 </head>
-
 <body>
   <header>
-    <h1>⚙️ TUĞLUBEY — Admin Paneli</h1>
-    <div>
-      <span id="who"></span>
-      <button id="logoutBtn" class="danger">Çıkış</button>
-    </div>
+    <h1>📦 Depo Otomasyonu</h1>
+    <button id="menuToggle" class="menu-btn">☰</button>
+    <nav id="mainNav" class="nav-menu hidden">
+      <button data-view="view-branch" class="btn-light">Şube</button>
+      <button data-view="view-manager" class="btn-light">Yönetici</button>
+      <div class="row" style="margin:8px 0;">
+  <input id="orderSearch" class="input" placeholder="Ara: ad, depo, id..." />
+  <select id="orderStatusFilter" class="input">
+    <option value="">Tümü</option>
+    <option>Yeni</option>
+    <option>Atandı</option>
+    <option>Toplama Başladı</option>
+    <option>Toplandı</option>
+    <option>Kontrol</option>
+    <option>Kontrol Başladı</option>
+    <option>Tamamlandı</option>
+  </select>
+  <select id="orderSort" class="input" title="Sıralama">
+    <option value="createdAt-desc">Tarih ↓ (Yeni–Eski)</option>
+    <option value="createdAt-asc">Tarih ↑ (Eski–Yeni)</option>
+    <option value="name-asc">Ad A→Z</option>
+    <option value="name-desc">Ad Z→A</option>
+  </select>
+</div>
+
+    <nav id="mainNav" class="nav-menu hidden">
+  <button data-view="view-branch" data-role="sube" class="btn-light">Şube</button>
+  <button data-view="view-manager" data-role="yonetici" class="btn-light">Yönetici</button>
+  <button data-view="view-picker" data-role="toplayici" class="btn-light">Toplayıcı</button>
+  <button data-view="view-qc" data-role="qc" class="btn-light">QC</button>
+  <button data-view="view-palet" data-role="palet" class="btn-light">Paletleme</button>
+  <button data-view="view-dashboard" data-role="admin" class="btn-light">Dashboard</button>
+  <button data-view="view-stock" data-role="admin" class="btn-light">Stok Yönetimi</button>
+  <button data-view="view-products" data-role="admin" class="btn-light">Ürünler</button>
+  <button data-view="view-count" data-role="yonetici" class="btn-light">Sayım</button>
+  <button data-view="view-login" id="logoutBtn" class="danger hidden">Çıkış</button>
+  
+
+</nav>
+
   </header>
 
   <main>
-    <div class="tabs">
-      <div class="tab active" data-view="orders">📦 Siparişler</div>
-      <div class="tab" data-view="users">👥 Kullanıcılar</div>
-      <div class="tab" data-view="dashboard">📊 Dashboard</div>
-      <div class="tab" data-view="stock">📦 Stok Yönetimi</div>
-      <div class="tab" data-view="products">🗂 Ürünler</div>
-      <div class="tab" data-view="logs">🧾 Loglar</div>
-      <div class="tab" data-view="scanner">📷 Barkod</div>
-    </div>
+    <main class="container">
+  <!-- mevcut tüm section'ların olduğu yer; içerik değişmiyor -->
+</main>
+    <!-- Login -->
+    <section id="view-login" class="view">
+      <h2>🔑 Giriş</h2>
+      <input type="email" id="login-email" placeholder="Email"/><br/>
+      <input type="password" id="login-pass" placeholder="Şifre"/><br/>
+      <button id="loginBtn">Giriş</button>
+      <hr/>
+      <h3>Yeni Kayıt</h3>
+      <input type="email" id="reg-email" placeholder="Email"/><br/>
+      <input type="password" id="reg-pass" placeholder="Şifre"/><br/>
+      <select id="reg-role">
+        <option value="sube">Şube</option>
+        <option value="yonetici">Yönetici</option>
+        <option value="toplayici">Toplayıcı</option>
+        <option value="qc">QC</option>
+        <option value="palet">Palet</option>
+        <option value="admin">Admin</option>
+      </select><br/>
+      <button id="registerBtn">Kayıt Ol</button>
+      
+      <div id="userInfo" style="position:absolute; right:15px; font-size:14px; color:#fff; opacity:0.9;">
+  👤 Giriş yapılmadı
+</div>
 
-    <!-- 📦 Siparişler -->
-    <section id="view-orders">
-      <button id="refreshOrdersBtn">Yenile</button>
-      <button id="exportOrdersBtn">⬇️ Excel</button>
+    </section>
+
+
+
+    <!-- Şube -->
+    <section id="view-branch" class="view hidden">
+      <h2>🏪 Şube Siparişi</h2>
+      <div class="row">
+        <label for="branchWarehouse">Depo:</label>
+        <select id="branchWarehouse">
+          <option value="MERKEZ">MERKEZ</option>
+          <option value="ATIŞALANI">ATIŞALANI</option>
+          <option value="YEŞİLPINAR">YEŞİLPINAR</option>
+          <option value="ALAŞEHİR">ALAŞEHİR</option>
+          <option value="SAKARYA 2">SAKARYA 2</option>
+          <option value="EMEK">EMEK</option>
+        </select>
+      </div>
+      <div class="card">
+        <h3>📥 Satır Ekle</h3>
+        <div class="row">
+          <select id="branchProduct" class="input"></select>
+          <input id="branchQty" class="input" type="number" placeholder="Miktar" min="1" value="1"/>
+          <button id="addLineBtn" class="btn-light">Satır Ekle</button>
+        </div>
+        <table id="tbl-branch-lines">
+          <thead><tr><th>#</th><th>Kod</th><th>Ürün</th><th>Miktar</th><th>Barkod</th><th>Reyon</th><th>Sil</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="row">
+        <input id="orderName" class="input" placeholder="Sipariş Adı"/>
+        <button id="createOrderBtn" class="success">Siparişi Oluştur</button>
+      </div>
+      <h3>🧾 Siparişlerim</h3>
+      <table id="branchOrders">
+        <thead><tr><th>ID</th><th>Ad</th><th>Depo</th><th>Durum</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </section>
+
+    <!-- Yönetici -->
+    <section id="view-manager" class="view hidden">
+      <h2>👨‍💼 Yönetici Paneli</h2>
+      <button id="refreshOrdersBtn" class="btn-light">Yenile</button>
+      <button data-view="view-count" class="btn-light">Sayım</button>
       <table id="tbl-orders">
-        <thead><tr><th>ID</th><th>Adı</th><th>Şube</th><th>Durum</th><th>Kalem</th><th>İşlem</th></tr></thead>
+        <thead><tr><th>ID</th><th>Ad</th><th>Depo</th><th>Durum</th><th>İşlem</th></tr></thead>
         <tbody></tbody>
       </table>
     </section>
 
-    <!-- 👥 Kullanıcılar -->
-    <section id="view-users" class="hidden">
-      <button id="refreshUsersBtn">Yenile</button>
-      <table id="tbl-users">
-        <thead><tr><th>Email</th><th>Rol</th><th>UID</th><th>Yeni Rol</th><th>Kaydet</th></tr></thead>
-        <tbody></tbody>
-      </table>
+    <!-- Toplayıcı -->
+    <section id="view-picker" class="view hidden">
+      <h2>🧺 Toplayıcı</h2>
+
+      <button id="refreshAssignedBtn" class="btn-light">Yenile</button>
+      <select id="assignedOrders"></select>
+      <button id="openAssignedBtn">Aç</button>
+
+      <div id="pickerArea" class="card hidden">
+        <h3 id="pickerTitle">Sipariş:</h3>
+
+        <div class="row">
+          <button id="startScanBtn" class="btn-light">📷 Barkod Tarayıcıyı Başlat</button>
+          <button id="stopScanBtn" class="danger">⛔ Durdur</button>
+        </div>
+        <div id="reader" style="width:300px; margin:10px auto;"></div>
+
+        <div class="card" style="margin-top:15px;">
+          <h3>✍️ Elle Toplama & Ürün Ekle</h3>
+          <div class="row">
+            <input id="manualScanCode" class="input" placeholder="Kod veya Barkod" />
+            <input id="manualScanQty" class="input" inputmode="decimal" step="0.001" type="number" min="0" value="1" placeholder="Miktar" />
+            <button id="manualAddBtn" class="btn-light">Ekle / Topla</button>
+          </div>
+        </div>
+
+        <table id="tbl-picker-lines" style="margin-top:15px;">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Kod</th>
+              <th>Ürün</th>
+              <th>İstenen</th>
+              <th>Toplanan</th>
+              <th>İşlem</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+
+        <button id="savePickBtn" class="btn-light">💾 Kaydet</button>
+        <button id="finishPickBtn" class="success" style="margin-top:15px;">Toplamayı Bitir</button>
+      </div>
     </section>
 
-    <!-- 📊 Dashboard -->
-    <section id="view-dashboard" class="hidden">
+    <!-- QC – Kontrol -->
+    <section id="view-qc" class="view hidden">
+      <h2>🔍 QC – Kontrol</h2>
+
+      <div class="row">
+        <button id="refreshQCBtn" class="btn-light">Yenile</button>
+        <select id="qcOrders" class="input"></select>
+        <button id="openQCBtn" class="btn-light">Aç</button>
+      </div>
+
+      <div id="qcArea" class="card hidden">
+        <h3 id="qcTitle">Sipariş:</h3>
+
+        <div class="row" style="gap:6px;margin-bottom:10px;">
+          <button id="startQCScanBtn" class="btn-light">📷 Tarayıcıyı Başlat</button>
+          <button id="stopQCScanBtn" class="btn-light">⛔ Tarayıcıyı Durdur</button>
+          <button id="saveQCBtn" class="btn-light">💾 Kaydet</button>
+        </div>
+
+        <div id="qcReader" style="width:300px; margin:10px auto;"></div>
+
+        <table id="tbl-qc-lines">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Kod</th>
+              <th>Ürün</th>
+              <th>İstenen</th>
+              <th>Toplanan</th>
+              <th>QC (Kontrol)</th>
+              <th>Eksik</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+
+        <div class="row" style="margin-top:12px;">
+          <button id="finishQCBtn" class="success">Kontrolü Bitir</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Paletleme -->
+    <section id="view-palet" class="view hidden">
+      <h2>📦 Paletleme</h2>
+      <div class="row">
+        <button id="refreshPaletBtn" class="btn-light">Yenile</button>
+        <select id="paletOrders"></select>
+        <button id="openPaletBtn">Aç</button>
+      </div>
+      <div id="paletArea" class="card hidden">
+        <h3 id="paletTitle">Sipariş:</h3>
+        <table id="tbl-palet-lines">
+          <thead><tr><th>#</th><th>Kod</th><th>Ürün</th><th>Miktar</th></tr></thead>
+          <tbody></tbody>
+        </table>
+        <button id="createPaletBtn" class="success">Palet Oluştur</button>
+        <div id="paletResult" class="hidden">
+          <h4>Palet No: <span id="paletNo"></span></h4>
+          <div id="paletQr"></div>
+          <button id="printPaletBtn">Etiket Yazdır</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Dashboard -->
+    <section id="view-dashboard" class="view hidden">
+      <h2>📊 Dashboard</h2>
       <div class="row">
         <div class="card flex-1"><h3>Toplam Sipariş</h3><p id="statTotalOrders">0</p></div>
         <div class="card flex-1"><h3>Tamamlanan Sipariş</h3><p id="statCompletedOrders">0</p></div>
         <div class="card flex-1"><h3>Bekleyen Sipariş</h3><p id="statPendingOrders">0</p></div>
       </div>
-      <canvas id="chartStatus" height="160"></canvas>
-      <canvas id="chartDaily" height="160"></canvas>
+      <div class="card"><canvas id="chartOrders"></canvas></div>
+      <div class="card"><canvas id="chartDaily"></canvas></div>
     </section>
 
-    <!-- 📦 Stok Yönetimi -->
-    <section id="view-stock" class="hidden">
+    <!-- Stok Yönetimi -->
+    <section id="view-stock" class="view hidden">
       <h2>📦 Stok Yönetimi</h2>
       <div class="row">
         <select id="stockWarehouse">
-          <option value="MERKEZ">MERKEZ</option><option value="KOCAELİ">KOCAELİ</option><option value="ADAPAZARI">ADAPAZARI</option>
+          <option value="MERKEZ">MERKEZ</option>
+          <option value="KOCAELİ">KOCAELİ</option>
+          <option value="ADAPAZARI">ADAPAZARI</option>
         </select>
         <input id="stockCode" class="input" placeholder="Ürün Kodu"/>
         <input id="stockName" class="input" placeholder="Ürün Adı"/>
         <input id="stockQty" class="input" type="number" placeholder="Miktar"/>
-        <button id="btnStockIn" class="success">Giriş</button>
-        <button id="btnStockOut" class="danger">Çıkış</button>
+        <button id="btnStockIn" class="success">Stok Girişi</button>
+        <button id="btnStockOut" class="danger">Stok Çıkışı</button>
       </div>
-      <table id="tbl-stock-manage"><thead><tr><th>Kod</th><th>Ad</th><th>Miktar</th><th>Depo</th></tr></thead><tbody></tbody></table>
+      <table id="tbl-stock-manage">
+        <thead><tr><th>Kod</th><th>Ad</th><th>Miktar</th><th>Depo</th></tr></thead>
+        <tbody></tbody>
+      </table>
     </section>
 
-    <!-- 🗂 Ürünler -->
-    <section id="view-products" class="hidden">
+    <!-- Ürünler -->
+    <section id="view-products" class="view hidden">
       <h2>🗂 Ürün Kataloğu</h2>
       <div class="card">
         <h3>Excel’den Ürün Yükle (.xlsx)</h3>
@@ -108,175 +289,78 @@
         <p class="muted">Beklenen sütunlar: <b>code, name</b> (opsiyonel: <i>barcode, reyon</i>)</p>
       </div>
       <table id="tbl-products">
-        <thead><tr><th>Kod</th><th>Ad</th><th>Barkod</th><th>Reyon</th></tr></thead><tbody></tbody>
-      </table>
-    </section>
-
-    <!-- 🧾 Loglar -->
-    <section id="view-logs" class="hidden">
-      <button id="refreshLogsBtn">Yenile</button>
-      <table id="tbl-logs">
-        <thead><tr><th>Tarih</th><th>Kullanıcı</th><th>İşlem</th><th>Detay</th></tr></thead>
+        <thead><tr><th>Kod</th><th>Ad</th><th>Barkod</th><th>Reyon</th></tr></thead>
         <tbody></tbody>
       </table>
     </section>
-
-    <!-- 📷 Barkod -->
-    <section id="view-scanner" class="hidden">
-      <button id="startScanBtn">Başlat</button>
-      <button id="stopScanBtn" class="warn">Durdur</button>
-      <div id="reader" class="hidden"></div>
-      <p id="scanResult"></p>
-    </section>
   </main>
+      <!-- Sayım (Cycle Count) -->
+    <section id="view-count" class="view hidden">
+      <h2>📋 Basit Sayım</h2>
 
+      <div class="card">
+        <div class="row">
+          <label for="countWarehouse">Depo:</label>
+          <select id="countWarehouse">
+            <option value="MERKEZ">MERKEZ</option>
+            <option value="ATIŞALANI">ATIŞALANI</option>
+            <option value="YEŞİLPINAR">YEŞİLPINAR</option>
+            <option value="ALAŞEHİR">ALAŞEHİR</option>
+            <option value="SAKARYA 2">SAKARYA 2</option>
+            <option value="EMEK">EMEK</option>
+          </select>
+
+          <button id="startCountScanBtn" class="btn-light">📷 Tarayıcıyı Başlat</button>
+          <button id="stopCountScanBtn" class="btn-light">⛔ Durdur</button>
+        </div>
+
+        <div id="countReader" style="width:300px; margin:10px 0;"></div>
+
+        <div class="row">
+          <input id="countManualCode" class="input" placeholder="Kod veya Barkod" />
+          <input id="countManualQty" class="input" inputmode="decimal" step="0.001" type="number" value="1" min="0" placeholder="Sayım Miktarı" />
+          <button id="countManualAddBtn" class="btn-light">Ekle</button>
+        </div>
+      </div>
+
+      <table id="tbl-count-lines" style="margin-top:12px;">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Kod</th>
+            <th>Ürün</th>
+            <th>Mevcut (Sistem)</th>
+            <th>Sayım</th>
+            <th>Fark</th>
+            <th>İşlem</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+
+      <div class="row" style="margin-top:12px;">
+        <button id="saveCountSessionBtn" class="btn-light">💾 Oturumu Kaydet</button>
+        <button id="applyCountBtn" class="success">✔️ Stoka Uygula</button>
+        <button id="newCountSessionBtn" class="danger">🗑️ Yeni Oturum</button>
+      </div>
+
+      <div class="card" style="margin-top:16px;">
+        <h3>🧾 Son Sayım Oturumları</h3>
+        <button id="refreshCountSessionsBtn" class="btn-light">Yenile</button>
+        <table id="tbl-count-sessions">
+          <thead><tr><th>Tarih</th><th>Depo</th><th>Satır</th><th>Toplam Fark</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+  <!-- Libs -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
   <script src="https://unpkg.com/html5-qrcode@2.3.10/minified/html5-qrcode.min.js"></script>
-  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/xlsx.mjs" type="module"></script>
 
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
-    import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
-    import { getFirestore, collection, getDocs, doc, getDoc, updateDoc, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
-    import * as XLSX from "https://cdn.sheetjs.com/xlsx-0.20.3/package/xlsx.mjs";
-
-    const firebaseConfig = {
-      apiKey: "AIzaSyDcLQB4UggXlYA9x8AKw-XybJjcF6U_KA4",
-      authDomain: "depo1-4668f.firebaseapp.com",
-      projectId: "depo1-4668f",
-      storageBucket: "depo1-4668f.appspot.com",
-      messagingSenderId: "1044254626353",
-      appId: "1:1044254626353:web:148c57df2456cc3d9e3b10"
-    };
-    const app = initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-    const db = getFirestore(app);
-    let scanner=null;
-
-    const $=id=>document.getElementById(id);
-    document.querySelectorAll(".tab").forEach(tab=>{
-      tab.addEventListener("click",()=>{
-        document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
-        tab.classList.add("active");
-        document.querySelectorAll("main section").forEach(s=>s.classList.add("hidden"));
-        $("view-"+tab.dataset.view).classList.remove("hidden");
-      });
-    });
-
-    onAuthStateChanged(auth,async(user)=>{
-      if(!user)return window.location.href="index.html";
-      const u=await getDoc(doc(db,"users",user.uid));
-      if(!u.exists()||u.data().role!=="admin"){alert("Yetkisiz erişim!");return window.location.href="index.html";}
-      $("who").textContent=user.email;
-      loadOrders();loadDashboard();loadLogs();
-    });
-
-    $("logoutBtn").addEventListener("click",async()=>{await signOut(auth);window.location.href="index.html";});
-
-    // 📦 Siparişler
-    async function loadOrders(){
-      const tbody=$("tbl-orders").querySelector("tbody");tbody.innerHTML="";
-      const q=await getDocs(collection(db,"orders"));
-      q.forEach(d=>{
-        const o={id:d.id,...d.data()};
-        const tr=document.createElement("tr");
-        tr.innerHTML=`
-          <td>${o.id}</td><td>${o.name||""}</td><td>${o.warehouse||"-"}</td><td>${o.status||"?"}</td>
-          <td>${o.lines?o.lines.length:0}</td>
-          <td>
-            <select id="sel-${o.id}">
-              ${["Yeni","Atandı","Toplama Başladı","Toplandı","Kontrol","Tamamlandı"].map(s=>`<option ${o.status===s?"selected":""}>${s}</option>`).join("")}
-            </select>
-            <button data-save="${o.id}" class="success">Kaydet</button>
-          </td>`;
-        tbody.appendChild(tr);
-      });
-      document.querySelectorAll("button[data-save]").forEach(btn=>{
-        btn.addEventListener("click",async()=>{
-          const id=btn.dataset.save;
-          const val=$("sel-"+id).value;
-          await updateDoc(doc(db,"orders",id),{status:val,lastUpdate:new Date()});
-          await addDoc(collection(db,"logs"),{user:$("who").textContent,action:"Sipariş Durumu",detail:`${id} → ${val}`,createdAt:serverTimestamp()});
-          alert("Durum güncellendi");loadDashboard();
-        });
-      });
-    }
-    $("refreshOrdersBtn").addEventListener("click",loadOrders);
-
-    // ⬇️ Excel
-    $("exportOrdersBtn").addEventListener("click",()=>{
-      const data=[["ID","Adı","Depo","Durum","Kalem"]];
-      $("tbl-orders").querySelectorAll("tbody tr").forEach(r=>{
-        const cells=[...r.cells].slice(0,5).map(td=>td.innerText);data.push(cells);
-      });
-      const ws=XLSX.utils.aoa_to_sheet(data);const wb=XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb,ws,"Siparişler");
-      XLSX.writeFile(wb,`TUGLUBEY_Siparisler_${new Date().toISOString().slice(0,10)}.xlsx`);
-    });
-
-    // 👥 Kullanıcılar
-    async function loadUsers(){
-      const tbody=$("tbl-users").querySelector("tbody");tbody.innerHTML="";
-      const q=await getDocs(collection(db,"users"));
-      q.forEach(d=>{
-        const u={id:d.id,...d.data()};
-        const tr=document.createElement("tr");
-        tr.innerHTML=`
-          <td>${u.email}</td><td>${u.role}</td><td>${u.id}</td>
-          <td><select id="role-${u.id}">
-            <option>sube</option><option>toplayici</option><option>yonetici</option>
-            <option>qc</option><option>palet</option><option>admin</option>
-          </select></td>
-          <td><button data-role="${u.id}" class="success">Kaydet</button></td>`;
-        tbody.appendChild(tr);
-      });
-      document.querySelectorAll("button[data-role]").forEach(b=>{
-        b.addEventListener("click",async()=>{
-          const id=b.dataset.role;const val=$("role-"+id).value;
-          await updateDoc(doc(db,"users",id),{role:val});
-          await addDoc(collection(db,"logs"),{user:$("who").textContent,action:"Rol Güncelleme",detail:`${id} → ${val}`,createdAt:serverTimestamp()});
-          alert("Rol güncellendi");
-        });
-      });
-    }
-    $("refreshUsersBtn").addEventListener("click",loadUsers);
-
-    // 📊 Dashboard
-    async function loadDashboard(){
-      const snap=await getDocs(collection(db,"orders"));
-      let counts={},daily={};
-      snap.forEach(d=>{
-        const o=d.data();counts[o.status]=(counts[o.status]||0)+1;
-        const date=o.createdAt?.toDate?o.createdAt.toDate().toISOString().slice(0,10):"Bilinmiyor";
-        daily[date]=(daily[date]||0)+1;
-      });
-      $("statTotalOrders").textContent=snap.size;
-      $("statCompletedOrders").textContent=counts["Tamamlandı"]||0;
-      $("statPendingOrders").textContent=(counts["Yeni"]||0)+(counts["Atandı"]||0);
-
-      new Chart($("chartStatus").getContext("2d"),{type:"pie",data:{labels:Object.keys(counts),datasets:[{data:Object.values(counts),backgroundColor:["#22c55e","#3b82f6","#facc15","#f97316","#ef4444","#a855f7"]}]}});
-
-      const sorted=Object.keys(daily).sort();
-      new Chart($("chartDaily").getContext("2d"),{type:"bar",data:{labels:sorted,datasets:[{label:"Sipariş",data:sorted.map(d=>daily[d]),backgroundColor:"#3b82f6"}]}});
-    }
-
-    // 🧾 Loglar
-    async function loadLogs(){
-      const tbody=$("tbl-logs").querySelector("tbody");tbody.innerHTML="";
-      const q=await getDocs(collection(db,"logs"));const logs=[];
-      q.forEach(d=>logs.push({id:d.id,...d.data()}));
-      logs.sort((a,b)=>b.createdAt?.toDate()-a.createdAt?.toDate());
-      logs.slice(0,50).forEach(l=>{
-        const t=l.createdAt?.toDate?l.createdAt.toDate().toLocaleString():"-";
-        const tr=document.createElement("tr");
-        tr.innerHTML=`<td>${t}</td><td>${l.user}</td><td>${l.action}</td><td>${l.detail}</td>`;
-        tbody.appendChild(tr);
-      });
-    }
-    $("refreshLogsBtn").addEventListener("click",loadLogs);
-
-    // 📷 Barkod
-    $("startScanBtn").addEventListener("click",async()=>{
-      if(scanner)return;$("reader").classList.remove("hidden");
-      scanner=new Html5Qrcode("reader");
-      await scanner.start({facingMode:"environment"},{fps:10,qrbox:250
+  <!-- App -->
+  <script type="module" src="./app.js"></script>
+  <div id="appLoading" class="loading hidden"><div class="spinner"></div></div>
+</body>
+</html>
