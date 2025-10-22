@@ -2,74 +2,128 @@
 <html lang="tr">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Şube Paneli</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>🏪 Şube Paneli - Depo Otomasyonu</title>
   <style>
     body {
       background: #0f172a;
       color: #e2e8f0;
-      font-family: system-ui, Arial;
+      font-family: "Segoe UI", Arial, sans-serif;
+      margin: 0;
+      min-height: 100vh;
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: flex-start;
-      min-height: 100vh;
-      margin: 0;
-      padding: 20px;
     }
+
     header {
       width: 100%;
-      max-width: 800px;
+      max-width: 900px;
       background: #111827;
       padding: 16px 20px;
       border-radius: 10px;
-      box-shadow: 0 0 12px #0004;
+      box-shadow: 0 0 12px #0005;
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 20px;
+      margin-top: 20px;
     }
-    h1 {
-      margin: 0;
-      font-size: 20px;
-      color: #93c5fd;
-    }
+
+    h1 { margin: 0; font-size: 22px; color: #93c5fd; }
     button {
-      background: #ef4444;
-      color: white;
       border: none;
-      padding: 8px 14px;
       border-radius: 6px;
       cursor: pointer;
+      font-weight: 600;
+      transition: 0.2s;
     }
+
+    #logoutBtn {
+      background: #ef4444;
+      color: #fff;
+      padding: 8px 16px;
+    }
+    #logoutBtn:hover { background: #dc2626; }
+
     main {
+      margin-top: 25px;
       background: #111827;
-      border-radius: 10px;
-      box-shadow: 0 0 12px #0005;
-      padding: 20px;
+      padding: 25px;
+      border-radius: 12px;
+      box-shadow: 0 0 12px #0004;
       width: 100%;
-      max-width: 800px;
+      max-width: 900px;
     }
+
     .info {
       background: #1e293b;
-      padding: 12px;
+      padding: 16px;
       border-radius: 8px;
-      margin-bottom: 20px;
+      margin-bottom: 25px;
     }
+
+    .info strong { color: #facc15; }
+
     .actions button {
-      background: #22c55e;
-      margin: 5px 0;
+      display: block;
       width: 100%;
-      font-weight: bold;
+      background: #22c55e;
+      color: white;
+      padding: 12px;
+      margin: 6px 0;
+      border-radius: 8px;
+      font-size: 16px;
     }
+    .actions button:hover { background: #16a34a; }
+
+    #statusMsg {
+      text-align: center;
+      margin-top: 20px;
+      color: #38bdf8;
+      font-weight: 500;
+    }
+
+    footer {
+      margin-top: 40px;
+      color: #64748b;
+      font-size: 13px;
+      text-align: center;
+    }
+
+    /* NAV + ROL ALTYAPISI */
+    nav {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      margin-top: 10px;
+      flex-wrap: wrap;
+    }
+    .nav-btn {
+      background: #1e3a8a;
+      color: white;
+      padding: 6px 10px;
+      border-radius: 6px;
+      font-size: 14px;
+    }
+    .nav-btn:hover { background: #2563eb; }
+    .hidden { display: none; }
   </style>
 </head>
 
 <body>
   <header>
-    <h1>🏪 Şube Paneli</h1>
+    <h1>📦 TUĞLUBEY Depo Otomasyonu</h1>
     <button id="logoutBtn">Çıkış</button>
   </header>
+
+  <nav id="roleNav">
+    <button class="nav-btn" data-role="sube">Şube</button>
+    <button class="nav-btn" data-role="yonetici">Yönetici</button>
+    <button class="nav-btn" data-role="toplayici">Toplayıcı</button>
+    <button class="nav-btn" data-role="qc">QC</button>
+    <button class="nav-btn" data-role="palet">Palet</button>
+    <button class="nav-btn" data-role="admin">Admin</button>
+  </nav>
 
   <main>
     <div class="info">
@@ -80,24 +134,29 @@
     <div class="actions">
       <button id="createOrderBtn">📝 Yeni Sipariş Oluştur</button>
       <button id="viewOrdersBtn">📦 Siparişleri Gör</button>
+      <button id="reportMissingBtn">📉 Eksik Ürün Bildir</button>
     </div>
 
-    <div id="statusMsg" style="margin-top:20px;color:#38bdf8;font-weight:500;"></div>
+    <div id="statusMsg"></div>
   </main>
+
+  <footer>
+    TUĞLUBEY Depo Otomasyon Sistemi © 2025 — Şube Paneli
+  </footer>
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
     import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
-    import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+    import { getFirestore, doc, getDoc, addDoc, collection, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 
+    // 🔧 Firebase Config
     const firebaseConfig = {
       apiKey: "AIzaSyDcLQB4UggXlYA9x8AKw-XybJjcF6U_KA4",
       authDomain: "depo1-4668f.firebaseapp.com",
       projectId: "depo1-4668f",
       storageBucket: "depo1-4668f.appspot.com",
       messagingSenderId: "1044254626353",
-      appId: "1:1044254626353:web:148c57df2456cc3d9e3b10",
-      measurementId: "G-DFGMVLK9XH"
+      appId: "1:1044254626353:web:148c57df2456cc3d9e3b10"
     };
 
     const app = initializeApp(firebaseConfig);
@@ -107,21 +166,21 @@
     const welcomeText = document.getElementById("welcomeText");
     const statusMsg = document.getElementById("statusMsg");
 
-    // 🔐 Oturum kontrolü
+    // 🔐 Giriş kontrolü
     onAuthStateChanged(auth, async (user) => {
-      if (!user) {
-        window.location.href = "index.html";
-        return;
-      }
-      const uid = user.uid;
-      const userSnap = await getDoc(doc(db, "users", uid));
-      const role = userSnap.exists() ? userSnap.data().role : "sube";
+      if (!user) return window.location.href = "index.html";
+
+      const snap = await getDoc(doc(db, "users", user.uid));
+      const data = snap.exists() ? snap.data() : {};
+      const role = data.role || "sube";
+
       if (role !== "sube") {
-        alert("Yetkisiz erişim. Bu sayfa sadece şubeler içindir.");
-        window.location.href = "index.html";
-        return;
+        alert("Bu sayfa sadece 'şube' rolündeki kullanıcılar içindir.");
+        return window.location.href = "index.html";
       }
+
       welcomeText.innerHTML = `Hoş geldin, <strong>${user.email}</strong>`;
+      statusMsg.textContent = "✅ Şube paneline başarıyla giriş yapıldı.";
     });
 
     // 🚪 Çıkış
@@ -131,13 +190,34 @@
     });
 
     // 📝 Yeni sipariş
-    document.getElementById("createOrderBtn").addEventListener("click", () => {
-      statusMsg.textContent = "Yeni sipariş oluşturma ekranı yakında eklenecek ✅";
+    document.getElementById("createOrderBtn").addEventListener("click", async () => {
+      const user = auth.currentUser;
+      if (!user) return;
+      await addDoc(collection(db, "orders"), {
+        branch: user.email,
+        createdAt: serverTimestamp(),
+        status: "Yeni",
+        lines: []
+      });
+      statusMsg.textContent = "🆕 Yeni sipariş başarıyla oluşturuldu.";
     });
 
     // 📦 Siparişleri Gör
-    document.getElementById("viewOrdersBtn").addEventListener("click", () => {
-      statusMsg.textContent = "Mevcut sipariş listesi burada görüntülenecek 📋";
+    document.getElementById("viewOrdersBtn").addEventListener("click", async () => {
+      statusMsg.textContent = "📋 Şube sipariş listesi yakında eklenecek (geliştiriliyor)...";
+    });
+
+    // 📉 Eksik Ürün Bildir
+    document.getElementById("reportMissingBtn").addEventListener("click", async () => {
+      const user = auth.currentUser;
+      if (!user) return;
+      await addDoc(collection(db, "missingProducts"), {
+        productName: "Ürün Adı (örnek)",
+        branch: user.email,
+        quantity: 1,
+        createdAt: serverTimestamp()
+      });
+      statusMsg.textContent = "📉 Eksik ürün bildirimi kaydedildi.";
     });
   </script>
 </body>
