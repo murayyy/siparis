@@ -294,86 +294,94 @@ function renderPickerLines() {
   tb.innerHTML = "";
 
   const paintRow = (tr, qty, picked) => {
-    tr.classList.remove("not-picked", "partial-picked", "fully-picked");
-    tr.classList.add(picked === 0 ? "not-picked" : picked < qty ? "partial-picked" : "fully-picked");
+    tr.classList.remove("not-picked", "partial-picked", "fully-picked", "over-picked");
+    if (picked === 0) tr.classList.add("not-picked");
+    else if (picked < qty) tr.classList.add("partial-picked");
+    else if (picked === qty) tr.classList.add("fully-picked");
+    else tr.classList.add("over-picked"); // fazla toplama
   };
 
   pickerOrder.lines.forEach((l, i) => {
     const qty = toNum(l.qty);
     const picked = toNum(l.picked);
+
     tb.insertAdjacentHTML("beforeend", `
       <tr data-row="${i}">
         <td>${i + 1}</td>
         <td>${l.code}</td>
         <td>${l.name || ""}</td>
         <td>${qty}</td>
+        <td>${l.reyon || "-"}</td>
         <td>
           <input
             type="number" inputmode="decimal" step="0.001" min="0"
             class="picked-input" data-idx="${i}" value="${picked}"
-            style="width:100px;text-align:center;"
+            style="width:90px;text-align:center;"
           />
+        </td>
+        <td style="text-align:center;">
+          <input type="checkbox" class="chk-picked" data-idx="${i}" ${picked >= qty ? "checked" : ""}/>
+        </td>
+        <td style="text-align:center;">
+          <input type="checkbox" class="chk-missing" data-idx="${i}" ${picked < qty ? "checked" : ""}/>
         </td>
         <td>
           <button class="pill" data-plus="${i}">+1</button>
           <button class="pill" data-minus="${i}">-1</button>
-          <button class="pill" data-del="${i}">Sil</button>
+          <button class="pill danger" data-del="${i}">Sil</button>
         </td>
       </tr>
     `);
-    paintRow(tb.querySelector(`tr[data-row="${i}"]`), qty, picked);
   });
 
-  // INPUT: serbest yazım + blur'da normalize & boya
+  // Boyama
+  pickerOrder.lines.forEach((l, i) => {
+    const tr = tb.querySelector(`tr[data-row="${i}"]`);
+    paintRow(tr, toNum(l.qty), toNum(l.picked));
+  });
+
+  // INPUT değişim
   tb.querySelectorAll(".picked-input").forEach(inp => {
     inp.addEventListener("input", e => {
       const idx = Number(e.target.dataset.idx);
       pickerOrder.lines[idx].picked = toNum(e.target.value);
-    });
-    inp.addEventListener("blur", e => {
-      const idx = Number(e.target.dataset.idx);
       const line = pickerOrder.lines[idx];
-      const qty = toNum(line.qty);
-      let val = toNum(e.target.value);
-      val = clamp(val, 0, Number.isFinite(qty) ? qty : Infinity);
-      line.picked = val;
-      e.target.value = val;
       const tr = tb.querySelector(`tr[data-row="${idx}"]`);
-      paintRow(tr, qty, val);
+      paintRow(tr, toNum(line.qty), toNum(line.picked));
+
+      // checkbox güncelle
+      tr.querySelector(".chk-picked").checked = line.picked >= line.qty;
+      tr.querySelector(".chk-missing").checked = line.picked < line.qty;
     });
-    inp.addEventListener("keydown", e => { if (e.key === "Enter") e.target.blur(); });
   });
 
-  // +1 / -1 / Sil
+  // +1 / -1
   tb.querySelectorAll("button[data-plus]").forEach(btn => {
     btn.addEventListener("click", () => {
       const idx = Number(btn.dataset.plus);
       const line = pickerOrder.lines[idx];
-      const qty = toNum(line.qty);
-      const cur = toNum(line.picked);
-      const next = clamp(cur + 1, 0, Number.isFinite(qty) ? qty : Infinity);
-      line.picked = next;
+      line.picked = (toNum(line.picked) || 0) + 1; // artık fazla toplanabilir
       const tr = tb.querySelector(`tr[data-row="${idx}"]`);
-      const inp = tr.querySelector(".picked-input");
-      inp.value = next;
-      const q = toNum(line.qty);
-      paintRow(tr, q, next);
+      tr.querySelector(".picked-input").value = line.picked;
+      paintRow(tr, toNum(line.qty), toNum(line.picked));
+      tr.querySelector(".chk-picked").checked = line.picked >= line.qty;
+      tr.querySelector(".chk-missing").checked = line.picked < line.qty;
     });
   });
   tb.querySelectorAll("button[data-minus]").forEach(btn => {
     btn.addEventListener("click", () => {
       const idx = Number(btn.dataset.minus);
       const line = pickerOrder.lines[idx];
-      const cur = toNum(line.picked);
-      const next = Math.max(cur - 1, 0);
-      line.picked = next;
+      line.picked = Math.max((toNum(line.picked) || 0) - 1, 0);
       const tr = tb.querySelector(`tr[data-row="${idx}"]`);
-      const inp = tr.querySelector(".picked-input");
-      inp.value = next;
-      const q = toNum(line.qty);
-      paintRow(tr, q, next);
+      tr.querySelector(".picked-input").value = line.picked;
+      paintRow(tr, toNum(line.qty), toNum(line.picked));
+      tr.querySelector(".chk-picked").checked = line.picked >= line.qty;
+      tr.querySelector(".chk-missing").checked = line.picked < line.qty;
     });
   });
+
+  // Sil
   tb.querySelectorAll("button[data-del]").forEach(btn => {
     btn.addEventListener("click", () => {
       const i = Number(btn.dataset.del);
@@ -384,6 +392,7 @@ function renderPickerLines() {
     });
   });
 }
+
 async function startPickerScanner() {
   if (scanner) await stopPickerScanner();
   scanner = new Html5Qrcode("reader");
