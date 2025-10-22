@@ -325,31 +325,31 @@ function renderPickerLines() {
     const qty = toNum(l.qty);
     const picked = toNum(l.picked);
 
-    tb.insertAdjacentHTML("beforeend", `
-      <tr data-row="${i}">
-        <td>${i + 1}</td>
-        <td>${l.code}</td>
-        <td>${l.name || ""}</td>
-        <td>${qty}</td>
-        <td>${l.reyon || "-"}</td>
-        <td>
-          <input type="number" inputmode="decimal" step="0.001" min="0"
-                 class="picked-input" data-idx="${i}" value="${picked}"
-                 style="width:80px;text-align:center;"/>
-        </td>
-        <td style="text-align:center;">
-          <input type="checkbox" class="chk-picked" data-idx="${i}" ${picked >= qty ? "checked" : ""}/>
-        </td>
-        <td style="text-align:center;">
-          <input type="checkbox" class="chk-missing" data-idx="${i}" ${picked < qty ? "checked" : ""}/>
-        </td>
-        <td>
-          <button class="pill" data-plus="${i}">+1</button>
-          <button class="pill" data-minus="${i}">-1</button>
-          <button class="pill danger" data-del="${i}">Sil</button>
-        </td>
-      </tr>
-    `);
+   tb.insertAdjacentHTML("beforeend", `
+  <tr data-row="${i}">
+    <td data-label="#">${i + 1}</td>
+    <td data-label="Kod">${l.code}</td>
+    <td data-label="Ürün">${l.name || ""}</td>
+    <td data-label="İstenen">${qty}</td>
+    <td data-label="Reyon">${l.reyon || "-"}</td>
+    <td data-label="Toplanan">
+      <input type="number" inputmode="decimal" step="0.001" min="0"
+             class="picked-input" data-idx="${i}" value="${picked}"
+             style="width:80px;text-align:center;"/>
+    </td>
+    <td data-label="Toplandı" style="text-align:center;">
+      <input type="checkbox" class="chk-picked" data-idx="${i}" ${picked >= qty ? "checked" : ""}/>
+    </td>
+    <td data-label="Eksik" style="text-align:center;">
+      <input type="checkbox" class="chk-missing" data-idx="${i}" ${picked < qty ? "checked" : ""}/>
+    </td>
+    <td data-label="İşlem">
+      <button class="pill" data-plus="${i}">+1</button>
+      <button class="pill" data-minus="${i}">-1</button>
+      <button class="pill danger" data-del="${i}">Sil</button>
+    </td>
+  </tr>
+`);
   });
 
   // Renk boyama
