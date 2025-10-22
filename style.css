@@ -258,4 +258,65 @@ tr.partial-picked {
 tr.not-picked {
   background-color: rgba(255, 200, 200, 0.25);
 }
+/* === TOPLAMA TABLOSU RENKLER === */
+tr.over-picked { background-color: rgba(255, 165, 0, 0.25); }  /* fazla toplama */
+tr.fully-picked { background-color: rgba(144, 238, 144, 0.4); } /* tam */
+tr.partial-picked { background-color: rgba(255, 255, 0, 0.25); } /* eksik */
+tr.not-picked { background-color: rgba(255, 200, 200, 0.25); }  /* hiç toplanmamış */
+
+/* === RESPONSIVE TABLO === */
+#tbl-picker-lines {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 10px;
+}
+
+#tbl-picker-lines th, #tbl-picker-lines td {
+  padding: 6px;
+  text-align: center;
+  border: 1px solid #ccc;
+}
+
+/* Mobil görünüm */
+@media (max-width: 768px) {
+  #tbl-picker-lines, #tbl-picker-lines thead, #tbl-picker-lines tbody,
+  #tbl-picker-lines th, #tbl-picker-lines td, #tbl-picker-lines tr {
+    display: block;
+  }
+
+  #tbl-picker-lines thead tr {
+    display: none; /* başlık gizlenir, yerine etiketler satır içinde */
+  }
+
+  #tbl-picker-lines tr {
+    background: #fff;
+    margin-bottom: 12px;
+    border: 1px solid #ccc;
+    border-radius: 10px;
+    padding: 10px;
+  }
+
+  #tbl-picker-lines td {
+    border: none;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 0;
+  }
+
+  #tbl-picker-lines td::before {
+    content: attr(data-label);
+    font-weight: bold;
+    color: #333;
+  }
+
+  #tbl-picker-lines input[type="number"] {
+    width: 70px;
+  }
+
+  #tbl-picker-lines .pill {
+    padding: 4px 8px;
+    margin: 2px;
+  }
+}
 
