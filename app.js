@@ -289,8 +289,28 @@ async function openAssigned() {
   $("pickerArea").classList.remove("hidden");
 }
 function renderPickerLines() {
-  const tb = document.querySelector("#tbl-picker-lines tbody");
-  if (!tb) return;
+  const table = document.getElementById("tbl-picker-lines");
+  if (!table) return;
+
+  // Tablo başlığı
+  table.innerHTML = `
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Kod</th>
+        <th>Ürün</th>
+        <th>İstenen</th>
+        <th>Reyon</th>
+        <th>Toplanan</th>
+        <th>Toplandı</th>
+        <th>Eksik</th>
+        <th>İşlem</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  `;
+
+  const tb = table.querySelector("tbody");
   tb.innerHTML = "";
 
   const paintRow = (tr, qty, picked) => {
@@ -298,7 +318,7 @@ function renderPickerLines() {
     if (picked === 0) tr.classList.add("not-picked");
     else if (picked < qty) tr.classList.add("partial-picked");
     else if (picked === qty) tr.classList.add("fully-picked");
-    else tr.classList.add("over-picked"); // fazla toplama
+    else tr.classList.add("over-picked");
   };
 
   pickerOrder.lines.forEach((l, i) => {
@@ -313,11 +333,9 @@ function renderPickerLines() {
         <td>${qty}</td>
         <td>${l.reyon || "-"}</td>
         <td>
-          <input
-            type="number" inputmode="decimal" step="0.001" min="0"
-            class="picked-input" data-idx="${i}" value="${picked}"
-            style="width:90px;text-align:center;"
-          />
+          <input type="number" inputmode="decimal" step="0.001" min="0"
+                 class="picked-input" data-idx="${i}" value="${picked}"
+                 style="width:80px;text-align:center;"/>
         </td>
         <td style="text-align:center;">
           <input type="checkbox" class="chk-picked" data-idx="${i}" ${picked >= qty ? "checked" : ""}/>
@@ -334,13 +352,13 @@ function renderPickerLines() {
     `);
   });
 
-  // Boyama
+  // Renk boyama
   pickerOrder.lines.forEach((l, i) => {
     const tr = tb.querySelector(`tr[data-row="${i}"]`);
     paintRow(tr, toNum(l.qty), toNum(l.picked));
   });
 
-  // INPUT değişim
+  // Miktar girişi
   tb.querySelectorAll(".picked-input").forEach(inp => {
     inp.addEventListener("input", e => {
       const idx = Number(e.target.dataset.idx);
@@ -348,32 +366,31 @@ function renderPickerLines() {
       const line = pickerOrder.lines[idx];
       const tr = tb.querySelector(`tr[data-row="${idx}"]`);
       paintRow(tr, toNum(line.qty), toNum(line.picked));
-
-      // checkbox güncelle
       tr.querySelector(".chk-picked").checked = line.picked >= line.qty;
       tr.querySelector(".chk-missing").checked = line.picked < line.qty;
     });
   });
 
-  // +1 / -1
+  // +1 / -1 butonları
   tb.querySelectorAll("button[data-plus]").forEach(btn => {
     btn.addEventListener("click", () => {
       const idx = Number(btn.dataset.plus);
       const line = pickerOrder.lines[idx];
-      line.picked = (toNum(line.picked) || 0) + 1; // artık fazla toplanabilir
-      const tr = tb.querySelector(`tr[data-row="${idx}"]`);
+      line.picked = (toNum(line.picked) || 0) + 1; // fazla toplanabilir
+      const tr = tb.querySelector(`tr[data-row='${idx}']`);
       tr.querySelector(".picked-input").value = line.picked;
       paintRow(tr, toNum(line.qty), toNum(line.picked));
       tr.querySelector(".chk-picked").checked = line.picked >= line.qty;
       tr.querySelector(".chk-missing").checked = line.picked < line.qty;
     });
   });
+
   tb.querySelectorAll("button[data-minus]").forEach(btn => {
     btn.addEventListener("click", () => {
       const idx = Number(btn.dataset.minus);
       const line = pickerOrder.lines[idx];
       line.picked = Math.max((toNum(line.picked) || 0) - 1, 0);
-      const tr = tb.querySelector(`tr[data-row="${idx}"]`);
+      const tr = tb.querySelector(`tr[data-row='${idx}']`);
       tr.querySelector(".picked-input").value = line.picked;
       paintRow(tr, toNum(line.qty), toNum(line.picked));
       tr.querySelector(".chk-picked").checked = line.picked >= line.qty;
@@ -381,11 +398,11 @@ function renderPickerLines() {
     });
   });
 
-  // Sil
+  // Silme
   tb.querySelectorAll("button[data-del]").forEach(btn => {
     btn.addEventListener("click", () => {
       const i = Number(btn.dataset.del);
-      if (confirm("Bu satırı listeden silmek istiyor musunuz?")) {
+      if (confirm("Bu satırı silmek istiyor musunuz?")) {
         pickerOrder.lines.splice(i, 1);
         renderPickerLines();
       }
