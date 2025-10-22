@@ -108,8 +108,8 @@ async function listProductsIntoTable() {
       <td>${p.name || ""}</td>
       <td>${p.barcode || ""}</td>
       <td>${p.reyon || ""}</td>
-       <td>${p.birim || ""}</td>
-    </tr>`;
+      <td>${p.birim || ""}</td>
+    </tr>;
   });
 }
 async function refreshBranchProductSelect() {
