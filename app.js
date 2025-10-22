@@ -528,6 +528,62 @@ window.sendToQC = async function(id) {
   await updateDoc(doc(db, "orders", id), { status: "Kontrol" });
   loadAllOrders();
 };
+window.viewOrderDetails = async function(id) {
+  const ref = doc(db, "orders", id);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return alert("Sipariş bulunamadı!");
+
+  const d = snap.data();
+  let html = `
+    <h3>Sipariş: <b>${d.name || "(İsimsiz)"}</b></h3>
+    <p><b>Depo:</b> ${d.warehouse || "-"}<br>
+       <b>Durum:</b> ${d.status}<br>
+       <b>Oluşturan:</b> ${d.createdBy || "-"}<br>
+       <b>Tarih:</b> ${(d.createdAt?.toDate?.() || new Date()).toLocaleString()}</p>
+    <table style="width:100%;border-collapse:collapse;margin-top:10px;">
+      <thead>
+        <tr style="background:#222;color:#fff;">
+          <th style="padding:5px;">Kod</th>
+          <th style="padding:5px;">Ürün</th>
+          <th style="padding:5px;">İstenen</th>
+          <th style="padding:5px;">Toplanan</th>
+          <th style="padding:5px;">QC</th>
+          <th style="padding:5px;">Reyon</th>
+        </tr>
+      </thead>
+      <tbody>
+  `;
+  (d.lines || []).forEach(l => {
+    html += `
+      <tr style="background:#111;color:#ddd;">
+        <td style="padding:5px;">${l.code}</td>
+        <td style="padding:5px;">${l.name}</td>
+        <td style="padding:5px;text-align:center;">${l.qty}</td>
+        <td style="padding:5px;text-align:center;">${l.picked ?? "-"}</td>
+        <td style="padding:5px;text-align:center;">${l.qc ?? "-"}</td>
+        <td style="padding:5px;text-align:center;">${l.reyon || "-"}</td>
+      </tr>
+    `;
+  });
+  html += `</tbody></table>`;
+
+  // Basit popup (modal)
+  const modal = document.createElement("div");
+  modal.style = `
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.75); display: flex; align-items: center; justify-content: center;
+    z-index: 9999; padding:20px;
+  `;
+  modal.innerHTML = `
+    <div style="background:#1e1e2e;color:#fff;padding:20px;border-radius:12px;max-width:700px;width:100%;max-height:80%;overflow:auto;">
+      ${html}
+      <div style="text-align:right;margin-top:15px;">
+        <button onclick="this.closest('div').parentNode.remove()">Kapat</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+};
 
 // ================== QC (KONTROL) ==================
 console.log("✅ QC Modülü Yüklendi");
