@@ -752,6 +752,30 @@ async function finishQC() {
   });
   alert("✅ QC tamamlandı!");
 }
+// ================== QC EXCEL'E AKTAR ==================
+$("exportQCExcelBtn")?.addEventListener("click", exportQCToExcel);
+
+async function exportQCToExcel() {
+  if (!qcOrder) return alert("Önce bir sipariş açın!");
+  const data = (qcOrder.lines || []).map((l, i) => ({
+    "#": i + 1,
+    Kod: l.code || "",
+    Ürün: l.name || "",
+    İstenen: toNum(l.qty),
+    Toplanan: toNum(l.picked),
+    "QC (Kontrol)": toNum(l.qc),
+    Eksik: Math.max(0, toNum(l.picked) - toNum(l.qc)),
+    Reyon: l.reyon || "-"
+  }));
+
+  const ws = XLSX.utils.json_to_sheet(data);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "QC_Kontrol");
+  const fileName = `QC_${qcOrder.name || "kontrol"}.xlsx`;
+  XLSX.writeFile(wb, fileName);
+
+  alert("Excel dosyası oluşturuldu: " + fileName);
+}
 
 // ================== PALETLEME ==================
 $("refreshPaletBtn")?.addEventListener("click", refreshPaletOrders);
