@@ -1,18 +1,18 @@
 <!DOCTYPE html>
 <html lang="tr">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Admin Paneli - TUĞLUBEY</title>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>⚙️ TUĞLUBEY — Admin Paneli</title>
   <style>
     body{background:#0f172a;color:#e2e8f0;font-family:system-ui,Arial;margin:0;display:flex;flex-direction:column;align-items:center;min-height:100vh}
-    header{background:#111827;width:100%;max-width:1250px;padding:16px 20px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #1e293b;border-radius:0 0 10px 10px}
-    h1{margin:0;font-size:20px;color:#93c5fd}
-    button{background:#3b82f6;color:#fff;border:none;border-radius:6px;padding:8px 12px;margin:4px;cursor:pointer;font-weight:600}
+    header{background:#111827;width:100%;max-width:1350px;padding:16px 20px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #1e293b;border-radius:0 0 10px 10px}
+    h1{margin:0;font-size:22px;color:#93c5fd}
+    button{background:#3b82f6;color:#fff;border:none;border-radius:6px;padding:8px 12px;margin:3px;cursor:pointer;font-weight:600}
     button.danger{background:#ef4444}
     button.success{background:#22c55e}
     button.warn{background:#f59e0b;color:#1f2937}
-    main{width:100%;max-width:1250px;padding:20px}
+    main{width:100%;max-width:1350px;padding:20px}
     table{width:100%;border-collapse:collapse;margin-top:12px;font-size:14px}
     th,td{border-bottom:1px solid #1e293b;padding:8px;text-align:left}
     tr:nth-child(even){background:#1e293b33}
@@ -23,6 +23,10 @@
     .tab{padding:8px 16px;border-radius:6px;background:#1e293b;cursor:pointer}
     .tab.active{background:#2563eb}
     canvas{background:#111827;border-radius:8px;padding:10px;margin-top:15px}
+    h2{margin-top:25px;color:#bae6fd}
+    .card{background:#1e293b;padding:16px;border-radius:8px;margin-top:10px}
+    .row{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:8px}
+    .input{padding:6px 8px;border-radius:6px;border:1px solid #334155;background:#0f172a;color:#fff}
   </style>
 </head>
 
@@ -39,12 +43,14 @@
     <div class="tabs">
       <div class="tab active" data-view="orders">📦 Siparişler</div>
       <div class="tab" data-view="users">👥 Kullanıcılar</div>
-      <div class="tab" data-view="dashboard">📊 Grafikler</div>
+      <div class="tab" data-view="dashboard">📊 Dashboard</div>
+      <div class="tab" data-view="stock">📦 Stok Yönetimi</div>
+      <div class="tab" data-view="products">🗂 Ürünler</div>
       <div class="tab" data-view="logs">🧾 Loglar</div>
       <div class="tab" data-view="scanner">📷 Barkod</div>
     </div>
 
-    <!-- Siparişler -->
+    <!-- 📦 Siparişler -->
     <section id="view-orders">
       <button id="refreshOrdersBtn">Yenile</button>
       <button id="exportOrdersBtn">⬇️ Excel</button>
@@ -54,7 +60,7 @@
       </table>
     </section>
 
-    <!-- Kullanıcılar -->
+    <!-- 👥 Kullanıcılar -->
     <section id="view-users" class="hidden">
       <button id="refreshUsersBtn">Yenile</button>
       <table id="tbl-users">
@@ -63,15 +69,50 @@
       </table>
     </section>
 
-    <!-- Dashboard -->
+    <!-- 📊 Dashboard -->
     <section id="view-dashboard" class="hidden">
-      <h2>📈 Sipariş Durumları</h2>
-      <canvas id="chartStatus" height="180"></canvas>
-      <h2>📅 Günlük Sipariş Sayısı</h2>
-      <canvas id="chartDaily" height="180"></canvas>
+      <div class="row">
+        <div class="card flex-1"><h3>Toplam Sipariş</h3><p id="statTotalOrders">0</p></div>
+        <div class="card flex-1"><h3>Tamamlanan Sipariş</h3><p id="statCompletedOrders">0</p></div>
+        <div class="card flex-1"><h3>Bekleyen Sipariş</h3><p id="statPendingOrders">0</p></div>
+      </div>
+      <canvas id="chartStatus" height="160"></canvas>
+      <canvas id="chartDaily" height="160"></canvas>
     </section>
 
-    <!-- Loglar -->
+    <!-- 📦 Stok Yönetimi -->
+    <section id="view-stock" class="hidden">
+      <h2>📦 Stok Yönetimi</h2>
+      <div class="row">
+        <select id="stockWarehouse">
+          <option value="MERKEZ">MERKEZ</option><option value="KOCAELİ">KOCAELİ</option><option value="ADAPAZARI">ADAPAZARI</option>
+        </select>
+        <input id="stockCode" class="input" placeholder="Ürün Kodu"/>
+        <input id="stockName" class="input" placeholder="Ürün Adı"/>
+        <input id="stockQty" class="input" type="number" placeholder="Miktar"/>
+        <button id="btnStockIn" class="success">Giriş</button>
+        <button id="btnStockOut" class="danger">Çıkış</button>
+      </div>
+      <table id="tbl-stock-manage"><thead><tr><th>Kod</th><th>Ad</th><th>Miktar</th><th>Depo</th></tr></thead><tbody></tbody></table>
+    </section>
+
+    <!-- 🗂 Ürünler -->
+    <section id="view-products" class="hidden">
+      <h2>🗂 Ürün Kataloğu</h2>
+      <div class="card">
+        <h3>Excel’den Ürün Yükle (.xlsx)</h3>
+        <div class="row">
+          <input type="file" id="excelProducts" accept=".xlsx"/>
+          <button id="uploadProductsBtn" class="btn-light">Yükle</button>
+        </div>
+        <p class="muted">Beklenen sütunlar: <b>code, name</b> (opsiyonel: <i>barcode, reyon</i>)</p>
+      </div>
+      <table id="tbl-products">
+        <thead><tr><th>Kod</th><th>Ad</th><th>Barkod</th><th>Reyon</th></tr></thead><tbody></tbody>
+      </table>
+    </section>
+
+    <!-- 🧾 Loglar -->
     <section id="view-logs" class="hidden">
       <button id="refreshLogsBtn">Yenile</button>
       <table id="tbl-logs">
@@ -80,7 +121,7 @@
       </table>
     </section>
 
-    <!-- Barkod -->
+    <!-- 📷 Barkod -->
     <section id="view-scanner" class="hidden">
       <button id="startScanBtn">Başlat</button>
       <button id="stopScanBtn" class="warn">Durdur</button>
@@ -110,11 +151,9 @@
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
     const db = getFirestore(app);
-    let scanner = null;
+    let scanner=null;
 
-    const $ = (id) => document.getElementById(id);
-
-    // 🧭 sekme kontrolü
+    const $=id=>document.getElementById(id);
     document.querySelectorAll(".tab").forEach(tab=>{
       tab.addEventListener("click",()=>{
         document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
@@ -124,32 +163,25 @@
       });
     });
 
-    // 🔐 Giriş kontrolü
-    onAuthStateChanged(auth, async (user)=>{
-      if(!user) return window.location.href="index.html";
-      const u = await getDoc(doc(db,"users",user.uid));
-      if(!u.exists() || u.data().role!=="admin"){alert("Yetkisiz erişim!");return window.location.href="index.html";}
-      $("who").textContent = user.email;
-      loadOrders();
-      loadDashboard();
-      loadLogs();
+    onAuthStateChanged(auth,async(user)=>{
+      if(!user)return window.location.href="index.html";
+      const u=await getDoc(doc(db,"users",user.uid));
+      if(!u.exists()||u.data().role!=="admin"){alert("Yetkisiz erişim!");return window.location.href="index.html";}
+      $("who").textContent=user.email;
+      loadOrders();loadDashboard();loadLogs();
     });
 
     $("logoutBtn").addEventListener("click",async()=>{await signOut(auth);window.location.href="index.html";});
 
     // 📦 Siparişler
     async function loadOrders(){
-      const tbody = $("tbl-orders").querySelector("tbody");
-      tbody.innerHTML="";
-      const q = await getDocs(collection(db,"orders"));
+      const tbody=$("tbl-orders").querySelector("tbody");tbody.innerHTML="";
+      const q=await getDocs(collection(db,"orders"));
       q.forEach(d=>{
         const o={id:d.id,...d.data()};
         const tr=document.createElement("tr");
         tr.innerHTML=`
-          <td>${o.id}</td>
-          <td>${o.name||""}</td>
-          <td>${o.warehouse||"-"}</td>
-          <td>${o.status||"?"}</td>
+          <td>${o.id}</td><td>${o.name||""}</td><td>${o.warehouse||"-"}</td><td>${o.status||"?"}</td>
           <td>${o.lines?o.lines.length:0}</td>
           <td>
             <select id="sel-${o.id}">
@@ -161,14 +193,11 @@
       });
       document.querySelectorAll("button[data-save]").forEach(btn=>{
         btn.addEventListener("click",async()=>{
-          const id = btn.dataset.save;
-          const val = $("sel-"+id).value;
+          const id=btn.dataset.save;
+          const val=$("sel-"+id).value;
           await updateDoc(doc(db,"orders",id),{status:val,lastUpdate:new Date()});
-          await addDoc(collection(db,"logs"),{
-            user:$("who").textContent,action:"Sipariş Durumu",detail:`${id} → ${val}`,createdAt:serverTimestamp()
-          });
-          alert(`Durum ${val} olarak güncellendi`);
-          loadDashboard();
+          await addDoc(collection(db,"logs"),{user:$("who").textContent,action:"Sipariş Durumu",detail:`${id} → ${val}`,createdAt:serverTimestamp()});
+          alert("Durum güncellendi");loadDashboard();
         });
       });
     }
@@ -178,44 +207,34 @@
     $("exportOrdersBtn").addEventListener("click",()=>{
       const data=[["ID","Adı","Depo","Durum","Kalem"]];
       $("tbl-orders").querySelectorAll("tbody tr").forEach(r=>{
-        const cells=[...r.cells].slice(0,5).map(td=>td.innerText);
-        data.push(cells);
+        const cells=[...r.cells].slice(0,5).map(td=>td.innerText);data.push(cells);
       });
-      const ws=XLSX.utils.aoa_to_sheet(data);
-      const wb=XLSX.utils.book_new();
+      const ws=XLSX.utils.aoa_to_sheet(data);const wb=XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb,ws,"Siparişler");
       XLSX.writeFile(wb,`TUGLUBEY_Siparisler_${new Date().toISOString().slice(0,10)}.xlsx`);
     });
 
     // 👥 Kullanıcılar
     async function loadUsers(){
-      const tbody=$("tbl-users").querySelector("tbody");
-      tbody.innerHTML="";
+      const tbody=$("tbl-users").querySelector("tbody");tbody.innerHTML="";
       const q=await getDocs(collection(db,"users"));
       q.forEach(d=>{
         const u={id:d.id,...d.data()};
         const tr=document.createElement("tr");
         tr.innerHTML=`
-          <td>${u.email}</td>
-          <td>${u.role}</td>
-          <td>${u.id}</td>
-          <td>
-            <select id="role-${u.id}">
-              <option>sube</option><option>toplayici</option><option>yonetici</option>
-              <option>qc</option><option>palet</option><option>admin</option>
-            </select>
-          </td>
+          <td>${u.email}</td><td>${u.role}</td><td>${u.id}</td>
+          <td><select id="role-${u.id}">
+            <option>sube</option><option>toplayici</option><option>yonetici</option>
+            <option>qc</option><option>palet</option><option>admin</option>
+          </select></td>
           <td><button data-role="${u.id}" class="success">Kaydet</button></td>`;
         tbody.appendChild(tr);
       });
       document.querySelectorAll("button[data-role]").forEach(b=>{
         b.addEventListener("click",async()=>{
-          const id=b.dataset.role;
-          const val=$("role-"+id).value;
+          const id=b.dataset.role;const val=$("role-"+id).value;
           await updateDoc(doc(db,"users",id),{role:val});
-          await addDoc(collection(db,"logs"),{
-            user:$("who").textContent,action:"Rol Güncelleme",detail:`${id} → ${val}`,createdAt:serverTimestamp()
-          });
+          await addDoc(collection(db,"logs"),{user:$("who").textContent,action:"Rol Güncelleme",detail:`${id} → ${val}`,createdAt:serverTimestamp()});
           alert("Rol güncellendi");
         });
       });
@@ -227,25 +246,24 @@
       const snap=await getDocs(collection(db,"orders"));
       let counts={},daily={};
       snap.forEach(d=>{
-        const o=d.data();
-        counts[o.status]=(counts[o.status]||0)+1;
+        const o=d.data();counts[o.status]=(counts[o.status]||0)+1;
         const date=o.createdAt?.toDate?o.createdAt.toDate().toISOString().slice(0,10):"Bilinmiyor";
         daily[date]=(daily[date]||0)+1;
       });
-      const ctx1=$("chartStatus").getContext("2d");
-      new Chart(ctx1,{type:"pie",data:{labels:Object.keys(counts),datasets:[{data:Object.values(counts),backgroundColor:["#22c55e","#3b82f6","#facc15","#f97316","#ef4444","#a855f7"]}]}});
+      $("statTotalOrders").textContent=snap.size;
+      $("statCompletedOrders").textContent=counts["Tamamlandı"]||0;
+      $("statPendingOrders").textContent=(counts["Yeni"]||0)+(counts["Atandı"]||0);
 
-      const ctx2=$("chartDaily").getContext("2d");
-      const sortedDates=Object.keys(daily).sort();
-      new Chart(ctx2,{type:"bar",data:{labels:sortedDates,datasets:[{label:"Sipariş",data:sortedDates.map(d=>daily[d]),backgroundColor:"#3b82f6"}]}});
+      new Chart($("chartStatus").getContext("2d"),{type:"pie",data:{labels:Object.keys(counts),datasets:[{data:Object.values(counts),backgroundColor:["#22c55e","#3b82f6","#facc15","#f97316","#ef4444","#a855f7"]}]}});
+
+      const sorted=Object.keys(daily).sort();
+      new Chart($("chartDaily").getContext("2d"),{type:"bar",data:{labels:sorted,datasets:[{label:"Sipariş",data:sorted.map(d=>daily[d]),backgroundColor:"#3b82f6"}]}});
     }
 
     // 🧾 Loglar
     async function loadLogs(){
-      const tbody=$("tbl-logs").querySelector("tbody");
-      tbody.innerHTML="";
-      const q=await getDocs(collection(db,"logs"));
-      const logs=[];
+      const tbody=$("tbl-logs").querySelector("tbody");tbody.innerHTML="";
+      const q=await getDocs(collection(db,"logs"));const logs=[];
       q.forEach(d=>logs.push({id:d.id,...d.data()}));
       logs.sort((a,b)=>b.createdAt?.toDate()-a.createdAt?.toDate());
       logs.slice(0,50).forEach(l=>{
@@ -259,17 +277,6 @@
 
     // 📷 Barkod
     $("startScanBtn").addEventListener("click",async()=>{
-      if(scanner)return;
-      $("reader").classList.remove("hidden");
+      if(scanner)return;$("reader").classList.remove("hidden");
       scanner=new Html5Qrcode("reader");
-      await scanner.start({facingMode:"environment"},{fps:10,qrbox:250},code=>{
-        $("scanResult").textContent="Okunan: "+code;
-      });
-    });
-    $("stopScanBtn").addEventListener("click",()=>{
-      if(!scanner)return;
-      scanner.stop().then(()=>{scanner.clear();scanner=null;$("reader").classList.add("hidden");});
-    });
-  </script>
-</body>
-</html>
+      await scanner.start({facingMode:"environment"},{fps:10,qrbox:250
