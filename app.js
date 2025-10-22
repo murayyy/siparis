@@ -578,7 +578,7 @@ window.viewOrderDetails = async function(id) {
     <div style="background:#1e1e2e;color:#fff;padding:20px;border-radius:12px;max-width:700px;width:100%;max-height:80%;overflow:auto;">
       ${html}
       <div style="text-align:right;margin-top:15px;">
-        <button onclick="this.closest('div').parentNode.remove()">Kapat</button>
+       <button onclick="this.closest('.modal-overlay').remove()">Kapat</button>
       </div>
     </div>
   `;
