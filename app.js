@@ -108,10 +108,8 @@ async function listProductsIntoTable() {
       <td>${p.name || ""}</td>
       <td>${p.barcode || ""}</td>
       <td>${p.reyon || ""}</td>
-      <td>${p.birim || ""}</td>
     </tr>
     `;
-    
   });
 }
 async function refreshBranchProductSelect() {
@@ -152,7 +150,6 @@ $("uploadProductsBtn")?.addEventListener("click", async () => {
           name: String(row.name).trim(),
           barcode: row.barcode ? String(row.barcode).trim() : "",
           reyon: row.reyon ? String(row.reyon).trim() : ""
-          birim: row.birim ? String(row.birim).trim() : "" // 👈 eklendi
         });
         count++;
       }
