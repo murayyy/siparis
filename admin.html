@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Depo Otomasyonu</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {
+      background: #0f172a;
+      color: #e2e8f0;
+      font-family: system-ui, Arial;
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    header {
+      width: 100%;
+      max-width: 1200px;
+      background: #111827;
+      padding: 16px 20px;
+      border-radius: 0 0 10px 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 0 12px #0005;
+    }
+    h1 { margin: 0; font-size: 20px; color: #93c5fd; }
+    button {
+      background: #3b82f6;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      padding: 8px 14px;
+      cursor: pointer;
+      font-weight: bold;
+      margin: 3px;
+    }
+    button.success { background: #22c55e; }
+    button.danger { background: #ef4444; }
+    main { width: 100%; max-width: 1200px; padding: 20px; }
+    .card { background: #1e293b; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { border-bottom: 1px solid #334155; padding: 8px; text-align: left; }
+    tr:nth-child(even) { background: #1e293b33; }
+    select, input {
+      background: #0f172a;
+      color: #fff;
+      border: 1px solid #334155;
+      border-radius: 6px;
+      padding: 6px 8px;
+      margin: 3px;
+    }
+    .hidden { display: none !important; }
+    #notif {
+      position: fixed;
+      top: 15px;
+      right: 15px;
+      background: #22c55e;
+      color: white;
+      padding: 10px 15px;
+      border-radius: 8px;
+      font-weight: bold;
+      box-shadow: 0 2px 10px #0005;
+      display: none;
+    }
+  </style>
+</head>
+
+<body>
+  <header>
+    <h1>📦 TUĞLUBEY Depo Otomasyonu</h1>
+    <button id="logoutBtn" class="danger hidden">Çıkış</button>
+  </header>
+  <div id="notif"></div>
+
+  <main>
+    <!-- Giriş -->
+    <section id="view-login">
+      <h2>🔑 Giriş Yap</h2>
+      <input type="email" id="login-email" placeholder="Email"/><br/>
+      <input type="password" id="login-pass" placeholder="Şifre"/><br/>
+      <button id="loginBtn">Giriş</button>
+      <hr/>
+      <h3>🆕 Yeni Kayıt</h3>
+      <input type="email" id="reg-email" placeholder="Email"/><br/>
+      <input type="password" id="reg-pass" placeholder="Şifre"/><br/>
+      <select id="reg-role">
+        <option value="sube">Şube</option>
+        <option value="yonetici">Yönetici</option>
+      </select><br/>
+      <button id="registerBtn">Kayıt Ol</button>
+      <p id="loginStatus" style="color:#38bdf8;"></p>
+    </section>
+
+    <!-- ŞUBE -->
+    <section id="view-branch" class="hidden">
+      <h2>🏪 Şube Siparişi</h2>
+      <div class="card">
+        <label>Depo:</label>
+        <select id="branchWarehouse">
+          <option value="MERKEZ">MERKEZ</option>
+          <option value="ATIŞALANI">ATIŞALANI</option>
+          <option value="YEŞİLPINAR">YEŞİLPINAR</option>
+        </select>
+      </div>
+      <div class="card">
+        <h3>📥 Satır Ekle</h3>
+        <select id="branchProduct"></select>
+        <input id="branchQty" type="number" min="1" value="1" placeholder="Miktar"/>
+        <button id="addLineBtn">Satır Ekle</button>
+        <table id="tbl-branch-lines">
+          <thead><tr><th>#</th><th>Kod</th><th>Ürün</th><th>Miktar</th><th>Sil</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="card">
+        <input id="orderName" placeholder="Sipariş Adı"/>
+        <button id="createOrderBtn" class="success">Siparişi Oluştur</button>
+      </div>
+      <div class="card">
+        <h3>🧾 Siparişlerim</h3>
+        <table id="branchOrders">
+          <thead><tr><th>ID</th><th>Ad</th><th>Durum</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- YÖNETİCİ -->
+    <section id="view-manager" class="hidden">
+      <h2>👨‍💼 Yönetici Paneli</h2>
+      <div class="card">
+        <button id="refreshOrdersAdmin">🔄 Yenile</button>
+        <button id="exportOrdersBtn">⬇️ Excel'e Aktar</button>
+      </div>
+      <div class="card">
+        <table id="tbl-orders">
+          <thead><tr><th>ID</th><th>Ad</th><th>Şube</th><th>Durum</th><th>İşlem</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="card">
+        <h3>📊 Durum Özeti</h3>
+        <p>Yeni: <span id="statYeni">0</span> | Atandı: <span id="statAtandi">0</span> | Tamamlandı: <span id="statBitti">0</span></p>
+        <canvas id="chartOrders" height="100"></canvas>
+      </div>
+    </section>
+  </main>
+
+  <!-- Firebase -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
+    import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
+    import { getFirestore, collection, addDoc, onSnapshot, getDocs, doc, setDoc, getDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+    import * as XLSX from "https://cdn.sheetjs.com/xlsx-0.20.3/package/xlsx.mjs";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDcLQB4UggXlYA9x8AKw-XybJjcF6U_KA4",
+      authDomain: "depo1-4668f.firebaseapp.com",
+      projectId: "depo1-4668f",
+      storageBucket: "depo1-4668f.appspot.com",
+      messagingSenderId: "1044254626353",
+      appId: "1:1044254626353:web:148c57df2456cc3d9e3b10"
+    };
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+    const $ = id => document.getElementById(id);
+
+    let notifTimer;
+    function showNotif(msg, color="#22c55e") {
+      const n=$("notif");
+      n.textContent=msg; n.style.background=color; n.style.display="block";
+      clearTimeout(notifTimer);
+      notifTimer=setTimeout(()=>n.style.display="none",2500);
+    }
+
+    onAuthStateChanged(auth, async (user)=>{
+      if(user){
+        $("logoutBtn").classList.remove("hidden");
+        const snap=await getDoc(doc(db,"users",user.uid));
+        const role=snap.exists()?snap.data().role:"sube";
+        $("view-login").classList.add("hidden");
+        if(role==="sube") $("view-branch").classList.remove("hidden");
+        if(role==="yonetici") $("view-manager").classList.remove("hidden");
+        initRealtime(role);
+      }else{
+        $("view-login").classList.remove("hidden");
+        $("view-branch").classList.add("hidden");
+        $("view-manager").classList.add("hidden");
+        $("logoutBtn").classList.add("hidden");
+      }
+    });
+
+    $("loginBtn").onclick=()=>signInWithEmailAndPassword(auth,$("login-email").value,$("login-pass").value).catch(e=>$("loginStatus").textContent=e.message);
+    $("registerBtn").onclick=async()=>{
+      const cred=await createUserWithEmailAndPassword(auth,$("reg-email").value,$("reg-pass").value);
+      await setDoc(doc(db,"users",cred.user.uid),{email:$("reg-email").value,role:$("reg-role").value});
+      $("loginStatus").textContent="Kayıt başarılı!";
+    };
+    $("logoutBtn").onclick=()=>signOut(auth);
+
+    // ŞUBE: ürün & sipariş oluşturma
+    const lines=[];
+    $("addLineBtn").onclick=()=>{
+      const code=$("branchProduct").value||"Ürün Kodu";
+      const name=$("branchProduct").selectedOptions[0]?.textContent||"Ürün";
+      const qty=+$("branchQty").value||1;
+      lines.push({code,name,qty});
+      renderLines();
+    };
+    function renderLines(){
+      const tb=$("tbl-branch-lines").querySelector("tbody");
+      tb.innerHTML="";
+      lines.forEach((l,i)=>{
+        tb.innerHTML+=`<tr><td>${i+1}</td><td>${l.code}</td><td>${l.name}</td><td>${l.qty}</td><td><button class='danger' onclick='lines.splice(${i},1);renderLines()'>Sil</button></td></tr>`;
+      });
+    }
+    $("createOrderBtn").onclick=async()=>{
+      await addDoc(collection(db,"orders"),{name:$("orderName").value,warehouse:$("branchWarehouse").value,lines,status:"Yeni",createdAt:new Date()});
+      showNotif("Sipariş oluşturuldu!");
+      lines.length=0; renderLines();
+    };
+
+    // YÖNETİCİ: gerçek zamanlı dinleme
+    let chart;
+    function initRealtime(role){
+      if(role==="yonetici"){
+        onSnapshot(collection(db,"orders"),snap=>{
+          const orders=[];
+          snap.forEach(doc=>orders.push({...doc.data(),id:doc.id}));
+          updateManagerTable(orders);
+          updateChart(orders);
+        });
+      }
+      if(role==="sube"){
+        onSnapshot(collection(db,"orders"),snap=>{
+          const tb=$("branchOrders").querySelector("tbody");
+          tb.innerHTML="";
+          snap.forEach(d=>{
+            const o=d.data();
+            tb.innerHTML+=`<tr><td>${d.id}</td><td>${o.name}</td><td>${o.status}</td></tr>`;
+          });
+        });
+      }
+    }
+
+    function updateManagerTable(orders){
+      const tb=$("tbl-orders").querySelector("tbody");
+      tb.innerHTML="";
+      let stats={Yeni:0,Atandı:0,Tamamlandı:0};
+      orders.forEach(o=>{
+        if(stats[o.status]!=null) stats[o.status]++;
+        tb.innerHTML+=`<tr><td>${o.id}</td><td>${o.name}</td><td>${o.warehouse}</td>
+        <td><select id="sel-${o.id}">
+        ${["Yeni","Atandı","Toplama Başladı","Toplandı","Kontrol","Tamamlandı"].map(s=>`<option ${o.status===s?"selected":""}>${s}</option>`).join("")}
+        </select></td>
+        <td><button class='success' data-id='${o.id}'>Kaydet</button></td></tr>`;
+      });
+      $("statYeni").textContent=stats.Yeni;
+      $("statAtandi").textContent=stats.Atandı;
+      $("statBitti").textContent=stats.Tamamlandı;
+
+      document.querySelectorAll("button[data-id]").forEach(b=>{
+        b.onclick=async()=>{
+          const id=b.dataset.id;
+          const val=$("sel-"+id).value;
+          await updateDoc(doc(db,"orders",id),{status:val});
+          showNotif("Durum güncellendi!");
+        };
+      });
+    }
+
+    function updateChart(orders){
+      const counts={Yeni:0,Atandı:0,"Toplama Başladı":0,"Toplandı":0,Kontrol:0,Tamamlandı:0};
+      orders.forEach(o=>counts[o.status]=(counts[o.status]||0)+1);
+      const ctx=$("chartOrders").getContext("2d");
+      if(chart) chart.destroy();
+      chart=new Chart(ctx,{
+        type:"bar",
+        data:{
+          labels:Object.keys(counts),
+          datasets:[{label:"Sipariş Sayısı",data:Object.values(counts),backgroundColor:"#3b82f6"}]
+        },
+        options:{plugins:{legend:{display:false}},scales:{y:{beginAtZero:true}}}
+      });
+    }
+  </script>
+</body>
+</html>
