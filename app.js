@@ -8,7 +8,7 @@ import {
   app, auth, db,
   signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged,
   collection, doc, setDoc, getDoc, getDocs, updateDoc, addDoc,
-  query, where, orderBy, serverTimestamp
+  query, where, orderBy, serverTimestamp, deleteDoc
 } from "./firebase.js";
 
 // Excel (SheetJS)
