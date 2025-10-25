@@ -128,16 +128,30 @@ async function listProductsIntoTable() {
   const tb = document.querySelector("#tbl-products tbody");
   if (!tb) return;
   tb.innerHTML = "";
+
   const snap = await getDocs(collection(db, "products"));
   snap.forEach(d => {
     const p = d.data();
-    tb.innerHTML += `<tr>
-      <td>${p.code || ""}</td>
-      <td>${p.name || ""}</td>
-      <td>${p.barcode || ""}</td>
-      <td>${p.reyon || ""}</td>
-    </tr>
+    tb.innerHTML += `
+      <tr>
+        <td>${p.code || ""}</td>
+        <td>${p.name || ""}</td>
+        <td>${p.barcode || ""}</td>
+        <td>${p.reyon || ""}</td>
+        <td>${p.unit || ""}</td>
+        <td><button class="danger" data-del="${d.id}">Sil</button></td>
+      </tr>
     `;
+  });
+
+  // Silme event'leri
+  tb.querySelectorAll("button[data-del]").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      if (!confirm("Bu ürünü silmek istediğinize emin misiniz?")) return;
+      await deleteDoc(doc(db, "products", btn.dataset.del));
+      alert("Ürün silindi!");
+      await listProductsIntoTable();
+    });
   });
 }
 async function refreshBranchProductSelect() {
@@ -189,6 +203,28 @@ $("uploadProductsBtn")?.addEventListener("click", async () => {
   reader.readAsArrayBuffer(file);
 });
 document.querySelector("button[data-view='view-products']")?.addEventListener("click", listProductsIntoTable);
+$("addProductBtn")?.addEventListener("click", async () => {
+  const code = $("manualCode").value.trim();
+  const name = $("manualName").value.trim();
+  if (!code || !name) return alert("Kod ve ad zorunludur!");
+
+  const data = {
+    code,
+    name,
+    barcode: $("manualBarcode").value.trim() || "",
+    reyon: $("manualReyon").value.trim() || "",
+    unit: $("manualUnit").value.trim() || ""
+  };
+
+  await setDoc(doc(db, "products", code), data);
+  alert("Ürün eklendi!");
+  $("manualCode").value = "";
+  $("manualName").value = "";
+  $("manualBarcode").value = "";
+  $("manualReyon").value = "";
+  $("manualUnit").value = "";
+  await listProductsIntoTable();
+});
 
 // ================== ŞUBE SİPARİŞ ==================
 function renderOrderDraft() {
