@@ -75,49 +75,80 @@
       </div>
     </section>
 
-    <!-- Şube -->
-    <section id="view-branch" class="view hidden">
-      <h2>🏪 Şube Siparişi</h2>
-      <div class="row">
-        <label for="branchWarehouse">Depo:</label>
-        <select id="branchWarehouse">
-          <option value="MERKEZ">MERKEZ</option>
-          <option value="ATIŞALANI">ATIŞALANI</option>
-          <option value="YEŞİLPINAR">YEŞİLPINAR</option>
-          <option value="ALAŞEHİR">ALAŞEHİR</option>
-          <option value="SAKARYA 2">SAKARYA 2</option>
-          <option value="EMEK">EMEK</option>
-        </select>
-      </div>
-      <div class="card">
-        <h3>📥 Satır Ekle</h3>
-        <div class="row">
-          <select id="branchProduct" class="input"></select>
-          <input id="branchQty" class="input" type="number" placeholder="Miktar" min="1" value="1"/>
-          <button id="addLineBtn" class="btn-light">Satır Ekle</button>
-        </div>
-        <div class="card" id="excelUploadCard" style="margin-top:10px; display:none;">
-  <h3>📥 Excel'den Sipariş Yükle (.xlsx)</h3>
-  <input type="file" id="orderExcelFile" accept=".xlsx" />
-  <button id="uploadOrderExcelBtn" class="btn-light">Yükle</button>
-  <p class="text-small text-gray">Beklenen sütunlar: <b>code</b>, <b>qty</b> (opsiyonel: <i>description</i>)</p>
-</div>
+  <!-- Şube -->
+<section id="view-branch" class="view hidden">
+  <h2>🏪 Şube Siparişi</h2>
 
-        <table id="tbl-branch-lines">
-          <thead><tr><th>#</th><th>Kod</th><th>Ürün</th><th>Miktar</th><th>Barkod</th><th>Reyon</th><th>Sil</th></tr></thead>
-          <tbody></tbody>
-        </table>
-      </div>
-      <div class="row">
-        <input id="orderName" class="input" placeholder="Sipariş Adı"/>
-        <button id="createOrderBtn" class="success">Siparişi Oluştur</button>
-      </div>
-      <h3>🧾 Siparişlerim</h3>
-      <table id="branchOrders">
-        <thead><tr><th>ID</th><th>Ad</th><th>Depo</th><th>Durum</th></tr></thead>
-        <tbody></tbody>
-      </table>
-    </section>
+  <div class="row">
+    <label for="branchWarehouse">Depo:</label>
+    <select id="branchWarehouse">
+      <option value="">Seçiniz</option>
+      <option value="MERKEZ">MERKEZ</option>
+      <option value="ATIŞALANI">ATIŞALANI</option>
+      <option value="YEŞİLPINAR">YEŞİLPINAR</option>
+      <option value="ALAŞEHİR">ALAŞEHİR</option>
+      <option value="SAKARYA 2">SAKARYA 2</option>
+      <option value="EMEK">EMEK</option>
+    </select>
+  </div>
+
+  <!-- Satır Ekle -->
+  <div class="card">
+    <h3>📥 Satır Ekle</h3>
+    <div class="row">
+      <select id="branchProduct" class="input"></select>
+      <input id="branchQty" class="input" type="number" placeholder="Miktar" min="1" value="1"/>
+      <button id="addLineBtn" class="btn-light">Satır Ekle</button>
+    </div>
+    <table id="tbl-branch-lines">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Kod</th>
+          <th>Ürün</th>
+          <th>Miktar</th>
+          <th>Barkod</th>
+          <th>Reyon</th>
+          <th>Sil</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <!-- Excel'den Sipariş Yükle -->
+  <div class="card" id="excelUploadCard" style="margin-top:10px; display:none;">
+    <h3>📄 Excel'den Sipariş Yükle (.xlsx)</h3>
+    <div class="row" style="gap:6px;">
+      <input type="file" id="orderExcelFile" accept=".xlsx" class="input"/>
+      <button id="uploadOrderExcelBtn" class="btn-light">Yükle</button>
+    </div>
+    <p class="muted" style="font-size:13px;">
+      Beklenen sütunlar: <b>code</b>, <b>qty</b> (opsiyonel: <i>description</i>)
+    </p>
+  </div>
+
+  <!-- Sipariş Oluştur -->
+  <div class="row">
+    <input id="orderName" class="input" placeholder="Sipariş Adı"/>
+    <button id="createOrderBtn" class="success">Siparişi Oluştur</button>
+  </div>
+
+  <!-- Siparişlerim -->
+  <h3>🧾 Siparişlerim</h3>
+  <table id="branchOrders">
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Ad</th>
+        <th>Depo</th>
+        <th>Durum</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+</section>
+
 
     <!-- Yönetici -->
     <section id="view-manager" class="view hidden">
