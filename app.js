@@ -305,6 +305,47 @@ document.querySelector("button[data-view='view-branch']")?.addEventListener("cli
   await refreshBranchProductSelect();
   await loadBranchOrders();
 });
+// ================== EXCEL'DEN SİPARİŞ YÜKLEME ==================
+$("uploadOrderExcelBtn")?.addEventListener("click", async () => {
+  const fileInput = $("orderExcelFile");
+  const file = fileInput.files[0];
+  if (!file) return alert("Lütfen bir Excel dosyası seçin.");
+
+  const branchSelect = document.querySelector("#branch-depo");
+  const selectedBranch = branchSelect?.value || "";
+  if (!selectedBranch) return alert("Lütfen önce bir depo (şube) seçin.");
+
+  const data = await file.arrayBuffer();
+  const workbook = XLSX.read(data);
+  const sheet = workbook.Sheets[workbook.SheetNames[0]];
+  const rows = XLSX.utils.sheet_to_json(sheet);
+
+  if (!rows.length) return alert("Excel dosyası boş görünüyor!");
+
+  rows.forEach((row, i) => {
+    const code = String(row.code || "").trim();
+    const qty = Number(row.qty || 0);
+    const desc = row.description || "";
+
+    if (!code || !qty) return;
+
+    const prod = productList.find(p => p.code === code);
+    if (!prod) return console.warn(`Kod bulunamadı: ${code}`);
+
+    addBranchOrderRow({
+      code: prod.code,
+      name: prod.name,
+      qty,
+      barcode: prod.barcode || "",
+      reyon: prod.reyon || "",
+      description: desc
+    });
+  });
+
+  alert(`${rows.length} satır Excel'den eklendi.`);
+  fileInput.value = "";
+});
+
 
 // ================== STOK AZALTMA ==================
 async function decreaseStock(code, qty, warehouse) {
