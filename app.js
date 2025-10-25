@@ -252,6 +252,7 @@ function renderOrderDraft() {
     });
   });
 }
+
 $("addLineBtn")?.addEventListener("click", () => {
   const sel = $("branchProduct");
   const qty = parseInt($("branchQty").value, 10) || 0;
@@ -269,19 +270,26 @@ $("addLineBtn")?.addEventListener("click", () => {
   if (existing) existing.qty += qty; else orderDraft.push(line);
   renderOrderDraft();
 });
+
 $("createOrderBtn")?.addEventListener("click", async () => {
   const name = $("orderName").value.trim();
   const warehouse = $("branchWarehouse").value;
   if (!name) return alert("Sipariş adı gir!");
   if (orderDraft.length === 0) return alert("Sipariş satırı ekleyin!");
   await addDoc(collection(db, "orders"), {
-    name, warehouse, status: "Yeni",
+    name,
+    warehouse,
+    status: "Yeni",
     createdBy: currentUser.uid,
     createdAt: serverTimestamp(),
     lines: orderDraft.map(l => ({
-      code: l.code, name: l.name, qty: l.qty,
-      barcode: l.barcode || "", reyon: l.reyon || "",
-      picked: 0, qc: 0
+      code: l.code,
+      name: l.name,
+      qty: l.qty,
+      barcode: l.barcode || "",
+      reyon: l.reyon || "",
+      picked: 0,
+      qc: 0
     }))
   });
   alert("Sipariş oluşturuldu!");
@@ -290,6 +298,7 @@ $("createOrderBtn")?.addEventListener("click", async () => {
   $("orderName").value = "";
   await loadBranchOrders();
 });
+
 async function loadBranchOrders() {
   const qy = query(collection(db, "orders"), where("createdBy", "==", currentUser.uid));
   const snap = await getDocs(qy);
@@ -298,54 +307,74 @@ async function loadBranchOrders() {
   tbody.innerHTML = "";
   snap.forEach(docu => {
     const d = docu.data();
-    tbody.innerHTML += `<tr><td>${docu.id}</td><td>${d.name}</td><td>${d.warehouse || "-"}</td><td>${d.status}</td></tr>`;
+    tbody.innerHTML += `<tr>
+      <td>${docu.id}</td>
+      <td>${d.name}</td>
+      <td>${d.warehouse || "-"}</td>
+      <td>${d.status}</td>
+    </tr>`;
   });
 }
+
 document.querySelector("button[data-view='view-branch']")?.addEventListener("click", async () => {
   await refreshBranchProductSelect();
   await loadBranchOrders();
 });
+
 // ================== EXCEL'DEN SİPARİŞ YÜKLEME ==================
 $("uploadOrderExcelBtn")?.addEventListener("click", async () => {
   const fileInput = $("orderExcelFile");
   const file = fileInput.files[0];
   if (!file) return alert("Lütfen bir Excel dosyası seçin.");
 
-  const branchSelect = document.querySelector("#branch-depo");
+  const branchSelect = $("branchWarehouse");
   const selectedBranch = branchSelect?.value || "";
   if (!selectedBranch) return alert("Lütfen önce bir depo (şube) seçin.");
 
-  const data = await file.arrayBuffer();
-  const workbook = XLSX.read(data);
-  const sheet = workbook.Sheets[workbook.SheetNames[0]];
-  const rows = XLSX.utils.sheet_to_json(sheet);
+  try {
+    const data = await file.arrayBuffer();
+    const workbook = XLSX.read(data);
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(sheet);
 
-  if (!rows.length) return alert("Excel dosyası boş görünüyor!");
+    if (!rows.length) return alert("Excel dosyası boş görünüyor!");
 
-  rows.forEach((row, i) => {
-    const code = String(row.code || "").trim();
-    const qty = Number(row.qty || 0);
-    const desc = row.description || "";
+    let added = 0;
+    rows.forEach((row, i) => {
+      const code = String(row.code || "").trim();
+      const qty = Number(row.qty || 0);
+      const desc = row.description || "";
 
-    if (!code || !qty) return;
+      if (!code || !qty) return;
+      const prod = productList.find(p => p.code === code);
+      if (!prod) {
+        console.warn(`Kod bulunamadı: ${code}`);
+        return;
+      }
 
-    const prod = productList.find(p => p.code === code);
-    if (!prod) return console.warn(`Kod bulunamadı: ${code}`);
+      const line = {
+        code: prod.code,
+        name: prod.name,
+        qty,
+        barcode: prod.barcode || "",
+        reyon: prod.reyon || "",
+        description: desc
+      };
 
-    addBranchOrderRow({
-      code: prod.code,
-      name: prod.name,
-      qty,
-      barcode: prod.barcode || "",
-      reyon: prod.reyon || "",
-      description: desc
+      const existing = orderDraft.find(x => x.code === line.code);
+      if (existing) existing.qty += qty; else orderDraft.push(line);
+      added++;
     });
-  });
 
-  alert(`${rows.length} satır Excel'den eklendi.`);
+    renderOrderDraft();
+    alert(`${added} satır Excel'den eklendi.`);
+  } catch (err) {
+    console.error(err);
+    alert("Excel dosyası okunamadı!");
+  }
+
   fileInput.value = "";
 });
-
 
 // ================== STOK AZALTMA ==================
 async function decreaseStock(code, qty, warehouse) {
