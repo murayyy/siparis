@@ -75,25 +75,53 @@ onAuthStateChanged(auth, async (user) => {
     showView("view-login");
     return;
   }
+
   currentUser = user;
   $("logoutBtn")?.classList.remove("hidden");
-  document.querySelector("header nav").classList.remove("hidden");
+  const nav = document.querySelector("header nav");
+  nav.classList.remove("hidden");
 
-  // rol
+  // Kullanıcı rolünü al
   let role = "sube";
   try {
     const udoc = await getDoc(doc(db, "users", user.uid));
     if (udoc.exists() && udoc.data().role) role = udoc.data().role;
   } catch {}
 
-  if (role === "sube") showView("view-branch");
-  else if (role === "yonetici") showView("view-manager");
-  else if (role === "toplayici") { showView("view-picker"); refreshAssigned(); }
-  else if (role === "qc") showView("view-qc");
-  else if (role === "palet") showView("view-palet");
-  else if (role === "admin") showView("view-products");
-  else showView("view-branch");
+  // Tüm butonları gizle
+  nav.querySelectorAll("button[data-role]").forEach(btn => btn.classList.add("hidden"));
+
+  // Role göre menüyü aç
+  if (role === "sube") {
+    nav.querySelectorAll("button[data-role='sube']").forEach(btn => btn.classList.remove("hidden"));
+    showView("view-branch");
+  } 
+  else if (role === "yonetici") {
+    nav.querySelectorAll("button[data-role='yonetici']").forEach(btn => btn.classList.remove("hidden"));
+    showView("view-manager");
+  } 
+  else if (role === "toplayici") {
+    nav.querySelectorAll("button[data-role='toplayici']").forEach(btn => btn.classList.remove("hidden"));
+    showView("view-picker");
+    refreshAssigned();
+  } 
+  else if (role === "qc") {
+    nav.querySelectorAll("button[data-role='qc']").forEach(btn => btn.classList.remove("hidden"));
+    showView("view-qc");
+  } 
+  else if (role === "palet") {
+    nav.querySelectorAll("button[data-role='palet']").forEach(btn => btn.classList.remove("hidden"));
+    showView("view-palet");
+  } 
+  else if (role === "admin") {
+    nav.querySelectorAll("button[data-role]").forEach(btn => btn.classList.remove("hidden"));
+    showView("view-dashboard");
+  } 
+  else {
+    showView("view-branch");
+  }
 });
+
 
 // ================== ÜRÜN KATALOĞU ==================
 async function listProductsIntoTable() {
