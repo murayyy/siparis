@@ -96,6 +96,13 @@
           <input id="branchQty" class="input" type="number" placeholder="Miktar" min="1" value="1"/>
           <button id="addLineBtn" class="btn-light">Satır Ekle</button>
         </div>
+        <div class="card" id="excelUploadCard" style="margin-top:10px; display:none;">
+  <h3>📥 Excel'den Sipariş Yükle (.xlsx)</h3>
+  <input type="file" id="orderExcelFile" accept=".xlsx" />
+  <button id="uploadOrderExcelBtn" class="btn-light">Yükle</button>
+  <p class="text-small text-gray">Beklenen sütunlar: <b>code</b>, <b>qty</b> (opsiyonel: <i>description</i>)</p>
+</div>
+
         <table id="tbl-branch-lines">
           <thead><tr><th>#</th><th>Kod</th><th>Ürün</th><th>Miktar</th><th>Barkod</th><th>Reyon</th><th>Sil</th></tr></thead>
           <tbody></tbody>
