@@ -145,7 +145,6 @@ async function listProductsIntoTable() {
   });
 
   // Silme event'leri
- / Silme event'leri
 tb.querySelectorAll("button[data-del]").forEach(btn => {
   btn.addEventListener("click", async () => {
     const id = btn.dataset.del; // doc id (sende code ile aynı)
