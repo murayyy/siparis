@@ -29,5 +29,5 @@ export {
   app, auth, db,
   signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged,
   collection, doc, setDoc, getDoc, getDocs, updateDoc, addDoc,
-  query, where, orderBy, serverTimestamp, deleteDoc
+  query, where, orderBy, serverTimestamp
 };
