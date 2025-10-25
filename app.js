@@ -145,15 +145,29 @@ async function listProductsIntoTable() {
   });
 
   // Silme event'leri
-  tb.querySelectorAll("button[data-del]").forEach(btn => {
-    btn.addEventListener("click", async () => {
-      if (!confirm("Bu ürünü silmek istediğinize emin misiniz?")) return;
-      await deleteDoc(doc(db, "products", btn.dataset.del));
-      alert("Ürün silindi!");
-      await listProductsIntoTable();
-    });
+ / Silme event'leri
+tb.querySelectorAll("button[data-del]").forEach(btn => {
+  btn.addEventListener("click", async () => {
+    const id = btn.dataset.del; // doc id (sende code ile aynı)
+    if (!id) return;
+
+    if (!confirm(`"${id}" ürününü silmek istediğine emin misin?`)) return;
+
+    // UI'ı kilitle (çift tıklama olmasın)
+    btn.disabled = true;
+
+    try {
+      await deleteDoc(doc(db, "products", id));
+      // Optimistic UI: satırı hemen kaldır
+      btn.closest("tr")?.remove();
+      // İstersen tam yenile:
+      // await listProductsIntoTable();
+    } catch (err) {
+      alert("Silme hatası: " + (err?.message || err));
+      btn.disabled = false;
+    }
   });
-}
+});
 async function refreshBranchProductSelect() {
   const sel = $("branchProduct");
   if (!sel) return;
