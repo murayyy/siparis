@@ -997,6 +997,66 @@ setInterval(() => {
   const v = document.getElementById("view-dashboard");
   if (v && !v.classList.contains("hidden")) loadDashboard();
 }, 5000);
+// ================== DASHBOARD ==================
+async function loadDashboardStats() {
+  const snap = await getDocs(collection(db, "orders"));
+  let total = 0, completed = 0, pending = 0, missing = 0;
+  let pickerTimes = [], qcTimes = [];
+  let pickerMap = {}, qcMap = {};
+
+  snap.forEach(docu => {
+    const d = docu.data();
+    total++;
+    if (d.status === "Tamamlandı") completed++;
+    else pending++;
+
+    if (d.missingCount && d.missingCount > 0) missing++;
+
+    if (d.pickerStart && d.pickerEnd) {
+      const diff = (d.pickerEnd.toDate() - d.pickerStart.toDate()) / 60000;
+      pickerTimes.push(diff);
+      if (!pickerMap[d.assignedTo]) pickerMap[d.assignedTo] = [];
+      pickerMap[d.assignedTo].push(diff);
+    }
+
+    if (d.qcStart && d.qcEnd) {
+      const diff = (d.qcEnd.toDate() - d.qcStart.toDate()) / 60000;
+      qcTimes.push(diff);
+      if (!qcMap[d.qcBy]) qcMap[d.qcBy] = [];
+      qcMap[d.qcBy].push(diff);
+    }
+  });
+
+  const avgPicker = pickerTimes.length ? (pickerTimes.reduce((a,b)=>a+b,0)/pickerTimes.length).toFixed(1) : 0;
+  const avgQC = qcTimes.length ? (qcTimes.reduce((a,b)=>a+b,0)/qcTimes.length).toFixed(1) : 0;
+
+  $("statTotalOrders").textContent = total;
+  $("statCompletedOrders").textContent = completed;
+  $("statPendingOrders").textContent = pending;
+  $("statMissingOrders").textContent = missing;
+  $("statPickerAvg").textContent = avgPicker + " dk";
+  $("statQcAvg").textContent = avgQC + " dk";
+
+  renderPerformanceTables(pickerMap, qcMap);
+}
+
+function renderPerformanceTables(pickerMap, qcMap) {
+  const tb1 = $("tblPickerPerf").querySelector("tbody");
+  tb1.innerHTML = Object.keys(pickerMap).map(u => {
+    const times = pickerMap[u];
+    const avg = (times.reduce((a,b)=>a+b,0)/times.length).toFixed(1);
+    return `<tr><td>${u}</td><td>${avg}</td><td>${times.length}</td></tr>`;
+  }).join("");
+
+  const tb2 = $("tblQcPerf").querySelector("tbody");
+  tb2.innerHTML = Object.keys(qcMap).map(u => {
+    const times = qcMap[u];
+    const avg = (times.reduce((a,b)=>a+b,0)/times.length).toFixed(1);
+    return `<tr><td>${u}</td><td>${avg}</td><td>${times.length}</td></tr>`;
+  }).join("");
+}
+
+document.querySelector("button[data-view='view-dashboard']")?.addEventListener("click", loadDashboardStats);
 
 // ================== STOK YÖNETİMİ ==================
 document.querySelector("button[data-view='view-stock']")?.addEventListener("click", loadStockManage);
