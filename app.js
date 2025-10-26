@@ -603,12 +603,9 @@ async function manualAdd() {
 async function savePickProgress() {
   if (!pickerOrder) return alert("Önce bir sipariş açın!");
  await updateDoc(doc(db, "orders", pickerOrder.id), {
-  lines: pickerOrder.lines,
-  status: "Toplama Başladı",
-  pickerStart: new Date(),
- assignedTo: (currentUser && (currentUser.email || currentUser.displayName || currentUser.uid)) || "bilinmiyor",
-  lastUpdate: new Date()
+  lines: pickerOrder.lines, status: "Toplama Başladı", lastUpdate: new Date()
 });
+
   alert("Toplama durumu kaydedildi.");
 }
 async function finishPick() {
@@ -617,12 +614,7 @@ async function finishPick() {
     const used = Math.min(toNum(l.picked) || 0, toNum(l.qty) || 0);
     if (used > 0) await decreaseStock(l.code, used, pickerOrder.warehouse);
   }
-await updateDoc(doc(db, "orders", pickerOrder.id), {
-  lines: pickerOrder.lines,
-  status: "Toplandı",
-  pickerEnd: new Date(),
-  lastUpdate: new Date()
-});
+await updateDoc(doc(db, "orders", pickerOrder.id), { lines: pickerOrder.lines, status: "Toplandı" });
 
   alert("Toplama tamamlandı!");
 }
