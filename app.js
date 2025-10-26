@@ -1,4 +1,4 @@
-// Menü Toggle (mobil)
+// ================= MENU TOGGLE =================
 document.getElementById("menuToggle")?.addEventListener("click", () => {
   document.getElementById("mainNav")?.classList.toggle("show");
 });
@@ -7,25 +7,26 @@ document.getElementById("menuToggle")?.addEventListener("click", () => {
 import { 
   app, auth, db,
   signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged,
-  collection, doc, setDoc, getDoc, getDocs, updateDoc, addDoc,
+  collection, doc, setDoc, getDoc, getDocs, updateDoc, addDoc, deleteDoc,
   query, where, orderBy, serverTimestamp
 } from "./firebase.js";
 
 // Excel (SheetJS)
 import * as XLSX from "https://cdn.sheetjs.com/xlsx-0.19.3/package/xlsx.mjs";
 
-// ================== GLOBAL ==================
+// ================= GLOBAL =================
 let currentUser = null;
-let scanner = null;      // picker
-let qcScanner = null;    // qc
-let countScanner = null; // count
-let orderDraft = [];     // şube sipariş satırları
+let scanner = null;
+let qcScanner = null;
+let countScanner = null;
+let orderDraft = [];
 let pickerOrder = null;
 let qcOrder = null;
 let paletOrder = null;
-let countSession = [];   // sayım satırları
+let countSession = [];
+let productList = []; // 🔧 Eksik tanım eklendi
 
-// ================== HELPERS ==================
+// ================= HELPERS =================
 const $ = (id) => document.getElementById(id);
 const toNum = (v) => {
   if (v === "" || v == null) return 0;
@@ -34,16 +35,16 @@ const toNum = (v) => {
 };
 const clamp = (v, min, max) => Math.min(Math.max(v, min), max);
 
-// ================== VIEW DEĞİŞTİR ==================
+// ================= VIEW DEĞİŞTİR =================
 function showView(id) {
   document.querySelectorAll(".view").forEach(v => v.classList.add("hidden"));
-  document.getElementById(id).classList.remove("hidden");
+  document.getElementById(id)?.classList.remove("hidden");
 }
 document.querySelectorAll("nav button[data-view], section#view-manager button[data-view]").forEach(btn => {
   btn.addEventListener("click", () => showView(btn.dataset.view));
 });
 
-// ================== AUTH ==================
+// ================= AUTH =================
 $("loginBtn")?.addEventListener("click", async () => {
   const email = $("login-email").value;
   const pass = $("login-pass").value;
@@ -58,9 +59,7 @@ $("registerBtn")?.addEventListener("click", async () => {
   const role = $("reg-role").value;
   try {
     const userCred = await createUserWithEmailAndPassword(auth, email, pass);
-    await setDoc(doc(db, "users", userCred.user.uid), {
-      email, role, createdAt: new Date()
-    });
+    await setDoc(doc(db, "users", userCred.user.uid), { email, role, createdAt: new Date() });
     alert("Kayıt başarılı!");
   } catch (err) { alert("Kayıt hatası: " + err.message); }
 });
@@ -81,17 +80,14 @@ onAuthStateChanged(auth, async (user) => {
   const nav = document.querySelector("header nav");
   nav.classList.remove("hidden");
 
-  // Kullanıcı rolünü al
   let role = "sube";
   try {
     const udoc = await getDoc(doc(db, "users", user.uid));
     if (udoc.exists() && udoc.data().role) role = udoc.data().role;
   } catch {}
 
-  // Tüm butonları gizle
   nav.querySelectorAll("button[data-role]").forEach(btn => btn.classList.add("hidden"));
 
-  // Role göre menüyü aç
   if (role === "sube") {
     nav.querySelectorAll("button[data-role='sube']").forEach(btn => btn.classList.remove("hidden"));
     showView("view-branch");
@@ -122,13 +118,11 @@ onAuthStateChanged(auth, async (user) => {
   }
 });
 
-
-// ================== ÜRÜN KATALOĞU ==================
+// ================= ÜRÜN KATALOĞU =================
 async function listProductsIntoTable() {
   const tb = document.querySelector("#tbl-products tbody");
   if (!tb) return;
   tb.innerHTML = "";
-
   const snap = await getDocs(collection(db, "products"));
   snap.forEach(d => {
     const p = d.data();
@@ -140,21 +134,20 @@ async function listProductsIntoTable() {
         <td>${p.reyon || ""}</td>
         <td>${p.unit || ""}</td>
         <td><button class="danger" data-del="${d.id}">Sil</button></td>
-      </tr>
-    `;
+      </tr>`;
   });
-
-  // Silme event'leri
   tb.querySelectorAll("button[data-del]").forEach(btn => {
     btn.addEventListener("click", async () => {
-      if (!confirm("Bu ürünü silmek istediğinize emin misiniz?")) return;
+      if (!confirm("Bu ürünü silmek istiyor musunuz?")) return;
       await deleteDoc(doc(db, "products", btn.dataset.del));
       alert("Ürün silindi!");
       await listProductsIntoTable();
     });
   });
 }
+
 async function refreshBranchProductSelect() {
+  productList = [];
   const sel = $("branchProduct");
   if (!sel) return;
   sel.innerHTML = "";
@@ -165,6 +158,7 @@ async function refreshBranchProductSelect() {
   sel.appendChild(def);
   snap.forEach(d => {
     const p = d.data();
+    productList.push(p);
     const opt = document.createElement("option");
     opt.value = p.code;
     opt.textContent = `${p.code} — ${p.name}`;
@@ -174,6 +168,7 @@ async function refreshBranchProductSelect() {
     sel.appendChild(opt);
   });
 }
+
 $("uploadProductsBtn")?.addEventListener("click", async () => {
   const file = $("excelProducts").files?.[0];
   if (!file) return alert("Excel dosyası seç!");
@@ -188,8 +183,7 @@ $("uploadProductsBtn")?.addEventListener("click", async () => {
         if (!row.code || !row.name) continue;
         const code = String(row.code).trim();
         await setDoc(doc(db, "products", code), {
-          code,
-          name: String(row.name).trim(),
+          code, name: String(row.name).trim(),
           barcode: row.barcode ? String(row.barcode).trim() : "",
           reyon: row.reyon ? String(row.reyon).trim() : ""
         });
@@ -203,30 +197,8 @@ $("uploadProductsBtn")?.addEventListener("click", async () => {
   reader.readAsArrayBuffer(file);
 });
 document.querySelector("button[data-view='view-products']")?.addEventListener("click", listProductsIntoTable);
-$("addProductBtn")?.addEventListener("click", async () => {
-  const code = $("manualCode").value.trim();
-  const name = $("manualName").value.trim();
-  if (!code || !name) return alert("Kod ve ad zorunludur!");
 
-  const data = {
-    code,
-    name,
-    barcode: $("manualBarcode").value.trim() || "",
-    reyon: $("manualReyon").value.trim() || "",
-    unit: $("manualUnit").value.trim() || ""
-  };
-
-  await setDoc(doc(db, "products", code), data);
-  alert("Ürün eklendi!");
-  $("manualCode").value = "";
-  $("manualName").value = "";
-  $("manualBarcode").value = "";
-  $("manualReyon").value = "";
-  $("manualUnit").value = "";
-  await listProductsIntoTable();
-});
-
-// ================== ŞUBE SİPARİŞ ==================
+// ================= ŞUBE SİPARİŞ =================
 function renderOrderDraft() {
   const tb = document.querySelector("#tbl-branch-lines tbody");
   if (!tb) return;
@@ -239,13 +211,12 @@ function renderOrderDraft() {
       <td>${l.qty}</td>
       <td>${l.barcode || ""}</td>
       <td>${l.reyon || ""}</td>
-      <td><button class="danger" data-del="${i}">Sil</button></td>
-    </tr>`;
+      <td><button class="danger" data-del="${i}">Sil</button></td></tr>`;
   });
   tb.querySelectorAll("button[data-del]").forEach(btn => {
     btn.addEventListener("click", () => {
       const idx = parseInt(btn.dataset.del, 10);
-      if (confirm("Bu satırı silmek istediğinize emin misiniz?")) {
+      if (confirm("Bu satırı silmek istiyor musunuz?")) {
         orderDraft.splice(idx, 1);
         renderOrderDraft();
       }
@@ -253,6 +224,39 @@ function renderOrderDraft() {
   });
 }
 
+$("uploadOrderExcelBtn")?.addEventListener("click", async () => {
+  await refreshBranchProductSelect();
+  const fileInput = $("orderExcelFile");
+  const file = fileInput.files[0];
+  if (!file) return alert("Lütfen bir Excel dosyası seçin.");
+  const selectedBranch = $("branchWarehouse")?.value || "";
+  if (!selectedBranch) return alert("Depo (şube) seçin!");
+
+  try {
+    const data = await file.arrayBuffer();
+    const wb = XLSX.read(data);
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
+    if (!rows.length) return alert("Excel dosyası boş görünüyor!");
+    let added = 0;
+    rows.forEach((row) => {
+      const code = String(row.code || "").trim();
+      const qty = Number(row.qty || 0);
+      if (!code || !qty) return;
+      const prod = productList.find(p => p.code === code);
+      if (!prod) return console.warn(`Kod bulunamadı: ${code}`);
+      const line = { ...prod, qty };
+      const existing = orderDraft.find(x => x.code === line.code);
+      if (existing) existing.qty += qty; else orderDraft.push(line);
+      added++;
+    });
+    renderOrderDraft();
+    alert(`${added} satır eklendi.`);
+  } catch (e) {
+    alert("Excel okunamadı: " + e.message);
+  }
+  fileInput.value = "";
+});
+// ================== SİPARİŞ OLUŞTUR ==================
 $("addLineBtn")?.addEventListener("click", () => {
   const sel = $("branchProduct");
   const qty = parseInt($("branchQty").value, 10) || 0;
@@ -277,19 +281,13 @@ $("createOrderBtn")?.addEventListener("click", async () => {
   if (!name) return alert("Sipariş adı gir!");
   if (orderDraft.length === 0) return alert("Sipariş satırı ekleyin!");
   await addDoc(collection(db, "orders"), {
-    name,
-    warehouse,
-    status: "Yeni",
+    name, warehouse, status: "Yeni",
     createdBy: currentUser.uid,
     createdAt: serverTimestamp(),
     lines: orderDraft.map(l => ({
-      code: l.code,
-      name: l.name,
-      qty: l.qty,
-      barcode: l.barcode || "",
-      reyon: l.reyon || "",
-      picked: 0,
-      qc: 0
+      code: l.code, name: l.name, qty: l.qty,
+      barcode: l.barcode || "", reyon: l.reyon || "",
+      picked: 0, qc: 0
     }))
   });
   alert("Sipariş oluşturuldu!");
@@ -308,11 +306,7 @@ async function loadBranchOrders() {
   snap.forEach(docu => {
     const d = docu.data();
     tbody.innerHTML += `<tr>
-      <td>${docu.id}</td>
-      <td>${d.name}</td>
-      <td>${d.warehouse || "-"}</td>
-      <td>${d.status}</td>
-    </tr>`;
+      <td>${docu.id}</td><td>${d.name}</td><td>${d.warehouse || "-"}</td><td>${d.status}</td></tr>`;
   });
 }
 
@@ -320,75 +314,6 @@ document.querySelector("button[data-view='view-branch']")?.addEventListener("cli
   await refreshBranchProductSelect();
   await loadBranchOrders();
 });
-
-// ================== EXCEL'DEN SİPARİŞ YÜKLEME ==================
-$("uploadOrderExcelBtn")?.addEventListener("click", async () => {
-  const fileInput = $("orderExcelFile");
-  const file = fileInput.files[0];
-  if (!file) return alert("Lütfen bir Excel dosyası seçin.");
-
-  const branchSelect = $("branchWarehouse");
-  const selectedBranch = branchSelect?.value || "";
-  if (!selectedBranch) return alert("Lütfen önce bir depo (şube) seçin.");
-
-  try {
-    const data = await file.arrayBuffer();
-    const workbook = XLSX.read(data);
-    const sheet = workbook.Sheets[workbook.SheetNames[0]];
-    const rows = XLSX.utils.sheet_to_json(sheet);
-
-    if (!rows.length) return alert("Excel dosyası boş görünüyor!");
-
-    let added = 0;
-    rows.forEach((row, i) => {
-      const code = String(row.code || "").trim();
-      const qty = Number(row.qty || 0);
-      const desc = row.description || "";
-
-      if (!code || !qty) return;
-      const prod = productList.find(p => p.code === code);
-      if (!prod) {
-        console.warn(`Kod bulunamadı: ${code}`);
-        return;
-      }
-
-      const line = {
-        code: prod.code,
-        name: prod.name,
-        qty,
-        barcode: prod.barcode || "",
-        reyon: prod.reyon || "",
-        description: desc
-      };
-
-      const existing = orderDraft.find(x => x.code === line.code);
-      if (existing) existing.qty += qty; else orderDraft.push(line);
-      added++;
-    });
-
-    renderOrderDraft();
-    alert(`${added} satır Excel'den eklendi.`);
-  } catch (err) {
-    console.error(err);
-    alert("Excel dosyası okunamadı!");
-  }
-
-  fileInput.value = "";
-});
-
-// ================== STOK AZALTMA ==================
-async function decreaseStock(code, qty, warehouse) {
-  const ref = doc(db, "stocks", `${warehouse}_${code}`);
-  const snap = await getDoc(ref);
-  if (snap.exists()) {
-    let newQty = (toNum(snap.data().qty) || 0) - toNum(qty);
-    if (newQty < 0) newQty = 0;
-    await updateDoc(ref, { qty: newQty });
-    if (newQty < 5) alert(`⚠️ Dikkat! ${warehouse}/${code} stoğu kritik (${newQty})`);
-  } else {
-    alert(`Stok bulunamadı: ${warehouse} - ${code}`);
-  }
-}
 
 // ================== TOPLAYICI ==================
 $("refreshAssignedBtn")?.addEventListener("click", refreshAssigned);
@@ -412,6 +337,7 @@ async function refreshAssigned() {
     sel.appendChild(opt);
   });
 }
+
 async function openAssigned() {
   const id = $("assignedOrders").value;
   if (!id) return;
@@ -423,28 +349,15 @@ async function openAssigned() {
   $("pickerTitle").textContent = `Sipariş: ${pickerOrder.name} (${pickerOrder.warehouse || "-"})`;
   $("pickerArea").classList.remove("hidden");
 }
+
 function renderPickerLines() {
   const table = document.getElementById("tbl-picker-lines");
   if (!table) return;
-
-  // Tablo başlığı
   table.innerHTML = `
-    <thead>
-      <tr>
-        <th>#</th>
-        <th>Kod</th>
-        <th>Ürün</th>
-        <th>İstenen</th>
-        <th>Reyon</th>
-        <th>Toplanan</th>
-        <th>Toplandı</th>
-        <th>Eksik</th>
-        <th>İşlem</th>
-      </tr>
-    </thead>
-    <tbody></tbody>
-  `;
-
+    <thead><tr>
+      <th>#</th><th>Kod</th><th>Ürün</th><th>İstenen</th><th>Reyon</th>
+      <th>Toplanan</th><th>Toplandı</th><th>Eksik</th><th>İşlem</th>
+    </tr></thead><tbody></tbody>`;
   const tb = table.querySelector("tbody");
   tb.innerHTML = "";
 
@@ -459,64 +372,43 @@ function renderPickerLines() {
   pickerOrder.lines.forEach((l, i) => {
     const qty = toNum(l.qty);
     const picked = toNum(l.picked);
-
-   tb.insertAdjacentHTML("beforeend", `
-  <tr data-row="${i}">
-    <td data-label="#">${i + 1}</td>
-    <td data-label="Kod">${l.code}</td>
-    <td data-label="Ürün">${l.name || ""}</td>
-    <td data-label="İstenen">${qty}</td>
-    <td data-label="Reyon">${l.reyon || "-"}</td>
-    <td data-label="Toplanan">
-      <input type="number" inputmode="decimal" step="0.001" min="0"
-             class="picked-input" data-idx="${i}" value="${picked}"
-             style="width:80px;text-align:center;"/>
-    </td>
-    <td data-label="Toplandı" style="text-align:center;">
-      <input type="checkbox" class="chk-picked" data-idx="${i}" ${picked >= qty ? "checked" : ""}/>
-    </td>
-    <td data-label="Eksik" style="text-align:center;">
-      <input type="checkbox" class="chk-missing" data-idx="${i}" ${picked < qty ? "checked" : ""}/>
-    </td>
-    <td data-label="İşlem">
-      <button class="pill" data-plus="${i}">+1</button>
-      <button class="pill" data-minus="${i}">-1</button>
-      <button class="pill danger" data-del="${i}">Sil</button>
-    </td>
-  </tr>
-`);
+    tb.insertAdjacentHTML("beforeend", `
+      <tr data-row="${i}">
+        <td>${i + 1}</td><td>${l.code}</td><td>${l.name}</td><td>${qty}</td><td>${l.reyon || "-"}</td>
+        <td><input type="number" inputmode="decimal" step="0.001" min="0"
+          class="picked-input" data-idx="${i}" value="${picked}" style="width:80px;text-align:center;"/></td>
+        <td style="text-align:center;"><input type="checkbox" class="chk-picked" ${picked >= qty ? "checked" : ""}/></td>
+        <td style="text-align:center;"><input type="checkbox" class="chk-missing" ${picked < qty ? "checked" : ""}/></td>
+        <td><button class="pill" data-plus="${i}">+1</button>
+            <button class="pill" data-minus="${i}">-1</button>
+            <button class="pill danger" data-del="${i}">Sil</button></td></tr>`);
   });
 
-  // Renk boyama
   pickerOrder.lines.forEach((l, i) => {
     const tr = tb.querySelector(`tr[data-row="${i}"]`);
     paintRow(tr, toNum(l.qty), toNum(l.picked));
   });
 
-  // Miktar girişi
   tb.querySelectorAll(".picked-input").forEach(inp => {
     inp.addEventListener("input", e => {
       const idx = Number(e.target.dataset.idx);
       pickerOrder.lines[idx].picked = toNum(e.target.value);
       const line = pickerOrder.lines[idx];
-      const tr = tb.querySelector(`tr[data-row="${idx}"]`);
+      const tr = tb.querySelector(`tr[data-row='${idx}']`);
       paintRow(tr, toNum(line.qty), toNum(line.picked));
       tr.querySelector(".chk-picked").checked = line.picked >= line.qty;
       tr.querySelector(".chk-missing").checked = line.picked < line.qty;
     });
   });
 
-  // +1 / -1 butonları
   tb.querySelectorAll("button[data-plus]").forEach(btn => {
     btn.addEventListener("click", () => {
       const idx = Number(btn.dataset.plus);
       const line = pickerOrder.lines[idx];
-      line.picked = (toNum(line.picked) || 0) + 1; // fazla toplanabilir
+      line.picked = (toNum(line.picked) || 0) + 1;
       const tr = tb.querySelector(`tr[data-row='${idx}']`);
       tr.querySelector(".picked-input").value = line.picked;
       paintRow(tr, toNum(line.qty), toNum(line.picked));
-      tr.querySelector(".chk-picked").checked = line.picked >= line.qty;
-      tr.querySelector(".chk-missing").checked = line.picked < line.qty;
     });
   });
 
@@ -528,210 +420,35 @@ function renderPickerLines() {
       const tr = tb.querySelector(`tr[data-row='${idx}']`);
       tr.querySelector(".picked-input").value = line.picked;
       paintRow(tr, toNum(line.qty), toNum(line.picked));
-      tr.querySelector(".chk-picked").checked = line.picked >= line.qty;
-      tr.querySelector(".chk-missing").checked = line.picked < line.qty;
-    });
-  });
-
-  // Silme
-  tb.querySelectorAll("button[data-del]").forEach(btn => {
-    btn.addEventListener("click", () => {
-      const i = Number(btn.dataset.del);
-      if (confirm("Bu satırı silmek istiyor musunuz?")) {
-        pickerOrder.lines.splice(i, 1);
-        renderPickerLines();
-      }
     });
   });
 }
 
-async function startPickerScanner() {
-  if (scanner) await stopPickerScanner();
-  scanner = new Html5Qrcode("reader");
-  await scanner.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 }, (code) => {
-    handleScannedCode(code, true);
-  });
-}
-function stopPickerScanner() {
-  if (!scanner) return;
-  return scanner.stop().then(() => { scanner.clear(); scanner = null; });
-}
-async function handleScannedCode(codeOrBarcode, askQty = false) {
-  if (!pickerOrder) return alert("Önce sipariş açın.");
-  let qty = 1;
-  if (askQty) {
-    const v = prompt(`Okunan: ${codeOrBarcode}\nMiktar?`, "1");
-    qty = parseFloat((v || "1").replace(",", ".")); // ondalık destek
-    if (!qty || qty < 0) qty = 0;
-  }
-  let idx = pickerOrder.lines.findIndex(l => (l.barcode && l.barcode === codeOrBarcode) || l.code === codeOrBarcode);
-  if (idx !== -1) {
-    const max = pickerOrder.lines[idx].qty ?? Infinity;
-    pickerOrder.lines[idx].picked = Math.min((toNum(pickerOrder.lines[idx].picked) || 0) + qty, max);
-  } else {
-    let name = "";
-    try {
-      const prodSnap = await getDoc(doc(db, "products", codeOrBarcode));
-      if (prodSnap.exists()) name = prodSnap.data().name || "";
-    } catch {}
-    pickerOrder.lines.push({ code: codeOrBarcode, name, qty: 0, picked: qty });
-  }
-  renderPickerLines();
-}
-async function manualAdd() {
-  if (!pickerOrder) return alert("Önce sipariş seçin!");
-  const code = $("manualScanCode").value.trim();
-  let qty = toNum($("manualScanQty").value);
-  if (!code) return alert("Kod veya barkod girin!");
-  if (!qty || qty < 0) qty = 0;
-  let idx = pickerOrder.lines.findIndex(l => l.code === code || l.barcode === code);
-  if (idx !== -1) {
-    const max = pickerOrder.lines[idx].qty ?? Infinity;
-    pickerOrder.lines[idx].picked = Math.min((toNum(pickerOrder.lines[idx].picked) || 0) + qty, max);
-  } else {
-    let name = "";
-    try {
-      const prodSnap = await getDoc(doc(db, "products", code));
-      if (prodSnap.exists()) name = prodSnap.data().name || "";
-    } catch {}
-    pickerOrder.lines.push({ code, name, qty: 0, picked: qty });
-  }
-  renderPickerLines();
-  $("manualScanCode").value = "";
-  $("manualScanQty").value = "1";
-}
 async function savePickProgress() {
-  if (!pickerOrder) return alert("Önce bir sipariş açın!");
- await updateDoc(doc(db, "orders", pickerOrder.id), {
-  lines: pickerOrder.lines, status: "Toplama Başladı", lastUpdate: new Date()
-});
-
-  alert("Toplama durumu kaydedildi.");
+  if (!pickerOrder) return alert("Sipariş açılmadı!");
+  await updateDoc(doc(db, "orders", pickerOrder.id), {
+    lines: pickerOrder.lines, status: "Toplama Başladı", lastUpdate: new Date()
+  });
+  alert("Toplama kaydedildi!");
 }
+
 async function finishPick() {
   if (!pickerOrder) return;
   for (const l of pickerOrder.lines) {
     const used = Math.min(toNum(l.picked) || 0, toNum(l.qty) || 0);
     if (used > 0) await decreaseStock(l.code, used, pickerOrder.warehouse);
   }
-await updateDoc(doc(db, "orders", pickerOrder.id), { lines: pickerOrder.lines, status: "Toplandı" });
-
+  await updateDoc(doc(db, "orders", pickerOrder.id), { lines: pickerOrder.lines, status: "Toplandı" });
   alert("Toplama tamamlandı!");
 }
 
-// ================== YÖNETİCİ ==================
-$("refreshOrdersBtn")?.addEventListener("click", loadAllOrders);
-async function loadAllOrders() {
-  const snap = await getDocs(collection(db, "orders"));
-  const tbody = document.querySelector("#tbl-orders tbody");
-  if (!tbody) return;
-  tbody.innerHTML = "";
-
-  snap.forEach(docu => {
-    const o = { id: docu.id, ...docu.data() };
-
-    // Durum rengi
-    const colorMap = {
-      "Yeni": "#3b82f6",
-      "Atandı": "#f59e0b",
-      "Toplama Başladı": "#eab308",
-      "Toplandı": "#10b981",
-      "Kontrol": "#a855f7",
-      "Kontrol Başladı": "#9333ea",
-      "Tamamlandı": "#16a34a"
-    };
-    const color = colorMap[o.status] || "#ccc";
-
-    tbody.innerHTML += `
-      <tr>
-        <td>${o.id}</td>
-        <td>${o.name || "-"}</td>
-        <td>${o.warehouse || "-"}</td>
-        <td><span style="color:${color};font-weight:bold;">${o.status}</span></td>
-        <td>
-          <button onclick="viewOrderDetails('${o.id}')">Aç</button>
-          ${o.status === "Yeni" ? `<button onclick="assignOrder('${o.id}')">Toplayıcıya Ata</button>` : ""}
-          ${o.status === "Toplandı" ? `<button onclick="sendToQC('${o.id}')">Kontrole Gönder</button>` : ""}
-        </td>
-      </tr>`;
-  });
-}
-
-window.assignOrder = async function(id) {
-  await updateDoc(doc(db, "orders", id), { status: "Atandı" });
-  loadAllOrders();
-};
-window.sendToQC = async function(id) {
-  await updateDoc(doc(db, "orders", id), { status: "Kontrol" });
-  loadAllOrders();
-};
-window.viewOrderDetails = async function(id) {
-  const ref = doc(db, "orders", id);
-  const snap = await getDoc(ref);
-  if (!snap.exists()) return alert("Sipariş bulunamadı!");
-
-  const d = snap.data();
-  let html = `
-    <h3>Sipariş: <b>${d.name || "(İsimsiz)"}</b></h3>
-    <p><b>Depo:</b> ${d.warehouse || "-"}<br>
-       <b>Durum:</b> ${d.status}<br>
-       <b>Oluşturan:</b> ${d.createdBy || "-"}<br>
-       <b>Tarih:</b> ${(d.createdAt?.toDate?.() || new Date()).toLocaleString()}</p>
-    <table style="width:100%;border-collapse:collapse;margin-top:10px;">
-      <thead>
-        <tr style="background:#222;color:#fff;">
-          <th style="padding:5px;">Kod</th>
-          <th style="padding:5px;">Ürün</th>
-          <th style="padding:5px;">İstenen</th>
-          <th style="padding:5px;">Toplanan</th>
-          <th style="padding:5px;">QC</th>
-          <th style="padding:5px;">Reyon</th>
-        </tr>
-      </thead>
-      <tbody>
-  `;
-  (d.lines || []).forEach(l => {
-    html += `
-      <tr style="background:#111;color:#ddd;">
-        <td style="padding:5px;">${l.code}</td>
-        <td style="padding:5px;">${l.name}</td>
-        <td style="padding:5px;text-align:center;">${l.qty}</td>
-        <td style="padding:5px;text-align:center;">${l.picked ?? "-"}</td>
-        <td style="padding:5px;text-align:center;">${l.qc ?? "-"}</td>
-        <td style="padding:5px;text-align:center;">${l.reyon || "-"}</td>
-      </tr>
-    `;
-  });
-  html += `</tbody></table>`;
-
-  // Basit popup (modal)
-  const modal = document.createElement("div");
-  modal.classList.add("modal-overlay");
-  modal.style = `
-    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-    background: rgba(0,0,0,0.75); display: flex; align-items: center; justify-content: center;
-    z-index: 9999; padding:20px;
-  `;
-  modal.innerHTML = `
-    <div style="background:#1e1e2e;color:#fff;padding:20px;border-radius:12px;max-width:700px;width:100%;max-height:80%;overflow:auto;">
-      ${html}
-      <div style="text-align:right;margin-top:15px;">
-       <button onclick="this.closest('.modal-overlay').remove()">Kapat</button>
-      </div>
-    </div>
-  `;
-  document.body.appendChild(modal);
-};
-
-// ================== QC (KONTROL) ==================
-console.log("✅ QC Modülü Yüklendi");
-// Butonlar
+// ================== QC ==================
 $("refreshQCBtn")?.addEventListener("click", refreshQCOrders);
 $("openQCBtn")?.addEventListener("click", openQCOrder);
-$("startQCScanBtn")?.addEventListener("click", startQCScanner);
-$("stopQCScanBtn")?.addEventListener("click", stopQCScanner);
 $("finishQCBtn")?.addEventListener("click", finishQC);
 $("saveQCBtn")?.addEventListener("click", saveQCProgress);
+$("startQCScanBtn")?.addEventListener("click", startQCScanner);
+$("stopQCScanBtn")?.addEventListener("click", stopQCScanner);
 
 async function refreshQCOrders() {
   const sel = $("qcOrders");
@@ -742,34 +459,33 @@ async function refreshQCOrders() {
     const o = { id: d.id, ...d.data() };
     const opt = document.createElement("option");
     opt.value = o.id;
-    opt.textContent = `${o.id} - ${o.name || "(İsimsiz)"} (${o.status})`;
+    opt.textContent = `${o.id} - ${o.name} (${o.status})`;
     sel.appendChild(opt);
   });
 }
+
 async function openQCOrder() {
   const id = $("qcOrders")?.value;
-  if (!id) return alert("Lütfen bir sipariş seçin.");
+  if (!id) return alert("Sipariş seçin!");
   const ds = await getDoc(doc(db, "orders", id));
   if (!ds.exists()) return alert("Sipariş bulunamadı!");
   qcOrder = { id: ds.id, ...ds.data() };
-  qcOrder.lines = (qcOrder.lines || []).map(l => ({ ...l, qc: toNum(l.qc) || 0, picked: toNum(l.picked) || 0, qty: toNum(l.qty) || 0 }));
+  qcOrder.lines = (qcOrder.lines || []).map(l => ({
+    ...l, qc: toNum(l.qc) || 0, picked: toNum(l.picked) || 0, qty: toNum(l.qty) || 0
+  }));
   renderQCLines();
   $("qcTitle").textContent = `Sipariş: ${qcOrder.name}`;
   $("qcArea").classList.remove("hidden");
-await updateDoc(doc(db, "orders", qcOrder.id), {
-  lines: qcOrder.lines, status: "Tamamlandı", lastUpdate: new Date()
-});
-
+  // ✅ Statü artık "Kontrol Başladı"
+  await updateDoc(doc(db, "orders", qcOrder.id), {
+    lines: qcOrder.lines, status: "Kontrol Başladı", lastUpdate: new Date()
+  });
 }
+
 function renderQCLines() {
   const tb = document.querySelector("#tbl-qc-lines tbody");
   if (!tb) return;
   tb.innerHTML = "";
-
-  const paintRow = (tr, picked, qc) => {
-    tr.classList.remove("not-picked", "partial-picked", "fully-picked");
-    tr.classList.add(qc === 0 ? "not-picked" : qc < picked ? "partial-picked" : "fully-picked");
-  };
 
   qcOrder.lines.forEach((l, i) => {
     const picked = toNum(l.picked);
@@ -777,143 +493,28 @@ function renderQCLines() {
     const diff = Math.max(0, picked - qc);
     tb.insertAdjacentHTML("beforeend", `
       <tr data-row="${i}">
-        <td>${i + 1}</td>
-        <td>${l.code || ""}</td>
-        <td>${l.name || ""}</td>
-        <td>${toNum(l.qty)}</td>
-        <td>${picked}</td>
-        <td>
-          <input
-            type="number" inputmode="decimal" step="0.001" min="0" max="${picked}"
-            class="qc-input" data-idx="${i}" value="${qc}"
-            style="width:100px;text-align:center;"
-          />
-          <div class="row" style="justify-content:center;gap:4px;margin-top:4px;">
-            <button class="pill" data-qc-plus="${i}">+1</button>
-            <button class="pill" data-qc-minus="${i}">-1</button>
-          </div>
-        </td>
-        <td>${diff}</td>
-      </tr>
-    `);
-    paintRow(tb.querySelector(`tr[data-row="${i}"]`), picked, qc);
+        <td>${i + 1}</td><td>${l.code}</td><td>${l.name}</td>
+        <td>${l.qty}</td><td>${picked}</td>
+        <td><input type="number" class="qc-input" data-idx="${i}" value="${qc}" 
+          min="0" max="${picked}" step="0.001" style="width:100px;text-align:center;"></td>
+        <td>${diff}</td></tr>`);
   });
+}
 
-  // INPUT serbest yazım + blur normalize
-  tb.querySelectorAll(".qc-input").forEach(inp => {
-    inp.addEventListener("input", e => {
-      const idx = Number(e.target.dataset.idx);
-      qcOrder.lines[idx].qc = toNum(e.target.value);
-    });
-    inp.addEventListener("blur", e => {
-      const idx = Number(e.target.dataset.idx);
-      const line = qcOrder.lines[idx];
-      const picked = toNum(line.picked);
-      let val = toNum(e.target.value);
-      val = clamp(val, 0, picked);
-      line.qc = val;
-      e.target.value = val;
-      const tr = tb.querySelector(`tr[data-row="${idx}"]`);
-      paintRow(tr, picked, val);
-      // diff hücresini güncelle
-      tr.querySelectorAll("td")[6].textContent = Math.max(0, picked - val);
-    });
-    inp.addEventListener("keydown", e => { if (e.key === "Enter") e.target.blur(); });
-  });
-
-  // +1 / -1
-  tb.querySelectorAll("button[data-qc-plus]").forEach(btn => {
-    btn.addEventListener("click", () => {
-      const idx = Number(btn.dataset.qcPlus);
-      const line = qcOrder.lines[idx];
-      const picked = toNum(line.picked);
-      const next = clamp(toNum(line.qc) + 1, 0, picked);
-      line.qc = next;
-      const tr = tb.querySelector(`tr[data-row="${idx}"]`);
-      tr.querySelector(".qc-input").value = next;
-      paintRow(tr, picked, next);
-      tr.querySelectorAll("td")[6].textContent = Math.max(0, picked - next);
-    });
-  });
-  tb.querySelectorAll("button[data-qc-minus]").forEach(btn => {
-    btn.addEventListener("click", () => {
-      const idx = Number(btn.dataset.qcMinus);
-      const line = qcOrder.lines[idx];
-      const picked = toNum(line.picked);
-      const next = clamp(toNum(line.qc) - 1, 0, picked);
-      line.qc = next;
-      const tr = tb.querySelector(`tr[data-row="${idx}"]`);
-      tr.querySelector(".qc-input").value = next;
-      paintRow(tr, picked, next);
-      tr.querySelectorAll("td")[6].textContent = Math.max(0, picked - next);
-    });
-  });
-}
-async function startQCScanner() {
-  if (typeof Html5Qrcode === "undefined") return alert("📷 Barkod kütüphanesi yüklenmemiş!");
-  if (qcScanner) await stopQCScanner();
-  qcScanner = new Html5Qrcode("qcReader");
-  try {
-    await qcScanner.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 }, onQCScan);
-  } catch (err) { console.error(err); alert("Tarayıcı başlatılamadı!"); }
-}
-function stopQCScanner() {
-  if (!qcScanner) return;
-  return qcScanner.stop().then(() => { qcScanner.clear(); qcScanner = null; });
-}
-function onQCScan(code) {
-  if (!qcOrder) return;
-  const idx = qcOrder.lines.findIndex(l => l.barcode === code || l.code === code);
-  if (idx === -1) return alert("Barkod bulunamadı: " + code);
-  const picked = toNum(qcOrder.lines[idx].picked);
-  const cur = toNum(qcOrder.lines[idx].qc);
-  if (cur < picked) qcOrder.lines[idx].qc = cur + 1;
-  // inputu güncelle
-  const tb = document.querySelector("#tbl-qc-lines tbody");
-  const tr = tb?.querySelector(`tr[data-row="${idx}"]`);
-  if (tr) {
-    const inp = tr.querySelector(".qc-input");
-    inp.value = qcOrder.lines[idx].qc;
-    inp.dispatchEvent(new Event("blur", { bubbles: true })); // normalize & boya
-  }
-}
 async function saveQCProgress() {
-  if (!qcOrder) return alert("Önce bir sipariş açın!");
-await updateDoc(doc(db, "orders", qcOrder.id), { status: "Kontrol Başladı", lastUpdate: new Date() });
-
-  alert("💾 QC kaydedildi!");
+  if (!qcOrder) return alert("Sipariş seçilmedi!");
+  await updateDoc(doc(db, "orders", qcOrder.id), {
+    lines: qcOrder.lines, status: "Kontrol Başladı", lastUpdate: new Date()
+  });
+  alert("QC kaydedildi!");
 }
+
 async function finishQC() {
   if (!qcOrder) return alert("Sipariş seçilmedi!");
-  await stopQCScanner();
   await updateDoc(doc(db, "orders", qcOrder.id), {
     lines: qcOrder.lines, status: "Tamamlandı", lastUpdate: new Date()
   });
-  alert("✅ QC tamamlandı!");
-}
-// ================== QC EXCEL'E AKTAR ==================
-$("exportQCExcelBtn")?.addEventListener("click", exportQCToExcel);
-
-async function exportQCToExcel() {
-  if (!qcOrder) return alert("Önce bir sipariş açın!");
-  const data = (qcOrder.lines || []).map((l, i) => ({
-    "#": i + 1,
-    Kod: l.code || "",
-    Ürün: l.name || "",
-    İstenen: toNum(l.qty),
-    Toplanan: toNum(l.picked),
-    "QC (Kontrol)": toNum(l.qc),
-    Eksik: Math.max(0, toNum(l.picked) - toNum(l.qc)),
-    Reyon: l.reyon || "-"
-  }));
-
-  const ws = XLSX.utils.json_to_sheet(data);
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "QC_Kontrol");
-  const fileName = `QC_${qcOrder.name || "kontrol"}.xlsx`;
-  XLSX.writeFile(wb, fileName);
-
-  alert("Excel dosyası oluşturuldu: " + fileName);
+  alert("QC tamamlandı!");
 }
 
 // ================== PALETLEME ==================
@@ -935,6 +536,7 @@ async function refreshPaletOrders() {
     sel.appendChild(opt);
   });
 }
+
 async function openPaletOrder() {
   const id = $("paletOrders").value;
   if (!id) return;
@@ -945,6 +547,7 @@ async function openPaletOrder() {
   $("paletTitle").textContent = `Sipariş: ${paletOrder.name}`;
   $("paletArea").classList.remove("hidden");
 }
+
 function renderPaletLines() {
   const tb = document.querySelector("#tbl-palet-lines tbody");
   if (!tb) return;
@@ -953,8 +556,9 @@ function renderPaletLines() {
     tb.innerHTML += `<tr><td>${i + 1}</td><td>${l.code}</td><td>${l.name}</td><td>${l.qty}</td></tr>`;
   });
 }
+
 async function createPalet() {
-  if (!paletOrder) return alert("Önce bir sipariş seçin.");
+  if (!paletOrder) return alert("Sipariş seçin.");
   const paletNo = "PLT-" + Date.now();
   await addDoc(collection(db, "pallets"), {
     id: paletNo, orderId: paletOrder.id, createdAt: serverTimestamp(), items: paletOrder.lines
@@ -962,38 +566,216 @@ async function createPalet() {
   $("paletNo").textContent = paletNo;
   $("paletResult").classList.remove("hidden");
   $("paletQr").innerHTML = "";
-  if (window.QRCode) window.QRCode.toCanvas($("paletQr"), paletNo, { width: 128 });
+  if (window.QRCode && window.QRCode.toCanvas)
+    window.QRCode.toCanvas($("paletQr"), paletNo, { width: 128 });
   alert("Palet oluşturuldu: " + paletNo);
 }
+// ================== YARDIMCI: STOK AZALTMA ==================
+async function decreaseStock(code, qty, warehouse) {
+  const ref = doc(db, "stocks", `${warehouse}_${code}`);
+  const snap = await getDoc(ref);
+  if (snap.exists()) {
+    let newQty = (toNum(snap.data().qty) || 0) - toNum(qty);
+    if (newQty < 0) newQty = 0;
+    await updateDoc(ref, { qty: newQty });
+    if (newQty < 5) alert(`⚠️ Dikkat! ${warehouse}/${code} stoğu kritik (${newQty})`);
+  } else {
+    alert(`Stok bulunamadı: ${warehouse} - ${code}`);
+  }
+}
+
+// ================== TOPLAYICI: BARKOD TARAMA & ELLE EKLE ==================
+async function startPickerScanner() {
+  if (typeof Html5Qrcode === "undefined") return alert("📷 Barkod kütüphanesi yüklenmemiş!");
+  if (scanner) await stopPickerScanner();
+  scanner = new Html5Qrcode("reader");
+  await scanner.start(
+    { facingMode: "environment" },
+    { fps: 10, qrbox: 250 },
+    (code) => handleScannedCode(code, true)
+  );
+}
+function stopPickerScanner() {
+  if (!scanner) return;
+  return scanner.stop().then(() => { scanner.clear(); scanner = null; });
+}
+
+async function handleScannedCode(codeOrBarcode, askQty = false) {
+  if (!pickerOrder) return alert("Önce sipariş açın.");
+  let qty = 1;
+  if (askQty) {
+    const v = prompt(`Okunan: ${codeOrBarcode}\nMiktar?`, "1");
+    qty = parseFloat((v || "1").replace(",", "."));
+    if (!qty || qty < 0) qty = 0;
+  }
+  let idx = pickerOrder.lines.findIndex(
+    l => (l.barcode && l.barcode === codeOrBarcode) || l.code === codeOrBarcode
+  );
+  if (idx !== -1) {
+    const max = pickerOrder.lines[idx].qty ?? Infinity;
+    pickerOrder.lines[idx].picked = Math.min((toNum(pickerOrder.lines[idx].picked) || 0) + qty, max);
+  } else {
+    // kod ürün listesinde yoksa isim çekmeyi dene
+    let name = "";
+    try {
+      const prodSnap = await getDoc(doc(db, "products", codeOrBarcode));
+      if (prodSnap.exists()) name = prodSnap.data().name || "";
+    } catch {}
+    pickerOrder.lines.push({ code: codeOrBarcode, name, qty: 0, picked: qty });
+  }
+  renderPickerLines();
+}
+
+async function manualAdd() {
+  if (!pickerOrder) return alert("Önce sipariş seçin!");
+  const code = $("manualScanCode").value.trim();
+  let qty = toNum($("manualScanQty").value);
+  if (!code) return alert("Kod veya barkod girin!");
+  if (!qty || qty < 0) qty = 0;
+
+  let idx = pickerOrder.lines.findIndex(l => l.code === code || l.barcode === code);
+  if (idx !== -1) {
+    const max = pickerOrder.lines[idx].qty ?? Infinity;
+    pickerOrder.lines[idx].picked = Math.min((toNum(pickerOrder.lines[idx].picked) || 0) + qty, max);
+  } else {
+    let name = "";
+    try {
+      const prodSnap = await getDoc(doc(db, "products", code));
+      if (prodSnap.exists()) name = prodSnap.data().name || "";
+    } catch {}
+    pickerOrder.lines.push({ code, name, qty: 0, picked: qty });
+  }
+  renderPickerLines();
+  $("manualScanCode").value = "";
+  $("manualScanQty").value = "1";
+}
+
+// ================== QC: TARAYICI ==================
+async function startQCScanner() {
+  if (typeof Html5Qrcode === "undefined") return alert("📷 Barkod kütüphanesi yüklenmemiş!");
+  if (qcScanner) await stopQCScanner();
+  qcScanner = new Html5Qrcode("qcReader");
+  try {
+    await qcScanner.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 }, onQCScan);
+  } catch (err) {
+    console.error(err);
+    alert("Tarayıcı başlatılamadı!");
+  }
+}
+function stopQCScanner() {
+  if (!qcScanner) return;
+  return qcScanner.stop().then(() => { qcScanner.clear(); qcScanner = null; });
+}
+function onQCScan(code) {
+  if (!qcOrder) return;
+  const idx = qcOrder.lines.findIndex(l => l.barcode === code || l.code === code);
+  if (idx === -1) return alert("Barkod bulunamadı: " + code);
+  const picked = toNum(qcOrder.lines[idx].picked);
+  const cur = toNum(qcOrder.lines[idx].qc);
+  if (cur < picked) qcOrder.lines[idx].qc = cur + 1;
+
+  // tabloyu güncelle
+  const tb = document.querySelector("#tbl-qc-lines tbody");
+  const tr = tb?.querySelector(`tr[data-row="${idx}"]`);
+  if (tr) {
+    const inp = tr.querySelector(".qc-input");
+    inp.value = qcOrder.lines[idx].qc;
+    // diff sütununu güncelle
+    tr.querySelectorAll("td")[6].textContent =
+      Math.max(0, toNum(qcOrder.lines[idx].picked) - toNum(qcOrder.lines[idx].qc));
+  }
+}
+
+// ================== YÖNETİCİ (sipariş listesi için API çağrıları zaten yukarıda) ==================
+window.assignOrder = async function(id) {
+  await updateDoc(doc(db, "orders", id), { status: "Atandı" });
+  loadAllOrders();
+};
+window.sendToQC = async function(id) {
+  await updateDoc(doc(db, "orders", id), { status: "Kontrol" });
+  loadAllOrders();
+};
+window.viewOrderDetails = async function(id) {
+  const ref = doc(db, "orders", id);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return alert("Sipariş bulunamadı!");
+  const d = snap.data();
+
+  let html = `
+    <h3>Sipariş: <b>${d.name || "(İsimsiz)"}</b></h3>
+    <p><b>Depo:</b> ${d.warehouse || "-"}<br>
+       <b>Durum:</b> ${d.status}<br>
+       <b>Oluşturan:</b> ${d.createdBy || "-"}<br>
+       <b>Tarih:</b> ${(d.createdAt?.toDate?.() || new Date()).toLocaleString()}</p>
+    <table style="width:100%;border-collapse:collapse;margin-top:10px;">
+      <thead>
+        <tr style="background:#222;color:#fff;">
+          <th style="padding:5px;">Kod</th>
+          <th style="padding:5px;">Ürün</th>
+          <th style="padding:5px;">İstenen</th>
+          <th style="padding:5px;">Toplanan</th>
+          <th style="padding:5px;">QC</th>
+          <th style="padding:5px;">Reyon</th>
+        </tr>
+      </thead>
+      <tbody>`;
+  (d.lines || []).forEach(l => {
+    html += `
+      <tr style="background:#111;color:#ddd;">
+        <td style="padding:5px;">${l.code}</td>
+        <td style="padding:5px;">${l.name}</td>
+        <td style="padding:5px;text-align:center;">${l.qty}</td>
+        <td style="padding:5px;text-align:center;">${l.picked ?? "-"}</td>
+        <td style="padding:5px;text-align:center;">${l.qc ?? "-"}</td>
+        <td style="padding:5px;text-align:center;">${l.reyon || "-"}</td>
+      </tr>`;
+  });
+  html += `</tbody></table>`;
+
+  const modal = document.createElement("div");
+  modal.classList.add("modal-overlay");
+  modal.style = `
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.75); display: flex; align-items: center; justify-content: center;
+    z-index: 9999; padding:20px;`;
+  modal.innerHTML = `
+    <div style="background:#1e1e2e;color:#fff;padding:20px;border-radius:12px;max-width:700px;width:100%;max-height:80%;overflow:auto;">
+      ${html}
+      <div style="text-align:right;margin-top:15px;">
+        <button onclick="this.closest('.modal-overlay').remove()">Kapat</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+};
 
 // ================== DASHBOARD ==================
-$("dashboardWarehouse")?.addEventListener("change", loadDashboard);
+document.querySelector("button[data-view='view-dashboard']")?.addEventListener("click", loadDashboardStats);
+
 async function loadDashboard() {
   const ordersSnap = await getDocs(collection(db, "orders"));
   const palletsSnap = await getDocs(collection(db, "pallets"));
   let total = 0, completed = 0, pending = 0;
+
   ordersSnap.forEach(docu => {
     total++;
     const st = docu.data().status;
     if (st === "Tamamlandı") completed++; else pending++;
   });
+
   $("statTotalOrders").innerText = total;
   $("statCompletedOrders").innerText = completed;
   $("statPendingOrders").innerText = pending;
-  $("statPallets") && ( $("statPallets").innerText = palletsSnap.size );
+  if ($("statPallets")) $("statPallets").innerText = palletsSnap.size;
 
-  const ctx1 = document.getElementById("chartOrders");
-  if (ctx1) {
-    new Chart(ctx1, {
-      type: "pie",
-      data: { labels: ["Tamamlanan", "Bekleyen"], datasets: [{ data: [completed, pending], backgroundColor: ["#16a34a", "#f87171"] }] }
-    });
-  }
   const ctx2 = document.getElementById("chartDaily");
   if (ctx2) {
+    // örnek günlük veri
     new Chart(ctx2, {
       type: "bar",
-      data: { labels: ["Gün1", "Gün2", "Gün3", "Gün4", "Gün5", "Gün6", "Gün7"], datasets: [{ label: "Sipariş", data: [3, 5, 2, 7, 4, 6, 3] }] }
+      data: {
+        labels: ["Gün1", "Gün2", "Gün3", "Gün4", "Gün5", "Gün6", "Gün7"],
+        datasets: [{ label: "Sipariş", data: [3, 5, 2, 7, 4, 6, 3] }]
+      }
     });
   }
 }
@@ -1001,8 +783,7 @@ setInterval(() => {
   const v = document.getElementById("view-dashboard");
   if (v && !v.classList.contains("hidden")) loadDashboard();
 }, 5000);
-// ================== DASHBOARD ==================
-// ================== DASHBOARD ==================
+
 async function loadDashboardStats() {
   const snap = await getDocs(collection(db, "orders"));
   let total = 0, completed = 0, pending = 0, missing = 0;
@@ -1012,28 +793,25 @@ async function loadDashboardStats() {
   snap.forEach(docu => {
     const d = docu.data();
     total++;
-    if (d.status === "Tamamlandı") completed++;
-    else pending++;
-
+    if (d.status === "Tamamlandı") completed++; else pending++;
     if (d.missingCount && d.missingCount > 0) missing++;
 
-    // Toplayıcı süre hesabı
+    // Toplayıcı süreleri
     if (d.pickerStart && d.pickerEnd) {
-      const pickerStart = d.pickerStart?.toDate ? d.pickerStart.toDate() : new Date(d.pickerStart);
-      const pickerEnd   = d.pickerEnd?.toDate ? d.pickerEnd.toDate() : new Date(d.pickerEnd);
-      const diff = (pickerEnd - pickerStart) / 60000;
+      const s = d.pickerStart?.toDate ? d.pickerStart.toDate() : new Date(d.pickerStart);
+      const e = d.pickerEnd?.toDate ? d.pickerEnd.toDate() : new Date(d.pickerEnd);
+      const diff = (e - s) / 60000;
       if (!isNaN(diff)) {
         pickerTimes.push(diff);
         if (!pickerMap[d.assignedTo]) pickerMap[d.assignedTo] = [];
         pickerMap[d.assignedTo].push(diff);
       }
     }
-
-    // QC süre hesabı
+    // QC süreleri
     if (d.qcStart && d.qcEnd) {
-      const qcStart = d.qcStart?.toDate ? d.qcStart.toDate() : new Date(d.qcStart);
-      const qcEnd   = d.qcEnd?.toDate ? d.qcEnd.toDate() : new Date(d.qcEnd);
-      const diff = (qcEnd - qcStart) / 60000;
+      const s = d.qcStart?.toDate ? d.qcStart.toDate() : new Date(d.qcStart);
+      const e = d.qcEnd?.toDate ? d.qcEnd.toDate() : new Date(d.qcEnd);
+      const diff = (e - s) / 60000;
       if (!isNaN(diff)) {
         qcTimes.push(diff);
         if (!qcMap[d.qcBy]) qcMap[d.qcBy] = [];
@@ -1041,20 +819,6 @@ async function loadDashboardStats() {
       }
     }
   });
-
-  const avgPicker = pickerTimes.length ? (pickerTimes.reduce((a,b)=>a+b,0)/pickerTimes.length).toFixed(1) : 0;
-  const avgQC = qcTimes.length ? (qcTimes.reduce((a,b)=>a+b,0)/qcTimes.length).toFixed(1) : 0;
-
-  $("statTotalOrders").textContent = total;
-  $("statCompletedOrders").textContent = completed;
-  $("statPendingOrders").textContent = pending;
-  $("statMissingOrders").textContent = missing;
-  $("statPickerAvg").textContent = avgPicker + " dk";
-  $("statQcAvg").textContent = avgQC + " dk";
-
-  renderPerformanceTables(pickerMap, qcMap);
-}
-
 
   const avgPicker = pickerTimes.length ? (pickerTimes.reduce((a,b)=>a+b,0)/pickerTimes.length).toFixed(1) : 0;
   const avgQC = qcTimes.length ? (qcTimes.reduce((a,b)=>a+b,0)/qcTimes.length).toFixed(1) : 0;
@@ -1085,8 +849,6 @@ function renderPerformanceTables(pickerMap, qcMap) {
   }).join("");
 }
 
-document.querySelector("button[data-view='view-dashboard']")?.addEventListener("click", loadDashboardStats);
-
 // ================== STOK YÖNETİMİ ==================
 document.querySelector("button[data-view='view-stock']")?.addEventListener("click", loadStockManage);
 $("stockWarehouse")?.addEventListener("change", loadStockManage);
@@ -1104,6 +866,7 @@ async function loadStockManage() {
     }
   });
 }
+
 $("btnStockIn")?.addEventListener("click", async () => {
   const warehouse = $("stockWarehouse").value;
   const code = $("stockCode").value.trim();
@@ -1120,6 +883,7 @@ $("btnStockIn")?.addEventListener("click", async () => {
   alert("Stok girişi yapıldı.");
   loadStockManage();
 });
+
 $("btnStockOut")?.addEventListener("click", async () => {
   const warehouse = $("stockWarehouse").value;
   const code = $("stockCode").value.trim();
@@ -1196,19 +960,19 @@ function renderCountLines() {
     });
   });
 }
+
 async function fetchProductAndStock(code, warehouse) {
-  // ürün adı
   let name = "";
   try {
     const prodSnap = await getDoc(doc(db, "products", code));
     if (prodSnap.exists()) name = prodSnap.data().name || "";
   } catch {}
-  // stok
   const sref = doc(db, "stocks", `${warehouse}_${code}`);
   const ssnap = await getDoc(sref);
   const systemQty = ssnap.exists() ? toNum(ssnap.data().qty) : 0;
   return { name, systemQty };
 }
+
 async function pushCountLine(code, qty, warehouse) {
   const idx = countSession.findIndex(x => x.code === code);
   if (idx !== -1) {
@@ -1221,7 +985,9 @@ async function pushCountLine(code, qty, warehouse) {
   }
   renderCountLines();
 }
+
 async function startCountScanner() {
+  if (typeof Html5Qrcode === "undefined") return alert("📷 Barkod kütüphanesi yüklenmemiş!");
   if (countScanner) await stopCountScanner();
   countScanner = new Html5Qrcode("countReader");
   await countScanner.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 }, async (code) => {
@@ -1232,6 +998,7 @@ function stopCountScanner() {
   if (!countScanner) return;
   return countScanner.stop().then(() => { countScanner.clear(); countScanner = null; });
 }
+
 async function countManualAdd() {
   const code = $("countManualCode").value.trim();
   let qty = toNum($("countManualQty").value);
@@ -1241,6 +1008,7 @@ async function countManualAdd() {
   $("countManualCode").value = "";
   $("countManualQty").value = "1";
 }
+
 async function saveCountSession() {
   if (countSession.length === 0) return alert("Sayım satırı yok!");
   await addDoc(collection(db, "counts"), {
@@ -1250,16 +1018,21 @@ async function saveCountSession() {
   });
   alert("Sayım oturumu kaydedildi.");
 }
+
 async function applyCountToStock() {
   if (countSession.length === 0) return alert("Sayım satırı yok!");
   const wh = $("countWarehouse").value;
   for (const l of countSession) {
     const ref = doc(db, "stocks", `${wh}_${l.code}`);
-    // doğrudan sayım miktarını stok olarak yaz
-    await setDoc(ref, { code: l.code, name: l.name || l.code, qty: toNum(l.countQty), warehouse: wh }, { merge: true });
+    await setDoc(
+      ref,
+      { code: l.code, name: l.name || l.code, qty: toNum(l.countQty), warehouse: wh },
+      { merge: true }
+    );
   }
   alert("Sayım stoka uygulandı.");
 }
+
 async function loadLastCountSessions() {
   const tb = document.querySelector("#tbl-count-sessions tbody");
   if (!tb) return;
@@ -1279,6 +1052,7 @@ async function loadLastCountSessions() {
   });
   rows.sort((a,b) => (new Date(b.date)) - (new Date(a.date)));
   rows.slice(0, 20).forEach(r => {
-    tb.insertAdjacentHTML("beforeend", `<tr><td>${r.date}</td><td>${r.wh}</td><td>${r.cnt}</td><td>${r.diff}</td></tr>`);
+    tb.insertAdjacentHTML("beforeend",
+      `<tr><td>${r.date}</td><td>${r.wh}</td><td>${r.cnt}</td><td>${r.diff}</td></tr>`);
   });
 }
