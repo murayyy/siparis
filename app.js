@@ -602,9 +602,13 @@ async function manualAdd() {
 }
 async function savePickProgress() {
   if (!pickerOrder) return alert("Önce bir sipariş açın!");
-  await updateDoc(doc(db, "orders", pickerOrder.id), {
-    lines: pickerOrder.lines, status: "Toplama Başladı", lastUpdate: new Date()
-  });
+ await updateDoc(doc(db, "orders", pickerOrder.id), {
+  lines: pickerOrder.lines,
+  status: "Toplama Başladı",
+  pickerStart: new Date(),
+  assignedTo: currentUser.email || currentUser.displayName || currentUser.uid,
+  lastUpdate: new Date()
+});
   alert("Toplama durumu kaydedildi.");
 }
 async function finishPick() {
@@ -613,7 +617,13 @@ async function finishPick() {
     const used = Math.min(toNum(l.picked) || 0, toNum(l.qty) || 0);
     if (used > 0) await decreaseStock(l.code, used, pickerOrder.warehouse);
   }
-  await updateDoc(doc(db, "orders", pickerOrder.id), { lines: pickerOrder.lines, status: "Toplandı" });
+await updateDoc(doc(db, "orders", pickerOrder.id), {
+  lines: pickerOrder.lines,
+  status: "Toplandı",
+  pickerEnd: new Date(),
+  lastUpdate: new Date()
+});
+
   alert("Toplama tamamlandı!");
 }
 
@@ -754,7 +764,13 @@ async function openQCOrder() {
   renderQCLines();
   $("qcTitle").textContent = `Sipariş: ${qcOrder.name}`;
   $("qcArea").classList.remove("hidden");
-  await updateDoc(doc(db, "orders", qcOrder.id), { status: "Kontrol Başladı", lastUpdate: new Date() });
+await updateDoc(doc(db, "orders", qcOrder.id), {
+  status: "Kontrol Başladı",
+  qcStart: new Date(),
+  qcBy: currentUser.email || currentUser.displayName || currentUser.uid,
+  lastUpdate: new Date()
+});
+
 }
 function renderQCLines() {
   const tb = document.querySelector("#tbl-qc-lines tbody");
@@ -875,8 +891,12 @@ function onQCScan(code) {
 async function saveQCProgress() {
   if (!qcOrder) return alert("Önce bir sipariş açın!");
   await updateDoc(doc(db, "orders", qcOrder.id), {
-    lines: qcOrder.lines, status: "Kontrol Başladı", lastUpdate: new Date()
-  });
+  lines: qcOrder.lines,
+  status: "Tamamlandı",
+  qcEnd: new Date(),
+  lastUpdate: new Date()
+});
+
   alert("💾 QC kaydedildi!");
 }
 async function finishQC() {
@@ -998,6 +1018,7 @@ setInterval(() => {
   if (v && !v.classList.contains("hidden")) loadDashboard();
 }, 5000);
 // ================== DASHBOARD ==================
+// ================== DASHBOARD ==================
 async function loadDashboardStats() {
   const snap = await getDocs(collection(db, "orders"));
   let total = 0, completed = 0, pending = 0, missing = 0;
@@ -1012,20 +1033,44 @@ async function loadDashboardStats() {
 
     if (d.missingCount && d.missingCount > 0) missing++;
 
+    // Toplayıcı süre hesabı
     if (d.pickerStart && d.pickerEnd) {
-     const diff = (d.qcEnd.toDate() - d.qcStart.toDate()) / 60000;
-      pickerTimes.push(diff);
-      if (!pickerMap[d.assignedTo]) pickerMap[d.assignedTo] = [];
-      pickerMap[d.assignedTo].push(diff);
+      const pickerStart = d.pickerStart?.toDate ? d.pickerStart.toDate() : new Date(d.pickerStart);
+      const pickerEnd   = d.pickerEnd?.toDate ? d.pickerEnd.toDate() : new Date(d.pickerEnd);
+      const diff = (pickerEnd - pickerStart) / 60000;
+      if (!isNaN(diff)) {
+        pickerTimes.push(diff);
+        if (!pickerMap[d.assignedTo]) pickerMap[d.assignedTo] = [];
+        pickerMap[d.assignedTo].push(diff);
+      }
     }
 
+    // QC süre hesabı
     if (d.qcStart && d.qcEnd) {
-      const diff = (d.qcEnd.toDate() - d.qcStart.toDate()) / 60000;
-      qcTimes.push(diff);
-      if (!qcMap[d.qcBy]) qcMap[d.qcBy] = [];
-      qcMap[d.qcBy].push(diff);
+      const qcStart = d.qcStart?.toDate ? d.qcStart.toDate() : new Date(d.qcStart);
+      const qcEnd   = d.qcEnd?.toDate ? d.qcEnd.toDate() : new Date(d.qcEnd);
+      const diff = (qcEnd - qcStart) / 60000;
+      if (!isNaN(diff)) {
+        qcTimes.push(diff);
+        if (!qcMap[d.qcBy]) qcMap[d.qcBy] = [];
+        qcMap[d.qcBy].push(diff);
+      }
     }
   });
+
+  const avgPicker = pickerTimes.length ? (pickerTimes.reduce((a,b)=>a+b,0)/pickerTimes.length).toFixed(1) : 0;
+  const avgQC = qcTimes.length ? (qcTimes.reduce((a,b)=>a+b,0)/qcTimes.length).toFixed(1) : 0;
+
+  $("statTotalOrders").textContent = total;
+  $("statCompletedOrders").textContent = completed;
+  $("statPendingOrders").textContent = pending;
+  $("statMissingOrders").textContent = missing;
+  $("statPickerAvg").textContent = avgPicker + " dk";
+  $("statQcAvg").textContent = avgQC + " dk";
+
+  renderPerformanceTables(pickerMap, qcMap);
+}
+
 
   const avgPicker = pickerTimes.length ? (pickerTimes.reduce((a,b)=>a+b,0)/pickerTimes.length).toFixed(1) : 0;
   const avgQC = qcTimes.length ? (qcTimes.reduce((a,b)=>a+b,0)/qcTimes.length).toFixed(1) : 0;
