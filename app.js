@@ -765,10 +765,7 @@ async function openQCOrder() {
   $("qcTitle").textContent = `Sipariş: ${qcOrder.name}`;
   $("qcArea").classList.remove("hidden");
 await updateDoc(doc(db, "orders", qcOrder.id), {
-  status: "Kontrol Başladı",
-  qcStart: new Date(),
- qcBy: (currentUser && (currentUser.email || currentUser.displayName || currentUser.uid)) || "bilinmiyor",
-  lastUpdate: new Date()
+  lines: qcOrder.lines, status: "Tamamlandı", lastUpdate: new Date()
 });
 
 }
