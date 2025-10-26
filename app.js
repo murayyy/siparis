@@ -318,11 +318,11 @@ document.querySelector("button[data-view='view-branch']")?.addEventListener("cli
 // ================== TOPLAYICI ==================
 $("refreshAssignedBtn")?.addEventListener("click", refreshAssigned);
 $("openAssignedBtn")?.addEventListener("click", openAssigned);
+$("finishPickBtn")?.addEventListener("click", finishPick);
+$("savePickBtn")?.addEventListener("click", savePickProgress);
+$("manualAddBtn")?.addEventListener("click", manualAdd);
 $("startScanBtn")?.addEventListener("click", startPickerScanner);
 $("stopScanBtn")?.addEventListener("click", stopPickerScanner);
-$("finishPickBtn")?.addEventListener("click", finishPick);
-$("manualAddBtn")?.addEventListener("click", manualAdd);
-$("savePickBtn")?.addEventListener("click", savePickProgress);
 
 async function refreshAssigned() {
   const sel = $("assignedOrders");
@@ -348,105 +348,94 @@ async function openAssigned() {
   renderPickerLines();
   $("pickerTitle").textContent = `Sipariş: ${pickerOrder.name} (${pickerOrder.warehouse || "-"})`;
   $("pickerArea").classList.remove("hidden");
+
+  // Durumu güncelle
+  await updateDoc(doc(db, "orders", id), { status: "Toplama Başladı" });
 }
 
 function renderPickerLines() {
-  const table = document.getElementById("tbl-picker-lines");
-  if (!table) return;
-  table.innerHTML = `
-    <thead><tr>
-      <th>#</th><th>Kod</th><th>Ürün</th><th>İstenen</th><th>Reyon</th>
-      <th>Toplanan</th><th>Toplandı</th><th>Eksik</th><th>İşlem</th>
-    </tr></thead><tbody></tbody>`;
-  const tb = table.querySelector("tbody");
+  const tb = document.querySelector("#tbl-picker-lines tbody");
+  if (!tb || !pickerOrder) return;
   tb.innerHTML = "";
 
-  const paintRow = (tr, qty, picked) => {
-    tr.classList.remove("not-picked", "partial-picked", "fully-picked", "over-picked");
-    if (picked === 0) tr.classList.add("not-picked");
-    else if (picked < qty) tr.classList.add("partial-picked");
-    else if (picked === qty) tr.classList.add("fully-picked");
-    else tr.classList.add("over-picked");
-  };
-
   pickerOrder.lines.forEach((l, i) => {
-    const qty = toNum(l.qty);
-    const picked = toNum(l.picked);
     tb.insertAdjacentHTML("beforeend", `
       <tr data-row="${i}">
-        <td>${i + 1}</td><td>${l.code}</td><td>${l.name}</td><td>${qty}</td><td>${l.reyon || "-"}</td>
-        <td><input type="number" inputmode="decimal" step="0.001" min="0"
-          class="picked-input" data-idx="${i}" value="${picked}" style="width:80px;text-align:center;"/></td>
-        <td style="text-align:center;"><input type="checkbox" class="chk-picked" ${picked >= qty ? "checked" : ""}/></td>
-        <td style="text-align:center;"><input type="checkbox" class="chk-missing" ${picked < qty ? "checked" : ""}/></td>
-        <td><button class="pill" data-plus="${i}">+1</button>
-            <button class="pill" data-minus="${i}">-1</button>
-            <button class="pill danger" data-del="${i}">Sil</button></td></tr>`);
-  });
-
-  pickerOrder.lines.forEach((l, i) => {
-    const tr = tb.querySelector(`tr[data-row="${i}"]`);
-    paintRow(tr, toNum(l.qty), toNum(l.picked));
+        <td>${i + 1}</td>
+        <td>${l.code}</td>
+        <td>${l.name}</td>
+        <td>${l.qty}</td>
+        <td>${l.reyon || ""}</td>
+        <td><input type="number" class="picked-input" value="${l.picked}" data-idx="${i}" style="width:80px;text-align:center;"/></td>
+      </tr>
+    `);
   });
 
   tb.querySelectorAll(".picked-input").forEach(inp => {
     inp.addEventListener("input", e => {
       const idx = Number(e.target.dataset.idx);
       pickerOrder.lines[idx].picked = toNum(e.target.value);
-      const line = pickerOrder.lines[idx];
-      const tr = tb.querySelector(`tr[data-row='${idx}']`);
-      paintRow(tr, toNum(line.qty), toNum(line.picked));
-      tr.querySelector(".chk-picked").checked = line.picked >= line.qty;
-      tr.querySelector(".chk-missing").checked = line.picked < line.qty;
-    });
-  });
-
-  tb.querySelectorAll("button[data-plus]").forEach(btn => {
-    btn.addEventListener("click", () => {
-      const idx = Number(btn.dataset.plus);
-      const line = pickerOrder.lines[idx];
-      line.picked = (toNum(line.picked) || 0) + 1;
-      const tr = tb.querySelector(`tr[data-row='${idx}']`);
-      tr.querySelector(".picked-input").value = line.picked;
-      paintRow(tr, toNum(line.qty), toNum(line.picked));
-    });
-  });
-
-  tb.querySelectorAll("button[data-minus]").forEach(btn => {
-    btn.addEventListener("click", () => {
-      const idx = Number(btn.dataset.minus);
-      const line = pickerOrder.lines[idx];
-      line.picked = Math.max((toNum(line.picked) || 0) - 1, 0);
-      const tr = tb.querySelector(`tr[data-row='${idx}']`);
-      tr.querySelector(".picked-input").value = line.picked;
-      paintRow(tr, toNum(line.qty), toNum(line.picked));
     });
   });
 }
 
 async function savePickProgress() {
-  if (!pickerOrder) return alert("Sipariş açılmadı!");
+  if (!pickerOrder) return alert("Sipariş seçilmedi!");
   await updateDoc(doc(db, "orders", pickerOrder.id), {
-    lines: pickerOrder.lines, status: "Toplama Başladı", lastUpdate: new Date()
+    lines: pickerOrder.lines,
+    status: "Toplama Başladı"
   });
   alert("Toplama kaydedildi!");
 }
 
 async function finishPick() {
-  if (!pickerOrder) return;
-  for (const l of pickerOrder.lines) {
-    const used = Math.min(toNum(l.picked) || 0, toNum(l.qty) || 0);
-    if (used > 0) await decreaseStock(l.code, used, pickerOrder.warehouse);
-  }
-  await updateDoc(doc(db, "orders", pickerOrder.id), { lines: pickerOrder.lines, status: "Toplandı" });
+  if (!pickerOrder) return alert("Sipariş seçilmedi!");
+  await updateDoc(doc(db, "orders", pickerOrder.id), {
+    lines: pickerOrder.lines,
+    status: "Toplandı"
+  });
   alert("Toplama tamamlandı!");
 }
 
-// ================== QC ==================
+async function startPickerScanner() {
+  if (typeof Html5Qrcode === "undefined") return alert("📷 Barkod kütüphanesi yüklenmemiş!");
+  if (scanner) await stopPickerScanner();
+  scanner = new Html5Qrcode("reader");
+  await scanner.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 }, onPickScan);
+}
+
+function stopPickerScanner() {
+  if (!scanner) return;
+  return scanner.stop().then(() => { scanner.clear(); scanner = null; });
+}
+
+function onPickScan(code) {
+  if (!pickerOrder) return;
+  const idx = pickerOrder.lines.findIndex(l => l.barcode === code || l.code === code);
+  if (idx === -1) return alert("Ürün bulunamadı: " + code);
+  pickerOrder.lines[idx].picked = toNum(pickerOrder.lines[idx].picked) + 1;
+  renderPickerLines();
+}
+
+async function manualAdd() {
+  if (!pickerOrder) return alert("Önce sipariş seçin!");
+  const code = $("manualScanCode").value.trim();
+  const qty = toNum($("manualScanQty").value);
+  if (!code) return alert("Kod girin!");
+  const idx = pickerOrder.lines.findIndex(l => l.code === code);
+  if (idx !== -1) pickerOrder.lines[idx].picked += qty;
+  else pickerOrder.lines.push({ code, name: code, qty, picked: qty });
+  renderPickerLines();
+  $("manualScanCode").value = "";
+  $("manualScanQty").value = "1";
+}
+
+
+// ================== QC (KONTROL) ==================
 $("refreshQCBtn")?.addEventListener("click", refreshQCOrders);
 $("openQCBtn")?.addEventListener("click", openQCOrder);
-$("finishQCBtn")?.addEventListener("click", finishQC);
 $("saveQCBtn")?.addEventListener("click", saveQCProgress);
+$("finishQCBtn")?.addEventListener("click", finishQC);
 $("startQCScanBtn")?.addEventListener("click", startQCScanner);
 $("stopQCScanBtn")?.addEventListener("click", stopQCScanner);
 
@@ -454,7 +443,7 @@ async function refreshQCOrders() {
   const sel = $("qcOrders");
   if (!sel) return;
   sel.innerHTML = "";
-  const qs = await getDocs(query(collection(db, "orders"), where("status", "in", ["Kontrol", "Kontrol Başladı"])));
+  const qs = await getDocs(query(collection(db, "orders"), where("status", "in", ["Toplandı", "Kontrol Başladı"])));
   qs.forEach(d => {
     const o = { id: d.id, ...d.data() };
     const opt = document.createElement("option");
@@ -470,51 +459,75 @@ async function openQCOrder() {
   const ds = await getDoc(doc(db, "orders", id));
   if (!ds.exists()) return alert("Sipariş bulunamadı!");
   qcOrder = { id: ds.id, ...ds.data() };
-  qcOrder.lines = (qcOrder.lines || []).map(l => ({
-    ...l, qc: toNum(l.qc) || 0, picked: toNum(l.picked) || 0, qty: toNum(l.qty) || 0
-  }));
+  qcOrder.lines = (qcOrder.lines || []).map(l => ({ ...l, qc: toNum(l.qc) || 0, picked: toNum(l.picked) || 0 }));
   renderQCLines();
   $("qcTitle").textContent = `Sipariş: ${qcOrder.name}`;
   $("qcArea").classList.remove("hidden");
-  // ✅ Statü artık "Kontrol Başladı"
-  await updateDoc(doc(db, "orders", qcOrder.id), {
-    lines: qcOrder.lines, status: "Kontrol Başladı", lastUpdate: new Date()
-  });
+
+  // Durumu güncelle
+  await updateDoc(doc(db, "orders", id), { status: "Kontrol Başladı" });
 }
 
 function renderQCLines() {
   const tb = document.querySelector("#tbl-qc-lines tbody");
   if (!tb) return;
   tb.innerHTML = "";
-
   qcOrder.lines.forEach((l, i) => {
-    const picked = toNum(l.picked);
-    const qc = toNum(l.qc);
-    const diff = Math.max(0, picked - qc);
     tb.insertAdjacentHTML("beforeend", `
       <tr data-row="${i}">
-        <td>${i + 1}</td><td>${l.code}</td><td>${l.name}</td>
-        <td>${l.qty}</td><td>${picked}</td>
-        <td><input type="number" class="qc-input" data-idx="${i}" value="${qc}" 
-          min="0" max="${picked}" step="0.001" style="width:100px;text-align:center;"></td>
-        <td>${diff}</td></tr>`);
+        <td>${i + 1}</td>
+        <td>${l.code}</td>
+        <td>${l.name}</td>
+        <td>${l.qty}</td>
+        <td>${l.picked}</td>
+        <td><input type="number" class="qc-input" data-idx="${i}" value="${l.qc}" style="width:80px;text-align:center;"></td>
+      </tr>
+    `);
+  });
+  tb.querySelectorAll(".qc-input").forEach(inp => {
+    inp.addEventListener("input", e => {
+      const idx = Number(e.target.dataset.idx);
+      qcOrder.lines[idx].qc = toNum(e.target.value);
+    });
   });
 }
 
 async function saveQCProgress() {
   if (!qcOrder) return alert("Sipariş seçilmedi!");
   await updateDoc(doc(db, "orders", qcOrder.id), {
-    lines: qcOrder.lines, status: "Kontrol Başladı", lastUpdate: new Date()
+    lines: qcOrder.lines,
+    status: "Kontrol Başladı"
   });
-  alert("QC kaydedildi!");
+  alert("Kontrol kaydedildi!");
 }
 
 async function finishQC() {
   if (!qcOrder) return alert("Sipariş seçilmedi!");
   await updateDoc(doc(db, "orders", qcOrder.id), {
-    lines: qcOrder.lines, status: "Tamamlandı", lastUpdate: new Date()
+    lines: qcOrder.lines,
+    status: "Tamamlandı"
   });
-  alert("QC tamamlandı!");
+  alert("Kontrol tamamlandı!");
+}
+
+async function startQCScanner() {
+  if (typeof Html5Qrcode === "undefined") return alert("📷 Barkod kütüphanesi yüklenmemiş!");
+  if (qcScanner) await stopQCScanner();
+  qcScanner = new Html5Qrcode("qcReader");
+  await qcScanner.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 }, onQCScan);
+}
+
+function stopQCScanner() {
+  if (!qcScanner) return;
+  return qcScanner.stop().then(() => { qcScanner.clear(); qcScanner = null; });
+}
+
+function onQCScan(code) {
+  if (!qcOrder) return;
+  const idx = qcOrder.lines.findIndex(l => l.barcode === code || l.code === code);
+  if (idx === -1) return alert("Barkod bulunamadı: " + code);
+  qcOrder.lines[idx].qc = toNum(qcOrder.lines[idx].qc) + 1;
+  renderQCLines();
 }
 
 // ================== PALETLEME ==================
