@@ -249,17 +249,43 @@
       </div>
     </section>
 
-    <!-- Dashboard -->
-    <section id="view-dashboard" class="view hidden">
-      <h2>📊 Dashboard</h2>
-      <div class="row">
-        <div class="card flex-1"><h3>Toplam Sipariş</h3><p id="statTotalOrders">0</p></div>
-        <div class="card flex-1"><h3>Tamamlanan Sipariş</h3><p id="statCompletedOrders">0</p></div>
-        <div class="card flex-1"><h3>Bekleyen Sipariş</h3><p id="statPendingOrders">0</p></div>
-      </div>
-      <div class="card"><canvas id="chartOrders"></canvas></div>
-      <div class="card"><canvas id="chartDaily"></canvas></div>
-    </section>
+  <!-- Dashboard -->
+<section id="view-dashboard" class="view hidden">
+  <h2>📊 Dashboard</h2>
+
+  <div class="row">
+    <div class="card flex-1"><h3>Toplam Sipariş</h3><p id="statTotalOrders">0</p></div>
+    <div class="card flex-1"><h3>Tamamlanan</h3><p id="statCompletedOrders">0</p></div>
+    <div class="card flex-1"><h3>Bekleyen</h3><p id="statPendingOrders">0</p></div>
+    <div class="card flex-1"><h3>Eksik Ürünlü</h3><p id="statMissingOrders">0</p></div>
+  </div>
+
+  <div class="row">
+    <div class="card flex-1"><h3>Toplama Ortalama Süre</h3><p id="statPickerAvg">0 dk</p></div>
+    <div class="card flex-1"><h3>Kontrol Ortalama Süre</h3><p id="statQcAvg">0 dk</p></div>
+  </div>
+
+  <h3>🧺 Toplayıcı Performansı</h3>
+  <table id="tblPickerPerf">
+    <thead>
+      <tr><th>Toplayıcı</th><th>Ortalama Süre (dk)</th><th>Toplam Sipariş</th></tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <h3>🔍 Kontrol Performansı</h3>
+  <table id="tblQcPerf">
+    <thead>
+      <tr><th>Kontrolcü</th><th>Ortalama Süre (dk)</th><th>Toplam Sipariş</th></tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <div class="card" style="margin-top:10px;">
+    <canvas id="chartDaily"></canvas>
+  </div>
+</section>
+
 
     <!-- Stok Yönetimi -->
     <section id="view-stock" class="view hidden">
