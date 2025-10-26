@@ -749,46 +749,13 @@ window.viewOrderDetails = async function(id) {
 };
 
 // ================== DASHBOARD ==================
+// ================== DASHBOARD ==================
 document.querySelector("button[data-view='view-dashboard']")?.addEventListener("click", loadDashboardStats);
-
-async function loadDashboard() {
-  const ordersSnap = await getDocs(collection(db, "orders"));
-  const palletsSnap = await getDocs(collection(db, "pallets"));
-  let total = 0, completed = 0, pending = 0;
-
-  ordersSnap.forEach(docu => {
-    total++;
-    const st = docu.data().status;
-    if (st === "Tamamlandı") completed++; else pending++;
-  });
-
-  $("statTotalOrders").innerText = total;
-  $("statCompletedOrders").innerText = completed;
-  $("statPendingOrders").innerText = pending;
-  if ($("statPallets")) $("statPallets").innerText = palletsSnap.size;
-
-  const ctx2 = document.getElementById("chartDaily");
-  if (ctx2) {
-    // örnek günlük veri
-    new Chart(ctx2, {
-      type: "bar",
-      data: {
-        labels: ["Gün1", "Gün2", "Gün3", "Gün4", "Gün5", "Gün6", "Gün7"],
-        datasets: [{ label: "Sipariş", data: [3, 5, 2, 7, 4, 6, 3] }]
-      }
-    });
-  }
-}
-setInterval(() => {
-  const v = document.getElementById("view-dashboard");
-  if (v && !v.classList.contains("hidden")) loadDashboard();
-}, 5000);
 
 async function loadDashboardStats() {
   const snap = await getDocs(collection(db, "orders"));
   let total = 0, completed = 0, pending = 0, missing = 0;
   let pickerTimes = [], qcTimes = [];
-  let pickerMap = {}, qcMap = {};
 
   snap.forEach(docu => {
     const d = docu.data();
@@ -796,27 +763,20 @@ async function loadDashboardStats() {
     if (d.status === "Tamamlandı") completed++; else pending++;
     if (d.missingCount && d.missingCount > 0) missing++;
 
-    // Toplayıcı süreleri
+    // Toplama süreleri
     if (d.pickerStart && d.pickerEnd) {
       const s = d.pickerStart?.toDate ? d.pickerStart.toDate() : new Date(d.pickerStart);
       const e = d.pickerEnd?.toDate ? d.pickerEnd.toDate() : new Date(d.pickerEnd);
       const diff = (e - s) / 60000;
-      if (!isNaN(diff)) {
-        pickerTimes.push(diff);
-        if (!pickerMap[d.assignedTo]) pickerMap[d.assignedTo] = [];
-        pickerMap[d.assignedTo].push(diff);
-      }
+      if (!isNaN(diff)) pickerTimes.push(diff);
     }
+
     // QC süreleri
     if (d.qcStart && d.qcEnd) {
       const s = d.qcStart?.toDate ? d.qcStart.toDate() : new Date(d.qcStart);
       const e = d.qcEnd?.toDate ? d.qcEnd.toDate() : new Date(d.qcEnd);
       const diff = (e - s) / 60000;
-      if (!isNaN(diff)) {
-        qcTimes.push(diff);
-        if (!qcMap[d.qcBy]) qcMap[d.qcBy] = [];
-        qcMap[d.qcBy].push(diff);
-      }
+      if (!isNaN(diff)) qcTimes.push(diff);
     }
   });
 
@@ -830,24 +790,43 @@ async function loadDashboardStats() {
   $("statPickerAvg").textContent = avgPicker + " dk";
   $("statQcAvg").textContent = avgQC + " dk";
 
-  renderPerformanceTables(pickerMap, qcMap);
+  renderSimpleDashboardChart(total, completed, pending);
 }
 
-function renderPerformanceTables(pickerMap, qcMap) {
-  const tb1 = $("tblPickerPerf").querySelector("tbody");
-  tb1.innerHTML = Object.keys(pickerMap).map(u => {
-    const times = pickerMap[u];
-    const avg = (times.reduce((a,b)=>a+b,0)/times.length).toFixed(1);
-    return `<tr><td>${u}</td><td>${avg}</td><td>${times.length}</td></tr>`;
-  }).join("");
+// === Basit Grafik ===
+function renderSimpleDashboardChart(total, completed, pending) {
+  const ctx = document.getElementById("chartDaily");
+  if (!ctx) return;
 
-  const tb2 = $("tblQcPerf").querySelector("tbody");
-  tb2.innerHTML = Object.keys(qcMap).map(u => {
-    const times = qcMap[u];
-    const avg = (times.reduce((a,b)=>a+b,0)/times.length).toFixed(1);
-    return `<tr><td>${u}</td><td>${avg}</td><td>${times.length}</td></tr>`;
-  }).join("");
+  // Eğer eski chart varsa sıfırla
+  if (window._dashChart) window._dashChart.destroy();
+
+  window._dashChart = new Chart(ctx, {
+    type: "doughnut",
+    data: {
+      labels: ["Tamamlanan", "Bekleyen"],
+      datasets: [{
+        data: [completed, pending],
+        backgroundColor: ["#22c55e", "#4f7cff"],
+        borderWidth: 0
+      }]
+    },
+    options: {
+      plugins: {
+        legend: { labels: { color: "#e6eeff" } },
+        title: { display: true, text: `Toplam Sipariş: ${total}`, color: "#e6eeff" }
+      },
+      cutout: "60%",
+      responsive: true
+    }
+  });
 }
+
+// === Otomatik 5sn'de bir güncelleme ===
+setInterval(() => {
+  const v = document.getElementById("view-dashboard");
+  if (v && !v.classList.contains("hidden")) loadDashboardStats();
+}, 5000);
 
 // ================== STOK YÖNETİMİ ==================
 document.querySelector("button[data-view='view-stock']")?.addEventListener("click", loadStockManage);
