@@ -1013,7 +1013,7 @@ async function loadDashboardStats() {
     if (d.missingCount && d.missingCount > 0) missing++;
 
     if (d.pickerStart && d.pickerEnd) {
-      const diff = (d.pickerEnd.toDate() - d.pickerStart.toDate()) / 60000;
+     const diff = (d.qcEnd.toDate() - d.qcStart.toDate()) / 60000;
       pickerTimes.push(diff);
       if (!pickerMap[d.assignedTo]) pickerMap[d.assignedTo] = [];
       pickerMap[d.assignedTo].push(diff);
