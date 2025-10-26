@@ -887,12 +887,7 @@ function onQCScan(code) {
 }
 async function saveQCProgress() {
   if (!qcOrder) return alert("Önce bir sipariş açın!");
-  await updateDoc(doc(db, "orders", qcOrder.id), {
-  lines: qcOrder.lines,
-  status: "Tamamlandı",
-  qcEnd: new Date(),
-  lastUpdate: new Date()
-});
+await updateDoc(doc(db, "orders", qcOrder.id), { status: "Kontrol Başladı", lastUpdate: new Date() });
 
   alert("💾 QC kaydedildi!");
 }
