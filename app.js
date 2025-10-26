@@ -606,7 +606,7 @@ async function savePickProgress() {
   lines: pickerOrder.lines,
   status: "Toplama Başladı",
   pickerStart: new Date(),
-  assignedTo: currentUser.email || currentUser.displayName || currentUser.uid,
+ assignedTo: (currentUser && (currentUser.email || currentUser.displayName || currentUser.uid)) || "bilinmiyor",
   lastUpdate: new Date()
 });
   alert("Toplama durumu kaydedildi.");
@@ -767,7 +767,7 @@ async function openQCOrder() {
 await updateDoc(doc(db, "orders", qcOrder.id), {
   status: "Kontrol Başladı",
   qcStart: new Date(),
-  qcBy: currentUser.email || currentUser.displayName || currentUser.uid,
+ qcBy: (currentUser && (currentUser.email || currentUser.displayName || currentUser.uid)) || "bilinmiyor",
   lastUpdate: new Date()
 });
 
