@@ -350,6 +350,21 @@ const api = {
   async listProducts() { return db.get(STORAGE_KEYS.PRODUCTS, []); },
   async listOrders() { return db.get(STORAGE_KEYS.ORDERS, []); },
   async listUsers() { return db.get(STORAGE_KEYS.USERS, []); },
+  // --- Mikro SQL entegrasyon iskeleti ---
+  async pushOrderToMikro(order) {
+    // Örnek: kendi FastAPI/Node API’nize POST atın
+    // return fetch("/api/mikro/orders", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify(order) });
+    console.info("[API] pushOrderToMikro (mock)", order.code);
+    return { ok: true };
+  },
+  async pullStocksFromMikro() {
+    // Örnek: Mikro SQL’den stok çekme
+    // const res = await fetch("/api/mikro/stocks");
+    // const json = await res.json();
+    // db.set(STORAGE_KEYS.PRODUCTS, json);
+    console.info("[API] pullStocksFromMikro (mock)");
+    return db.get(STORAGE_KEYS.PRODUCTS, []);
+  },
 };
 
 /****************************
@@ -706,8 +721,40 @@ function OrdersPage() {
 
   const exportCsv = (o) => {
     const rows = o.items.map((i) => ({ code: i.code, name: i.name, qty: i.qty, unit: i.unit, aisle: i.aisle, barcode: i.barcode }));
-    const blob = new Blob(["code,name,qty,unit,aisle,barcode\n" + rows.map((r) => `${r.code},${r.name},${r.qty},${r.unit},${r.aisle},${r.barcode}`).join("\n")], { type: "text/csv;charset=utf-8" });
+    const blob = new Blob(["code,name,qty,unit,aisle,barcode
+" + rows.map((r) => `${r.code},${r.name},${r.qty},${r.unit},${r.aisle},${r.barcode}`).join("
+")], { type: "text/csv;charset=utf-8" });
     saveAs(blob, `${o.code}.csv`);
+  };
+
+  const exportXlsx = async (o) => {
+    const rows = o.items.map((i) => ({ Kod: i.code, Ürün: i.name, Adet: i.qty, Birim: i.unit, Raf: i.aisle, Barkod: i.barcode }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, o.code);
+    const out = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+    const blob = new Blob([out], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    saveAs(blob, `${o.code}.xlsx`);
+  };
+
+  const printOrder = (o) => {
+    const html = `<!doctype html><html><head><meta charset="utf-8"><title>${o.code}</title>
+      <style> body{font-family:system-ui,Segoe UI,Roboto,Arial;padding:24px;} table{width:100%;border-collapse:collapse} th,td{border:1px solid #ddd;padding:8px;font-size:12px} th{background:#f6f8fa;text-align:left} h1{font-size:18px} .muted{color:#6b7280;font-size:12px}</style>
+      </head><body>
+      <h1>Sipariş: ${o.code}</h1>
+      <div class="muted">Şube: ${o.branchId} &nbsp; | &nbsp; Durum: ${o.status} &nbsp; | &nbsp; Kalem: ${o.items.length}</div>
+      <table><thead><tr><th>#</th><th>Kod</th><th>Ürün</th><th>Adet</th><th>Birim</th><th>Raf</th><th>Barkod</th></tr></thead><tbody>
+      ${o.items.map((i,idx)=>`<tr><td>${idx+1}</td><td>${i.code}</td><td>${i.name}</td><td>${i.qty}</td><td>${i.unit}</td><td>${i.aisle}</td><td>${i.barcode}</td></tr>`).join("")}
+      </tbody></table>
+      <script>window.onload=()=>window.print()</script>
+      </body></html>`;
+    const w = window.open("", "_blank");
+    if (w) { w.document.write(html); w.document.close(); }
+  };
+
+  const pushToMikro = async (o) => {
+    const res = await api.pushOrderToMikro(o);
+    pushNotif({ title: "Mikro Gönderimi", message: `${o.code} gönderim sonucu: ${res.ok?"başarılı":"hata"}`, type: res.ok?"info":"warning" });
   };
 
   return (
@@ -742,6 +789,9 @@ function OrdersPage() {
                     <td className="text-right">
                       <button className="icon-btn" onClick={() => setSelected(o)}><ArrowRight className="w-4 h-4" /></button>
                       <button className="icon-btn" onClick={() => exportCsv(o)}><Download className="w-4 h-4" /></button>
+                      <button className="icon-btn" onClick={() => exportXlsx(o)}><FileSpreadsheet className="w-4 h-4" /></button>
+                      <button className="icon-btn" onClick={() => printOrder(o)}><Printer className="w-4 h-4" /></button>
+                      <button className="icon-btn" onClick={() => pushToMikro(o)}><Upload className="w-4 h-4" /></button>
                       <button className="icon-btn" onClick={() => removeOrder(o.id)}><Trash2 className="w-4 h-4" /></button>
                     </td>
                   </tr>
@@ -872,13 +922,56 @@ function PickingPage() {
   const [scannerOn, setScannerOn] = useState(false);
   const videoRef = useRef(null);
   const [scanValue, setScanValue] = useState("");
+  const [lastDetected, setLastDetected] = useState("");
+  const [supported, setSupported] = useState(false);
 
   const myOrders = orders.filter((o) => [ORDER_STATUS.SUBMITTED, ORDER_STATUS.ASSIGNED, ORDER_STATUS.PICKING].includes(o.status));
 
   useEffect(() => {
-    if (!scannerOn) return;
-    // Basit demo: manual input ile barkod okutuluyormuş gibi yapıyoruz.
-    // Kamera API entegrasyonu bu bölümde geliştirilebilir.
+    setSupported("BarcodeDetector" in window);
+  }, []);
+
+  useEffect(() => {
+    let stream;
+    let raf;
+    let detector;
+    const start = async () => {
+      if (!scannerOn) return;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          await videoRef.current.play();
+        }
+        if ("BarcodeDetector" in window) {
+          detector = new window.BarcodeDetector({ formats: ["qr_code", "ean_13", "code_128"] });
+          const detect = async () => {
+            if (videoRef.current && !videoRef.current.paused) {
+              try {
+                const codes = await detector.detect(videoRef.current);
+                if (codes && codes[0]) {
+                  const val = codes[0].rawValue;
+                  if (val && val !== lastDetected) {
+                    setLastDetected(val);
+                    setScanValue(val);
+                    pushNotif({ title: "Barkod", message: `Okundu: ${val}`, type: "info" });
+                  }
+                }
+              } catch {}
+            }
+            raf = requestAnimationFrame(detect);
+          };
+          raf = requestAnimationFrame(detect);
+        }
+      } catch (e) {
+        console.warn("Kamera açılamadı", e);
+      }
+    };
+    start();
+    return () => {
+      if (raf) cancelAnimationFrame(raf);
+      if (stream) stream.getTracks().forEach(t => t.stop());
+    };
   }, [scannerOn]);
 
   const handleAssign = (o) => assignPicker(o.id, session?.uid || "picker", "picking-page");
@@ -944,7 +1037,7 @@ function PickingPage() {
                   </div>
                   <div className="p-3 rounded-2xl border bg-slate-50">
                     <div className="font-medium flex items-center gap-2"><QrCode className="w-4 h-4" /> Barkod/QR</div>
-                    <div className="text-xs text-slate-500">Demo: Elle giriş kutusu</div>
+                    <div className="text-xs text-slate-500">{supported ? "Cihazınız BarcodeDetector destekliyor." : "Tarayıcı desteklemiyorsa manuel giriş kullanın."}</div>
                     <input className="mt-2 border rounded-xl px-3 py-2 w-full" placeholder="Barkod/QR" value={scanValue} onChange={(e) => setScanValue(e.target.value)} />
                     <button className="btn mt-2" onClick={() => setScanValue("")}>Okut</button>
                     {scannerOn && (
@@ -1204,8 +1297,18 @@ function css(classes) { return classes.split(" ").map(c => `@apply ${c};`).join(
  ****************************/
 function usePwa() {
   useEffect(() => {
-    // Manifest/Service Worker eklenebilir.
+    // Basit manifest ekleme (isteğe bağlı)
+    const link = document.createElement("link");
+    link.rel = "manifest";
+    link.href = "/manifest.webmanifest"; // dışarıda yoksa sorun değil; PWA kaydı yine de çalışır
+    if (!document.querySelector('link[rel="manifest"]')) document.head.appendChild(link);
+
+    // Service Worker kaydı (offline cache için)
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("/sw.js").catch(console.warn);
+    }
   }, []);
+}, []);
 }
 
 /****************************
