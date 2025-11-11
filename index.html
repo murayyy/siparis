@@ -564,3 +564,313 @@
   </script>
 </body>
 </html>
+
+/* =====================================================================
+   GENİŞLETME PAKETİ — KURUMSAL MODÜLLER (i18n, Workflow, Policy, Stok Defteri,
+   Gelişmiş Arama, Profiler, Background Sync, Retry/Backoff, WS Sync, Test Helpers)
+   ---------------------------------------------------------------------
+   Not: Bu bloklar app.js’i kurumsal ölçekli tek dosya mimariye yaklaştırır.
+   Her modül bağımsız kullanılabilir ve üstteki ana akışla entegredir.
+   ===================================================================== */
+
+// =============================
+// I18N — Çok Dillilik
+// =============================
+const i18n = (()=>{
+  const dict = {
+    tr: {
+      NEW_ORDER: 'Yeni Sipariş', ORDER: 'Sipariş', BRANCH: 'Şube', PRODUCT: 'Ürün', QTY: 'Miktar',
+      STATUS: 'Durum', CREATED_AT: 'Oluşturma', ASSIGNED_TO: 'Atanan',
+      PICKING_START: 'Toplamaya Başla', SEND_QC: "QC'ye Gönder", ARCHIVE: 'Arşivle', QC_APPROVE: 'QC Onayla',
+      EXPORT_CSV: 'CSV Dışa Aktar', IMPORT_CSV: 'CSV İçe Aktar', REFRESH: 'Yenile', SEARCH: 'Ara',
+      INVENTORY: 'Envanter', STOCK_IN: 'Stok Giriş', STOCK_OUT: 'Stok Çıkış', SAVE: 'Kaydet', CANCEL: 'İptal',
+      BARCODE_SCAN: 'Barkod Tara', SETTINGS: 'Ayarlar', THEME: 'Tema', LANGUAGE: 'Dil', NOTIFICATIONS: 'Bildirimler',
+      INFO_SAVED: 'Kaydedildi', ERROR: 'Hata', OFFLINE_ENQUEUED: 'Çevrimdışı: sıraya alındı'
+    },
+    en: {
+      NEW_ORDER: 'New Order', ORDER: 'Order', BRANCH: 'Branch', PRODUCT: 'Product', QTY: 'Quantity',
+      STATUS: 'Status', CREATED_AT: 'Created At', ASSIGNED_TO: 'Assigned To',
+      PICKING_START: 'Start Picking', SEND_QC: 'Send to QC', ARCHIVE: 'Archive', QC_APPROVE: 'QC Approve',
+      EXPORT_CSV: 'Export CSV', IMPORT_CSV: 'Import CSV', REFRESH: 'Refresh', SEARCH: 'Search',
+      INVENTORY: 'Inventory', STOCK_IN: 'Stock In', STOCK_OUT: 'Stock Out', SAVE: 'Save', CANCEL: 'Cancel',
+      BARCODE_SCAN: 'Scan Barcode', SETTINGS: 'Settings', THEME: 'Theme', LANGUAGE: 'Language', NOTIFICATIONS: 'Notifications',
+      INFO_SAVED: 'Saved', ERROR: 'Error', OFFLINE_ENQUEUED: 'Offline: queued'
+    }
+  };
+  let lang = 'tr';
+  function t(key){ return (dict[lang] && dict[lang][key]) || key; }
+  function setLang(l){ if(dict[l]) lang = l; }
+  return { t, setLang };
+})();
+
+// =============================
+// PolicyEngine — Rol Bazlı Kural Denetleyicisi
+// =============================
+const PolicyEngine = (()=>{
+  const rules = {
+    createOrder: [ROLES.MANAGER],
+    assignOrder: [ROLES.MANAGER],
+    startPicking: [ROLES.MANAGER, ROLES.PICKER],
+    sendToQC: [ROLES.MANAGER, ROLES.PICKER],
+    qcApprove: [ROLES.QC, ROLES.MANAGER],
+    archiveOrder: [ROLES.MANAGER],
+    exportCSV: [ROLES.MANAGER],
+  };
+  function can(action){
+    const role = state.userDoc?.role;
+    const allow = rules[action];
+    return !!allow && allow.includes(role);
+  }
+  return { can };
+})();
+
+// =============================
+// WorkflowEngine — Durum Geçişleri
+// =============================
+const WorkflowEngine = (()=>{
+  const transitions = {
+    [STATUS.CREATED]: { assign: STATUS.ASSIGNED, archive: STATUS.ARCHIVED },
+    [STATUS.ASSIGNED]: { startPicking: STATUS.PICKING, archive: STATUS.ARCHIVED },
+    [STATUS.PICKING]: { toPicked: STATUS.PICKED, archive: STATUS.ARCHIVED },
+    [STATUS.PICKED]: { toQC: STATUS.QC, approve: STATUS.COMPLETED, archive: STATUS.ARCHIVED },
+    [STATUS.QC]: { approve: STATUS.COMPLETED, reject: STATUS.PICKING },
+    [STATUS.COMPLETED]: { archive: STATUS.ARCHIVED },
+    [STATUS.ARCHIVED]: {}
+  };
+  function next(current, action){ return transitions[current]?.[action] || null; }
+  return { next };
+})();
+
+// =============================
+// Inventory — Stok Defteri ve Mutabakat
+// =============================
+const Inventory = (()=>{
+  // Basit stok defteri: { code -> {qty, lastTs, aisle} }
+  const ledger = new Map();
+
+  function ensure(code){ if(!ledger.has(code)) ledger.set(code, { qty:0, lastTs: Date.now(), aisle: 'A-01' }); return ledger.get(code); }
+  function moveIn(code, qty){ const e=ensure(code); e.qty += qty; e.lastTs = Date.now(); logInfo('Stock In',{code,qty}); return e.qty; }
+  function moveOut(code, qty){ const e=ensure(code); e.qty = Math.max(0, e.qty-qty); e.lastTs = Date.now(); logInfo('Stock Out',{code,qty}); return e.qty; }
+  function setAisle(code, aisle){ const e=ensure(code); e.aisle = aisle; }
+  function get(code){ return ledger.get(code)||{qty:0,aisle:'A-01',lastTs:0}; }
+  function list(){ return Array.from(ledger, ([code,rec])=>({code, ...rec})); }
+
+  // Mutabakat (örn. sayım sonuçlarını uygula)
+  function reconcile(counts){
+    // counts: [{code, qty}]
+    for(const c of counts){ const e=ensure(c.code); e.qty = c.qty; e.lastTs = Date.now(); }
+  }
+
+  return { moveIn, moveOut, setAisle, get, list, reconcile };
+})();
+
+// =============================
+// AdvancedSearch — Basit Dizinleme ve Arama
+// =============================
+const AdvancedSearch = (()=>{
+  const idx = new Map(); // token -> Set(orderId)
+  function tokenize(s){ return String(s||'').toLowerCase().split(/[^a-z0-9ğüşöçı]+/).filter(Boolean); }
+  function add(order){
+    const tokens = new Set([
+      ...tokenize(order.id), ...tokenize(order.branch),
+      ...((order.items||[]).flatMap(it=> [...tokenize(it.name), ...tokenize(it.code)]))
+    ]);
+    for(const t of tokens){ if(!idx.has(t)) idx.set(t, new Set()); idx.get(t).add(order.id); }
+  }
+  function build(orders){ idx.clear(); orders.forEach(add); }
+  function search(query){
+    const tokens = tokenize(query);
+    if(tokens.length===0) return [];
+    let result = null;
+    for(const t of tokens){
+      const set = idx.get(t) || new Set();
+      result = result? new Set([...result].filter(x=> set.has(x))) : new Set(set);
+    }
+    return Array.from(result||[]);
+  }
+  return { build, search };
+})();
+
+// =============================
+// Profiler — Performans Ölçümü
+// =============================
+const Profiler = (()=>{
+  const marks = new Map();
+  function start(key){ marks.set(key, performance.now()); }
+  function end(key){ const t = performance.now() - (marks.get(key)||performance.now()); marks.delete(key); return t; }
+  function log(key){ const ms = end(key); logInfo('profile:'+key, {ms}); return ms; }
+  return { start, end, log };
+})();
+
+// =============================
+// Retry / Backoff — Dayanıklı Çağrılar
+// =============================
+async function withRetry(fn, {tries=3, base=200}={}){
+  let attempt=0, last;
+  while(attempt<tries){
+    try{ return await fn(); }catch(e){ last=e; await new Promise(r=>setTimeout(r, base*Math.pow(2,attempt))); attempt++; }
+  }
+  throw last;
+}
+
+// =============================
+// Background Sync (basit zamanlayıcı)
+// =============================
+const BgSync = (()=>{
+  let timer=null; let interval=15000;
+  function start(){ if(timer) return; timer = setInterval(()=> flushQueue().catch(()=>{}), interval); }
+  function stop(){ clearInterval(timer); timer=null; }
+  function setIntervalMs(ms){ interval=ms; if(timer){ stop(); start(); } }
+  return { start, stop, setIntervalMs };
+})();
+BgSync.start();
+
+// =============================
+// WS Sync (Mock) — Gerçek Zamanlı Bildirimler
+// =============================
+const Realtime = (()=>{
+  let listeners = new Set();
+  function subscribe(fn){ listeners.add(fn); return ()=>listeners.delete(fn); }
+  function publish(evt){ listeners.forEach(fn=>{ try{ fn(evt);}catch{} }); }
+  // Firestore trigger replacement (mock): yeni sipariş → publish
+  const _origCreateOrder = createOrder;
+  createOrder = async function(payload){ const res = await _origCreateOrder(payload); try{ publish({type:'order_created', payload}); }catch{} return res; };
+  return { subscribe, publish };
+})();
+
+// =============================
+// Test Helpers — Veri Üreticiler, Sahte İş Yükü
+// =============================
+const TestKit = (()=>{
+  function genOrders(n=50){
+    const branches=['Konyaaltı','Kepez','Muratpaşa','Aksu','Döşemealtı'];
+    const arr=[];
+    for(let i=0;i<n;i++){
+      arr.push({
+        branch: branches[i%branches.length],
+        status: STATUS.CREATED,
+        createdAt: serverTimestamp(),
+        createdBy: state.user?.uid||'dev',
+        assignedTo: null,
+        items: Array.from({length: (i%4)+1}).map((_,k)=>({
+          code:`PRD-${String(Math.random()).slice(2,7)}`,
+          name:`Ürün ${k+1}`,
+          aisle:`A-${String(Math.floor(Math.random()*10)).padStart(2,'0')}`,
+          quantity: Math.floor(Math.random()*12)+1,
+          picked:0
+        }))
+      });
+    }
+    return arr;
+  }
+  async function pushOrders(batch=20){
+    const items=genOrders(batch);
+    for(const o of items){
+      const id= await repo.addOrder({branch:o.branch,status:o.status,createdAt:o.createdAt,createdBy:o.createdBy,assignedTo:o.assignedTo});
+      for(const it of o.items){ await repo.addOrderItem(id, it); }
+    }
+    await loadOrders();
+  }
+  return { genOrders, pushOrders };
+})();
+
+// =============================
+// Entegrasyon Noktaları — UI Bağlama (Index tarafı ile)
+// =============================
+(function bindIndexControls(){
+  // Tema ve dil
+  const selTheme = document.getElementById('selTheme');
+  const selLang = document.getElementById('selLang');
+  selLang?.addEventListener('change', ()=> i18n.setLang(selLang.value) );
+
+  // Raporlar
+  const repBtn = document.getElementById('btnReportGenerate');
+  repBtn?.addEventListener('click', async ()=>{
+    const tbody = document.querySelector('#tblReport tbody'); tbody.innerHTML='';
+    const list = await repo.listOrders({forRole: isManager()?ROLES.MANAGER:(isPicker()?ROLES.PICKER:ROLES.QC)});
+    for(const o of list){
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${o.id}</td><td>${o.branch}</td><td><span class="badge">${o.status}</span></td><td>${(o.items||[]).length}</td><td>${formatTs(o.createdAt)}</td>`;
+      tbody.append(tr);
+    }
+  });
+
+  // Inventory quick actions
+  document.getElementById('btnInvIn')?.addEventListener('click', ()=>{
+    const code = document.getElementById('invInCode').value.trim();
+    const qty = parseInt(document.getElementById('invInQty').value,10)||0;
+    if(!code||qty<=0) return toast('Kod/miktar gerekir');
+    Inventory.moveIn(code, qty); toast('Stok girişi kaydedildi');
+    renderInventory();
+  });
+  document.getElementById('btnInvOut')?.addEventListener('click', ()=>{
+    const code = document.getElementById('invOutCode').value.trim();
+    const qty = parseInt(document.getElementById('invOutQty').value,10)||0;
+    if(!code||qty<=0) return toast('Kod/miktar gerekir');
+    Inventory.moveOut(code, qty); toast('Stok çıkışı kaydedildi');
+    renderInventory();
+  });
+
+  async function renderInventory(){
+    const tbody = document.querySelector('#tblInventory tbody'); if(!tbody) return; tbody.innerHTML='';
+    for(const r of Inventory.list()){
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${r.name||'-'}</td><td>${r.code}</td><td>${r.aisle}</td><td>${r.qty}</td><td>${new Date(r.lastTs).toLocaleString()}</td>`;
+      tbody.append(tr);
+    }
+  }
+  renderInventory();
+})();
+
+// =============================
+// Gelişmiş Arama Entegrasyonu — Orders görünümünde
+// =============================
+(async function enhanceOrdersSearch(){
+  const input = document.getElementById('qOrders'); if(!input) return;
+  const orders = await repo.listOrders({forRole: isManager()?ROLES.MANAGER:(isPicker()?ROLES.PICKER:ROLES.QC)});
+  AdvancedSearch.build(orders);
+  input.addEventListener('input', (e)=>{
+    const ids = AdvancedSearch.search(e.target.value);
+    const filtered = ids.length? orders.filter(o=> ids.includes(o.id)) : orders;
+    renderOrders(filtered);
+  });
+})();
+
+// =============================
+// Dashboard İyileştirme — KPI ve Grafik Yer Tutucu
+// =============================
+(async function fillDashboard(){
+  try{
+    Profiler.start('dashboard');
+    const orders = await repo.listOrders({forRole:ROLES.MANAGER});
+    const kpiOrders = document.getElementById('kpiOrders');
+    const kpiLines = document.getElementById('kpiLines');
+    const kpiQC = document.getElementById('kpiQC');
+    const kpiDone = document.getElementById('kpiDone');
+    kpiOrders.textContent = String(orders.length);
+    kpiLines.textContent = String(orders.reduce((s,o)=> s+(o.items?.length||0), 0));
+    kpiQC.textContent = String(orders.filter(o=> [STATUS.PICKED, STATUS.QC].includes(o.status)).length);
+    kpiDone.textContent = String(orders.filter(o=> o.status===STATUS.COMPLETED).length);
+
+    const tbody = document.querySelector('#tblDashOrders tbody'); tbody.innerHTML='';
+    for(const o of orders.slice(0,10)){
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${o.id}</td><td>${o.branch}</td><td><span class="badge">${o.status}</span></td><td>${formatTs(o.createdAt)}</td><td class="muted">${o.assignedTo||''}</td>`;
+      tbody.append(tr);
+    }
+
+    // Basit grafik yer tutucu (text bar)
+    const byStatus = orders.reduce((a,o)=>{a[o.status]=(a[o.status]||0)+1;return a;},{});
+    const max = Math.max(...Object.values(byStatus),1);
+    const chart = Object.entries(byStatus).map(([k,v])=> `${k.padEnd(10)} | ${'▮'.repeat(Math.round((v/max)*20))} ${v}`).join('
+');
+    document.getElementById('statusChart').textContent = chart;
+
+    Profiler.log('dashboard');
+  }catch(e){ logError('Dashboard yüklenemedi', e); }
+})();
+
+/* =====================================================================
+   SON — Genişletme bloğu
+   ===================================================================== */
+
