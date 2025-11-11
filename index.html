@@ -1479,3 +1479,269 @@ if(!window.__APP_CORE__){
    otomatları, XLSX dışa aktarım (SheetJS), WebSocket gerçek zamanlı, vb.
    ===================================================================== */
 
+
+/* =====================================================================
+   MODÜL: URT (Üretim Fişi) Entegrasyonu — Mikro SQL Proxy API
+   Açıklama: Flutter/Mikro tarafındaki gerçek entegrasyon için bir HTTP
+   proxy servis beklenir. Burada fetch ile JSON gönderim/cevap modeli
+   tanımlanır. Hata halinde Retry/Backoff ile yeniden denenir.
+   ===================================================================== */
+
+const URT = (()=>{
+  const cfg = {
+    endpoint: '/api/urt', // ör: http://127.0.0.1:8000/api/urt
+    timeoutMs: 12000,
+  };
+
+  async function _post(path, data){
+    const ctrl = new AbortController(); const t = setTimeout(()=>ctrl.abort(), cfg.timeoutMs);
+    try{
+      const res = await fetch(cfg.endpoint+path, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(data), signal: ctrl.signal});
+      if(!res.ok) throw new Error('HTTP '+res.status);
+      return await res.json();
+    } finally { clearTimeout(t); }
+  }
+
+  async function createProductionSlip({slipNo, branch, lines, note}){
+    const payload = { slipNo, branch, note: note||'', lines: lines.map(x=>({ code:x.code, qty:x.qty, name:x.name })) };
+    return withRetry(()=> _post('/create', payload), {tries:3, base:500});
+  }
+
+  async function health(){
+    try{ const r = await _post('/health', {}); return r?.ok===true; }catch{ return false; }
+  }
+
+  return { createProductionSlip, health };
+})();
+
+/* =====================================================================
+   MODÜL: WebSocket Sync — Sunucu ile Gerçek Zamanlı Senkronizasyon
+   Not: Sunucu örnek URL’si invalid; gerçek endpoint ile değiştir.
+   ===================================================================== */
+
+const WSSync = (()=>{
+  let ws=null; let connected=false; let tries=0; const listeners = new Set();
+
+  function connect(url='wss://example.invalid/depo-sync'){
+    if(ws && connected) return; tries++;
+    try{
+      ws = new WebSocket(url);
+      ws.onopen = ()=>{ connected=true; tries=0; logInfo('WS connected'); publish({type:'ws_open'}); };
+      ws.onmessage = (ev)=>{ try{ const msg = JSON.parse(ev.data); publish(msg); }catch(e){ logError('ws message parse', e); } };
+      ws.onclose = ()=>{ connected=false; publish({type:'ws_close'}); scheduleReconnect(); };
+      ws.onerror = ()=>{ connected=false; publish({type:'ws_error'}); try{ ws.close(); }catch{} scheduleReconnect(); };
+    }catch(e){ scheduleReconnect(); }
+  }
+  function scheduleReconnect(){ setTimeout(()=> connect(), Math.min(10000, 500*tries)); }
+  function send(obj){ try{ ws?.send(JSON.stringify(obj)); }catch(e){} }
+  function subscribe(fn){ listeners.add(fn); return ()=>listeners.delete(fn); }
+  function publish(evt){ for(const fn of listeners){ try{ fn(evt); }catch{} } }
+
+  // Sipariş oluşturulunca yayınla
+  const _origCreate = createOrder;
+  createOrder = async function(p){ const id = await _origCreate(p); try{ send({type:'order_created', id}); }catch{} return id; };
+
+  return { connect, send, subscribe };
+})();
+
+WSSync.connect();
+
+/* =====================================================================
+   MODÜL: Palet & Etiket Otomatı — HTML Şablon + Yazdırma
+   ===================================================================== */
+
+const Label = (()=>{
+  function palletLabel({orderId, branch, date}){
+    return `<!doctype html><html><head><meta charset="utf-8"><title>Palet ${orderId}</title>
+    <style>body{font-family:Arial;padding:14mm} .box{border:2px solid #111;border-radius:8px;padding:18px} h1{margin:0 0 10px}</style></head><body>
+    <div class="box">
+      <h1>Palet Etiketi</h1>
+      <div><b>Sipariş:</b> ${orderId}</div>
+      <div><b>Şube:</b> ${branch}</div>
+      <div><b>Tarih:</b> ${date||new Date().toLocaleDateString()}</div>
+    </div></body></html>`;
+  }
+  function printHTML(html){ const w=window.open('','_blank'); w.document.write(html); w.document.close(); w.focus(); w.print(); }
+  return { palletLabel, printHTML };
+})();
+
+/* =====================================================================
+   MODÜL: XLSX & PDF Exporter (lite) — Harici kütüphanesiz hafif çözümler
+   Not: Gerçek XLSX için SheetJS gerekir; burada CSV + minimal PDF (canvas)
+   üretimi yapılır. PDF çıktısı tarayıcı print ile alınabilir.
+   ===================================================================== */
+
+const Exporter = (()=>{
+  function toCSV(rows){ return rows.map(r=> r.map(x=>`"${String(x).replace(/"/g,'""')}"`).join(',')).join('
+'); }
+  function download(name, blob){ const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href), 500); }
+  async function ordersCSV(){
+    const list = await loadOrders();
+    const rows = [['ID','Branch','Status','Lines','CreatedAt']];
+    for(const o of list){ rows.push([o.id, o.branch, o.status, (o.items?.length||0), formatTs(o.createdAt)]); }
+    download('orders.csv', new Blob([toCSV(rows)], {type:'text/csv;charset=utf-8;'}));
+  }
+  function reportPDF(title, rows){
+    const w = window.open('', '_blank');
+    w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${title}</title>
+      <style>body{font-family:Arial;padding:16px} table{border-collapse:collapse;width:100%} td,th{border:1px solid #ddd;padding:6px}</style>
+      </head><body>`);
+    w.document.write(`<h2>${title}</h2><table><thead><tr>${rows[0].map(x=>`<th>${x}</th>`).join('')}</tr></thead><tbody>`);
+    for(const r of rows.slice(1)){ w.document.write(`<tr>${r.map(x=>`<td>${x}</td>`).join('')}</tr>`); }
+    w.document.write('</tbody></table></body></html>'); w.document.close(); w.focus(); w.print();
+  }
+  return { ordersCSV, reportPDF };
+})();
+
+/* =====================================================================
+   MODÜL: Sayım & Mutabakat Oturumu — Canlı Sayım, Fark Analizi
+   ===================================================================== */
+
+const CountSession = (()=>{
+  let session = null; // {id, startedAt, items: Map(code -> {expected, counted})}
+
+  function start(id){ session = { id: id||('CS-'+Date.now()), startedAt: Date.now(), items: new Map() }; toast('Sayım başlatıldı'); return session.id; }
+  function addScan(code){ const row = session.items.get(code)||{expected: Inventory.get(code).qty||0, counted:0}; row.counted++; session.items.set(code, row); return row; }
+  function setCount(code, val){ const row = session.items.get(code)||{expected:0, counted:0}; row.counted = val; session.items.set(code,row); }
+  function diff(){ if(!session) return []; return Array.from(session.items, ([code,row])=>({code, expected:row.expected, counted:row.counted, delta: (row.counted - row.expected)})); }
+  function finish(){ const out = diff(); session=null; toast('Sayım tamamlandı'); return out; }
+  return { start, addScan, setCount, diff, finish };
+})();
+
+/* =====================================================================
+   MODÜL: Görev Zamanlayıcı — Planlı İşler (Temizlik, Sync, Rapor)
+   ===================================================================== */
+
+const Scheduler = (()=>{
+  const jobs = new Map();
+  function every(key, ms, fn){ clear(key); const id=setInterval(fn, ms); jobs.set(key, id); }
+  function at8am(key, fn){
+    clear(key);
+    const now = new Date();
+    const next = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 8, 0, 0, 0);
+    if(next<=now) next.setDate(next.getDate()+1);
+    const wait = next-now;
+    const t = setTimeout(()=>{ fn(); every(key, 24*60*60*1000, fn); }, wait);
+    jobs.set(key, t);
+  }
+  function clear(key){ const t=jobs.get(key); if(!t) return; clearTimeout(t); clearInterval(t); jobs.delete(key); }
+  return { every, at8am, clear };
+})();
+
+// Örnek planlı görevler
+Scheduler.every('flush', 20000, ()=> flushQueue().catch(()=>{}));
+Scheduler.at8am('daily-report', async ()=>{
+  const list = await loadOrders();
+  const rows = [['ID','Branch','Status','Lines','CreatedAt']];
+  for(const o of list){ rows.push([o.id, o.branch, o.status, (o.items?.length||0), formatTs(o.createdAt)]); }
+  Exporter.reportPDF('Günlük Sipariş Raporu', rows);
+});
+
+/* =====================================================================
+   MODÜL: Form Validator & Helpers
+   ===================================================================== */
+
+const V = {
+  required: (v)=> (v!=null && String(v).trim()!==''),
+  positiveInt: (v)=> Number.isInteger(v=Number(v)) && v>0,
+  max: (n)=>(v)=> Number(v)<=n,
+  min: (n)=>(v)=> Number(v)>=n,
+};
+
+function ensureNewOrderForm({branch, product, qty}){
+  if(!V.required(branch)) throw new Error('Şube zorunlu');
+  if(!V.required(product)) throw new Error('Ürün zorunlu');
+  if(!V.positiveInt(qty)) throw new Error('Miktar > 0 olmalı');
+}
+
+/* =====================================================================
+   MODÜL: Stres Testi — Yük Altında Davranış
+   ===================================================================== */
+
+const Stress = (()=>{
+  async function burstCreate(n=20){
+    for(let i=0;i<n;i++){
+      await createOrder({ branch:'Stress', items:[{code:'ST-'+i, name:'Test', aisle:'A-01', quantity:1, picked:0}] });
+    }
+    toast('Stres: siparişler eklendi');
+  }
+  async function randomPick(iter=50){
+    const list = await loadOrders(); if(!list.length) return;
+    for(let i=0;i<iter;i++){
+      const o = list[Math.floor(Math.random()*list.length)];
+      if(!(o.items||[]).length) continue;
+      const it = o.items[Math.floor(Math.random()*o.items.length)];
+      await setPickedQty(o.id, it.id, Math.min((it.picked||0)+1, it.quantity));
+    }
+    toast('Stres: rastgele pick bitti');
+  }
+  return { burstCreate, randomPick };
+})();
+
+/* =====================================================================
+   MODÜL: Gelişmiş Hata Toplayıcı — UI üstü Log Panel
+   ===================================================================== */
+
+const ErrorPanel = (()=>{
+  const q = [];
+  function push(level, message){ q.push({ts:new Date(), level, message}); if(q.length>100) q.shift(); }
+  function view(){
+    const w = window.open('', '_blank');
+    w.document.write('<pre style="font-family:Consolas,monospace;white-space:pre-wrap">'+ q.map(x=> `[${x.ts.toLocaleTimeString()}] ${x.level.toUpperCase()} ${x.message}`).join('
+') +'</pre>');
+  }
+  // patch loggers
+  const _info = logInfo; const _err = logError;
+  logInfo = function(msg, data){ push('info', msg); _info(msg, data); };
+  logError = function(msg, err){ push('error', msg+': '+(err?.message||err)); _err(msg, err); };
+  return { view };
+})();
+
+/* =====================================================================
+   MODÜL: UI Köprüleri — index.html butonlarını app.js fonksiyonlarına bağla
+   ===================================================================== */
+
+(function wireIndexButtons(){
+  // Orders CSV
+  document.getElementById('btnOrdersCSV')?.addEventListener('click', ()=> Exporter.ordersCSV());
+  document.getElementById('btnDashCSV')?.addEventListener('click', ()=> Exporter.ordersCSV());
+
+  // Yeni sipariş dialog (index.html#dlgOrder)
+  const dlgOrder = document.getElementById('dlgOrder');
+  document.getElementById('btnNewOrder')?.addEventListener('click', ()=> dlgOrder.showModal());
+  document.getElementById('dlgSave')?.addEventListener('click', async (e)=>{
+    e.preventDefault();
+    const branch = document.getElementById('dlgBranch').value.trim();
+    const product = document.getElementById('dlgProduct').value.trim();
+    const qty = parseInt(document.getElementById('dlgQty').value,10)||0;
+    try{
+      ensureNewOrderForm({branch, product, qty});
+      await createOrder({ branch, items:[{ code: slug(product), name: product, aisle:'A-01', quantity: qty, picked:0 }] });
+      dlgOrder.close(); await loadOrders(); toast('Sipariş eklendi');
+    }catch(e){ alert(e.message||e); }
+  });
+
+  // Labels
+  document.getElementById('btnLabelPreview')?.addEventListener('click', ()=>{
+    const html = Label.palletLabel({orderId:'SIP-XXXX', branch:'Konyaaltı'}); const w = window.open('','_blank'); w.document.write(html); w.document.close();
+  });
+  document.getElementById('btnLabelPrint')?.addEventListener('click', ()=> Label.printHTML(Label.palletLabel({orderId:'SIP-XXXX', branch:'Konyaaltı'})) );
+
+  // Reports
+  document.getElementById('btnReportExport')?.addEventListener('click', async ()=>{
+    const list = await loadOrders(); const rows=[['ID','Branch','Status','Lines','CreatedAt']];
+    for(const o of list){ rows.push([o.id,o.branch,o.status,(o.items?.length||0),formatTs(o.createdAt)]); }
+    Exporter.reportPDF('Sipariş Raporu', rows);
+  });
+
+  // Yardımcı
+  document.getElementById('btnRefreshDashboard')?.addEventListener('click', ()=> location.reload());
+})();
+
+/* =====================================================================
+   MODÜL: Son Dokunuşlar — Global Export ve Hazır Mesaj
+   ===================================================================== */
+
+Object.assign(window, { URT, WSSync, Label, Exporter, CountSession, Scheduler, V, Stress, ErrorPanel });
+logInfo('Genişletilmiş kurumsal modüller yüklendi');
+
