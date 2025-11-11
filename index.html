@@ -1,126 +1,566 @@
 <!DOCTYPE html>
-<html lang="tr">
+<html lang="tr" data-theme="light">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Depo Otomasyonu Sistemi</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="light dark" />
+  <title>📦 Depo Otomasyonu • Kurumsal Web Uygulaması</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='16' fill='%2300796b'/><text x='50' y='60' font-size='54' text-anchor='middle' fill='white'>📦</text></svg>"/>
 
-  <!-- Stil dosyası -->
-  <link rel="stylesheet" href="style.css">
+  <!-- Manifest & SW (opsiyonel; PWA için) -->
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#00796b" />
 
-  <!-- Firebase SDK -->
+  <!-- Firebase + App -->
   <script type="module" src="firebase.js"></script>
   <script type="module" src="app.js" defer></script>
 
   <style>
-    body { font-family: 'Segoe UI', sans-serif; margin: 0; background: #f7f9fa; }
-    header { background: #00796b; color: #fff; padding: 16px; display: flex; justify-content: space-between; align-items: center; }
-    header h1 { font-size: 20px; margin: 0; }
-    nav button { margin-left: 8px; }
-    main { padding: 20px; }
-    .hidden { display: none !important; }
-    .card { background: white; border-radius: 8px; padding: 16px; margin-bottom: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-    .btn { border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; }
-    .btn-primary { background: #00796b; color: white; }
-    .btn-danger { background: #c62828; color: white; }
-    .btn-secondary { background: #0288d1; color: white; }
-    input, select { width: 100%; padding: 8px; margin-top: 6px; margin-bottom: 12px; border: 1px solid #ccc; border-radius: 4px; }
+    /* Ek minimal stiller (style.css ile birlikte çalışır) */
+    :root { --sidebar-w: 260px; }
+    body, html { height: 100%; }
+    .layout { display: grid; grid-template-columns: var(--sidebar-w) 1fr; grid-template-rows: 56px 1fr; grid-template-areas: 'topbar topbar' 'sidebar main'; min-height: 100vh; }
+    .topbar { grid-area: topbar; background: var(--primary); color: #fff; display:flex; align-items:center; padding: 0 12px; gap: 8px; }
+    .topbar .brand { font-weight: 700; letter-spacing: .3px; display:flex; align-items:center; gap: 8px; }
+    .topbar .brand .logo { width: 28px; height: 28px; display:inline-grid; place-items:center; background: rgba(255,255,255,.15); border-radius: 6px; }
+    .topbar .spacer { flex:1; }
+    .sidebar { grid-area: sidebar; background: #fff; border-right:1px solid #e5e7eb; overflow:auto; }
+    .sidebar .section-title { padding: 14px 16px; font-size: 12px; color:#6b7280; text-transform:uppercase; letter-spacing: .08em; }
+    .sidebar a { display:flex; align-items:center; gap: 10px; padding: 10px 14px; text-decoration:none; color: inherit; border-left:3px solid transparent; }
+    .sidebar a:hover { background:#f3f4f6; }
+    .sidebar a.active { background:#eefcf9; border-left-color: var(--primary); color: var(--primary); font-weight:600; }
+    .main { grid-area: main; padding: 16px; }
+
+    .grid { display:grid; gap:12px; }
+    .g-2 { grid-template-columns: repeat(2, minmax(0,1fr)); }
+    .g-3 { grid-template-columns: repeat(3, minmax(0,1fr)); }
+    .g-4 { grid-template-columns: repeat(4, minmax(0,1fr)); }
+    @media (max-width: 1100px) { .g-4{grid-template-columns: repeat(2, minmax(0,1fr));} }
+    @media (max-width: 800px) { .layout{grid-template-columns: 1fr; grid-template-areas: 'topbar' 'main';} .sidebar{display:none;} }
+
+    .kpi { display:flex; flex-direction:column; gap:6px; }
+    .kpi .num { font-size: 26px; font-weight: 700; }
+
+    .toolbar { display:flex; flex-wrap:wrap; gap: 8px; align-items:center; margin-bottom: 12px; }
+    .toolbar .spacer { flex:1; }
+
+    .table { width:100%; border-collapse: collapse; background:#fff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
+    .table th, .table td { border-bottom:1px solid #eee; padding: 10px; text-align:left; font-size: 14px; }
+    .table th { background: #f9fafb; font-size: 12px; color:#6b7280; text-transform: uppercase; letter-spacing: .06em; }
+    .badge { padding: 2px 6px; border-radius: 999px; font-size: 12px; background:#eef2ff; color:#3730a3; }
+    .badge.green { background:#ecfdf5; color:#065f46; }
+    .badge.yellow { background:#fffbeb; color:#92400e; }
+    .badge.gray { background:#f3f4f6; color:#374151; }
+
+    .split { display:grid; grid-template-columns: 1.2fr .8fr; gap:12px; }
+    @media (max-width: 1100px) { .split { grid-template-columns: 1fr; } }
+
+    .muted { color:#6b7280; font-size: 12px; }
+    .danger { color: var(--danger); }
+
+    dialog.modal { border:none; border-radius: 12px; box-shadow: 0 20px 60px rgba(0,0,0,.25); width:min(900px, 92vw); max-height:90vh; }
+    dialog::backdrop { background: rgba(0,0,0,.45); }
+
+    .pill { border-radius: 999px; padding: 4px 10px; background:#f3f4f6; }
+    .nowrap { white-space: nowrap; }
   </style>
 </head>
+
 <body>
-  <header>
-    <h1>📦 Depo Otomasyonu</h1>
-    <nav>
-      <button id="btnLogin">Giriş</button>
-      <button id="btnLogout" class="hidden">Çıkış</button>
-    </nav>
-  </header>
-
-  <main>
-    <!-- GİRİŞ EKRANI -->
-    <section id="loginSection">
-      <div class="card">
-        <h2>Kullanıcı Girişi</h2>
-        <input id="email" type="email" placeholder="E-posta adresi" required>
-        <input id="password" type="password" placeholder="Şifre" required>
-        <button id="signinBtn" class="btn btn-primary">Giriş Yap</button>
-        <p id="loginMsg"></p>
+  <!-- LAYOUT -->
+  <div class="layout">
+    <!-- TOPBAR -->
+    <div class="topbar">
+      <div class="brand">
+        <span class="logo">📦</span>
+        <span>Depo Otomasyonu</span>
       </div>
-    </section>
-
-    <!-- SİPARİŞLER EKRANI -->
-    <section id="ordersSection" class="hidden">
-      <div class="card">
-        <h2>Siparişler</h2>
-        <div id="orderList"></div>
-        <hr>
-        <button id="btnNewOrder" class="btn btn-secondary">Yeni Sipariş Ekle</button>
-      </div>
-    </section>
-
-    <!-- YENİ SİPARİŞ MODALI -->
-    <div id="orderModal" class="hidden" style="position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); display:flex; justify-content:center; align-items:center;">
-      <div class="card" style="max-width:400px; width:90%;">
-        <h3>Yeni Sipariş</h3>
-        <input id="branchInput" placeholder="Şube Adı">
-        <input id="productInput" placeholder="Ürün Adı">
-        <input id="qtyInput" type="number" placeholder="Miktar">
-        <button id="saveOrderBtn" class="btn btn-primary">Kaydet</button>
-        <button id="cancelOrderBtn" class="btn btn-danger">İptal</button>
-      </div>
+      <div class="pill" id="envBadge">WEB • PROD</div>
+      <div class="spacer"></div>
+      <button id="btnLogin" class="btn">Giriş</button>
+      <button id="btnLogout" class="btn hidden">Çıkış</button>
     </div>
-  </main>
 
-  <footer style="text-align:center; padding:16px; font-size:13px; color:#777;">
-    © 2025 Depo Otomasyonu Sistemi — Tuğlular Group
-  </footer>
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+      <div class="section-title">Menü</div>
+      <a href="#dashboard" data-view="dashboard" class="active" id="navDashboard">🏠 Dashboard</a>
+      <a href="#orders" data-view="orders" id="navOrders">🧾 Siparişler</a>
+      <a href="#picking" data-view="picking" id="navPicking">🧺 Toplama</a>
+      <a href="#qc" data-view="qc" id="navQC">✅ QC / Kontrol</a>
+      <a href="#ekdepo" data-view="ekdepo" id="navEkDepo">➕ Ek Depo</a>
+      <a href="#archive" data-view="archive" id="navArchive">🗃️ Arşiv</a>
+
+      <div class="section-title">Stok & Etiket</div>
+      <a href="#inventory" data-view="inventory" id="navInventory">📦 Envanter</a>
+      <a href="#labels" data-view="labels" id="navLabels">🏷️ Etiket & Barkod</a>
+
+      <div class="section-title">Raporlama</div>
+      <a href="#reports" data-view="reports" id="navReports">📊 Raporlar</a>
+
+      <div class="section-title">Sistem</div>
+      <a href="#settings" data-view="settings" id="navSettings">⚙️ Ayarlar</a>
+      <a href="#help" data-view="help" id="navHelp">❓ Yardım</a>
+    </aside>
+
+    <!-- MAIN -->
+    <main class="main" id="appMain">
+
+      <!-- VIEW: LOGIN (overlay) -->
+      <section id="loginSection">
+        <div class="grid g-2">
+          <div class="card">
+            <h2>Giriş</h2>
+            <p class="muted">E‑posta ve şifreniz ile giriş yapın.</p>
+            <input id="email" type="email" placeholder="E‑posta" />
+            <input id="password" type="password" placeholder="Şifre" />
+            <div class="toolbar">
+              <button id="signinBtn" class="btn btn-primary">Giriş Yap</button>
+              <span id="loginMsg" class="muted"></span>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3>Hızlı Bilgi</h3>
+            <ul>
+              <li>RBAC: Manager / Picker / QC</li>
+              <li>F9: CSV dışa aktar</li>
+              <li>F1: Ayarlar</li>
+              <li>Ctrl+Z / Ctrl+Y: Geri al / Yinele</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- VIEW: DASHBOARD -->
+      <section id="view-dashboard">
+        <div class="toolbar">
+          <h2>Dashboard</h2>
+          <div class="spacer"></div>
+          <button class="btn" id="btnRefreshDashboard">Yenile</button>
+        </div>
+        <div class="grid g-4">
+          <div class="card kpi"><div class="muted">Toplam Sipariş</div><div class="num" id="kpiOrders">0</div></div>
+          <div class="card kpi"><div class="muted">Toplam Kalem</div><div class="num" id="kpiLines">0</div></div>
+          <div class="card kpi"><div class="muted">Bekleyen QC</div><div class="num" id="kpiQC">0</div></div>
+          <div class="card kpi"><div class="muted">Tamamlanan</div><div class="num" id="kpiDone">0</div></div>
+        </div>
+
+        <div class="split" style="margin-top:12px;">
+          <div class="card">
+            <div class="toolbar">
+              <strong>Son Siparişler</strong>
+              <div class="spacer"></div>
+              <button class="btn" id="btnDashCSV">CSV</button>
+            </div>
+            <table class="table" id="tblDashOrders">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Şube</th>
+                  <th>Durum</th>
+                  <th>Oluşturma</th>
+                  <th class="nowrap">Atanan</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+          <div class="card">
+            <div class="toolbar"><strong>Durumlara Göre</strong></div>
+            <div id="statusChart" style="height:280px; display:grid; place-items:center;" class="muted">(Basit çubuk grafik — app.js hesaplıyor)</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- VIEW: ORDERS -->
+      <section id="view-orders" class="hidden">
+        <div class="toolbar">
+          <h2>Siparişler</h2>
+          <div class="spacer"></div>
+          <input id="qOrders" placeholder="Ara: şube, ürün, kod..." style="max-width:280px" />
+          <button class="btn" id="btnOrdersCSV">CSV Dışa Aktar</button>
+          <label class="btn">
+            <input type="file" id="inpOrdersCSV" accept=".csv" style="display:none" />
+            CSV İçe Aktar
+          </label>
+          <button class="btn btn-secondary" id="btnNewOrder">Yeni Sipariş</button>
+        </div>
+
+        <div id="orderList" class="grid"></div>
+      </section>
+
+      <!-- VIEW: PICKING -->
+      <section id="view-picking" class="hidden">
+        <div class="toolbar">
+          <h2>Toplama</h2>
+          <div class="spacer"></div>
+          <button class="btn" id="btnPickingRefresh">Yenile</button>
+        </div>
+        <div id="pickingList" class="grid"></div>
+      </section>
+
+      <!-- VIEW: QC -->
+      <section id="view-qc" class="hidden">
+        <div class="toolbar">
+          <h2>QC / Kontrol</h2>
+          <div class="spacer"></div>
+          <button class="btn" id="btnQCRefresh">Yenile</button>
+        </div>
+        <div id="qcList" class="grid"></div>
+      </section>
+
+      <!-- VIEW: EK DEPO -->
+      <section id="view-ekdepo" class="hidden">
+        <div class="toolbar">
+          <h2>Ek Depo (Eksikler)</h2>
+          <div class="spacer"></div>
+          <button class="btn" id="btnEkDepoRefresh">Yenile</button>
+        </div>
+        <table class="table" id="tblEkDepo">
+          <thead>
+            <tr>
+              <th>Ürün</th>
+              <th>Kod</th>
+              <th>Raf</th>
+              <th>Miktar</th>
+              <th>Not</th>
+              <th>Aksiyon</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </section>
+
+      <!-- VIEW: ARCHIVE -->
+      <section id="view-archive" class="hidden">
+        <div class="toolbar">
+          <h2>Arşiv</h2>
+          <div class="spacer"></div>
+          <button class="btn" id="btnArchiveRefresh">Yenile</button>
+        </div>
+        <div id="archiveList" class="grid"></div>
+      </section>
+
+      <!-- VIEW: INVENTORY -->
+      <section id="view-inventory" class="hidden">
+        <div class="toolbar">
+          <h2>Envanter</h2>
+          <div class="spacer"></div>
+          <button class="btn" id="btnInventoryScan">Barkod Tara</button>
+          <button class="btn" id="btnInventoryRefresh">Yenile</button>
+        </div>
+        <div class="split">
+          <div class="card">
+            <strong>Ürün Listesi</strong>
+            <table class="table" id="tblInventory">
+              <thead>
+                <tr>
+                  <th>Ürün</th>
+                  <th>Kod</th>
+                  <th>Raf</th>
+                  <th>Stok</th>
+                  <th>Son Hareket</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+          <div class="card">
+            <strong>Hızlı İşlemler</strong>
+            <div class="grid g-2" style="margin-top: 8px;">
+              <div class="card">
+                <div class="muted">Stok Giriş</div>
+                <input id="invInCode" placeholder="Kod" />
+                <input id="invInQty" type="number" placeholder="Miktar" />
+                <button class="btn btn-primary" id="btnInvIn">Kaydet</button>
+              </div>
+              <div class="card">
+                <div class="muted">Stok Çıkış</div>
+                <input id="invOutCode" placeholder="Kod" />
+                <input id="invOutQty" type="number" placeholder="Miktar" />
+                <button class="btn btn-danger" id="btnInvOut">Kaydet</button>
+              </div>
+            </div>
+            <div class="muted" style="margin-top:8px">Not: Bu modül demo amaçlıdır; gerçek stoklar Firestore/Mikro ile senkronize edilir.</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- VIEW: LABELS -->
+      <section id="view-labels" class="hidden">
+        <div class="toolbar">
+          <h2>Etiket & Barkod</h2>
+          <div class="spacer"></div>
+          <button class="btn" id="btnLabelPreview">Ön İzleme</button>
+          <button class="btn" id="btnLabelPrint">Yazdır</button>
+        </div>
+        <div class="grid g-3">
+          <div class="card">
+            <strong>100×100 mm Argox</strong>
+            <p class="muted">Kodu, isim, fiyat, lot, tarih</p>
+            <svg viewBox="0 0 300 150" style="width:100%;background:#fff;border:1px solid #eee;border-radius:6px">
+              <rect x="8" y="8" width="284" height="134" rx="8" fill="#f8fafc" stroke="#e2e8f0"/>
+              <text x="20" y="32" font-size="16">ÜRÜN ADI</text>
+              <text x="20" y="56" font-size="12" fill="#4b5563">KOD: PRD‑0001</text>
+              <text x="20" y="76" font-size="12" fill="#4b5563">LOT: 2409‑001</text>
+              <text x="20" y="96" font-size="12" fill="#4b5563">TARİH: 11.11.2025</text>
+              <rect x="180" y="36" width="100" height="100" fill="#111" rx="6" />
+            </svg>
+          </div>
+          <div class="card">
+            <strong>Raf Etiketi 58×40</strong>
+            <p class="muted">Ürün adı + Barkod</p>
+            <svg viewBox="0 0 300 150" style="width:100%;background:#fff;border:1px solid #eee;border-radius:6px">
+              <rect x="8" y="8" width="284" height="134" rx="8" fill="#fff" stroke="#e2e8f0"/>
+              <text x="20" y="40" font-size="18">KAVRULMUŞ BADEM 500g</text>
+              <rect x="20" y="60" width="260" height="60" fill="#111"/>
+            </svg>
+          </div>
+          <div class="card">
+            <strong>Palet Etiketi A5</strong>
+            <p class="muted">Sipariş ID + Şube + Tarih</p>
+            <svg viewBox="0 0 300 150" style="width:100%;background:#fff;border:1px solid #eee;border-radius:6px">
+              <rect x="8" y="8" width="284" height="134" rx="8" fill="#fff" stroke="#e2e8f0"/>
+              <text x="20" y="40" font-size="20">SIP‑10045</text>
+              <text x="20" y="70" font-size="14">Şube: Konyaaltı</text>
+              <text x="20" y="92" font-size="14">Tarih: 11.11.2025</text>
+            </svg>
+          </div>
+        </div>
+      </section>
+
+      <!-- VIEW: REPORTS -->
+      <section id="view-reports" class="hidden">
+        <div class="toolbar">
+          <h2>Raporlar</h2>
+          <div class="spacer"></div>
+          <button class="btn" id="btnReportGenerate">Raporu Oluştur</button>
+          <button class="btn" id="btnReportExport">PDF</button>
+        </div>
+        <div class="card">
+          <div class="grid g-3">
+            <div>
+              <label class="muted">Tarih (Başlangıç)</label>
+              <input id="repStart" type="date" />
+            </div>
+            <div>
+              <label class="muted">Tarih (Bitiş)</label>
+              <input id="repEnd" type="date" />
+            </div>
+            <div>
+              <label class="muted">Durum</label>
+              <select id="repStatus">
+                <option value="">Tümü</option>
+                <option>created</option>
+                <option>assigned</option>
+                <option>picking</option>
+                <option>picked</option>
+                <option>qc</option>
+                <option>completed</option>
+                <option>archived</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <table class="table" id="tblReport">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Şube</th>
+              <th>Durum</th>
+              <th>Kalem</th>
+              <th>Oluşturma</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </section>
+
+      <!-- VIEW: SETTINGS -->
+      <section id="view-settings" class="hidden">
+        <div class="toolbar">
+          <h2>Ayarlar</h2>
+          <div class="spacer"></div>
+          <button class="btn" id="btnClearCache">Cache Temizle</button>
+        </div>
+        <div class="grid g-3">
+          <div class="card">
+            <strong>Tema</strong>
+            <select id="selTheme">
+              <option value="light">Light</option>
+              <option value="dark">Dark</option>
+            </select>
+          </div>
+          <div class="card">
+            <strong>Dil</strong>
+            <select id="selLang">
+              <option value="tr">Türkçe</option>
+              <option value="en">English</option>
+            </select>
+          </div>
+          <div class="card">
+            <strong>Bildirimler</strong>
+            <button class="btn" id="btnNotify">İzin İste</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- VIEW: HELP -->
+      <section id="view-help" class="hidden">
+        <div class="toolbar"><h2>Yardım</h2></div>
+        <div class="card">
+          <h3>Kısayollar</h3>
+          <ul>
+            <li>F1: Ayarlar</li>
+            <li>F9: CSV dışa aktarma</li>
+            <li>Ctrl+Z / Ctrl+Y: Geri al / Yinele</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Hata Çözümü</h3>
+          <p class="muted">Bağlantı sorunlarında tarayıcı konsolunu ve Firestore kurallarını kontrol edin.</p>
+        </div>
+      </section>
+
+      <!-- DIALOGS / MODALS TEMPLATES -->
+      <dialog id="dlgOrder" class="modal">
+        <form method="dialog">
+          <div class="toolbar">
+            <h3>Sipariş</h3>
+            <div class="spacer"></div>
+            <button class="btn" value="close">Kapat</button>
+          </div>
+          <div class="grid g-3">
+            <div>
+              <label class="muted">Şube</label>
+              <input id="dlgBranch" placeholder="Şube adı"/>
+            </div>
+            <div>
+              <label class="muted">Ürün</label>
+              <input id="dlgProduct" placeholder="Ürün adı"/>
+            </div>
+            <div>
+              <label class="muted">Miktar</label>
+              <input id="dlgQty" type="number" placeholder="Miktar"/>
+            </div>
+          </div>
+          <div class="toolbar">
+            <button class="btn btn-primary" id="dlgSave">Kaydet</button>
+          </div>
+        </form>
+      </dialog>
+
+      <dialog id="dlgDetail" class="modal">
+        <form method="dialog">
+          <div class="toolbar">
+            <h3 id="dlgDetailTitle">Sipariş Detayı</h3>
+            <div class="spacer"></div>
+            <button class="btn" value="close">Kapat</button>
+          </div>
+          <div id="dlgDetailBody" class="grid"></div>
+          <div class="toolbar">
+            <button class="btn" id="btnDetailStart">Toplamaya Başla</button>
+            <button class="btn btn-primary" id="btnDetailSendQC">QC'ye Gönder</button>
+            <button class="btn" id="btnDetailArchive">Arşivle</button>
+            <button class="btn btn-primary" id="btnDetailQCApprove">QC Onayla</button>
+          </div>
+        </form>
+      </dialog>
+
+      <dialog id="dlgScanner" class="modal">
+        <form method="dialog">
+          <div class="toolbar">
+            <h3>Barkod/QR Tara</h3>
+            <div class="spacer"></div>
+            <button class="btn" value="close">Kapat</button>
+          </div>
+          <video id="cam" autoplay playsinline style="width:100%;border-radius:8px;background:#000;min-height:260px"></video>
+          <div class="toolbar">
+            <span class="muted">Kodu okuttuktan sonra pencereyi kapatabilirsiniz.</span>
+          </div>
+        </form>
+      </dialog>
+
+    </main>
+  </div>
+
+  <footer style="text-align:center; padding:16px; font-size:12px; color:#6b7280">© 2025 Depo Otomasyonu — Tuğlular Group</footer>
 
   <script>
-    // Basit JS Etkileşimleri (Firebase app.js devreye girene kadar placeholder)
-    const loginSection = document.getElementById('loginSection');
-    const ordersSection = document.getElementById('ordersSection');
-    const orderModal = document.getElementById('orderModal');
+    // Basit router: sidebar linkleri ile view değişimi
+    const views = {
+      dashboard: document.getElementById('view-dashboard'),
+      orders: document.getElementById('view-orders'),
+      picking: document.getElementById('view-picking'),
+      qc: document.getElementById('view-qc'),
+      ekdepo: document.getElementById('view-ekdepo'),
+      archive: document.getElementById('view-archive'),
+      inventory: document.getElementById('view-inventory'),
+      labels: document.getElementById('view-labels'),
+      reports: document.getElementById('view-reports'),
+      settings: document.getElementById('view-settings'),
+      help: document.getElementById('view-help')
+    };
 
-    document.getElementById('signinBtn').addEventListener('click', () => {
-      loginSection.classList.add('hidden');
-      ordersSection.classList.remove('hidden');
-      document.getElementById('btnLogin').classList.add('hidden');
-      document.getElementById('btnLogout').classList.remove('hidden');
+    function activate(id){
+      for(const k in views){ views[k].classList.add('hidden'); }
+      if(views[id]) views[id].classList.remove('hidden');
+      document.querySelectorAll('.sidebar a').forEach(a=> a.classList.remove('active'));
+      const active = document.querySelector(`.sidebar a[data-view="${id}"]`);
+      if(active) active.classList.add('active');
+    }
+
+    document.querySelectorAll('.sidebar a').forEach(a=>{
+      a.addEventListener('click', (e)=>{
+        e.preventDefault(); activate(a.dataset.view);
+        history.replaceState(null, '', a.getAttribute('href'));
+      });
     });
 
-    document.getElementById('btnLogout').addEventListener('click', () => {
-      ordersSection.classList.add('hidden');
-      loginSection.classList.remove('hidden');
-      document.getElementById('btnLogout').classList.add('hidden');
-      document.getElementById('btnLogin').classList.remove('hidden');
+    // Login section başlangıçta görünür kalır; app.js auth durumunda gizler/gösterir
+
+    // Dashboard mock doldurma — app.js gerçek veriyi yüklerken boş görünmesin
+    const tblDash = document.querySelector('#tblDashOrders tbody');
+    for(let i=0;i<6;i++){
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>SIP-10${40+i}</td><td>Konyaaltı</td><td><span class="badge">created</span></td><td>—</td><td class="muted">—</td>`;
+      tblDash.append(tr);
+    }
+
+    // Orders — boş placeholder
+    const orderList = document.getElementById('orderList');
+    for(let i=0;i<4;i++){
+      const c = document.createElement('div'); c.className='card';
+      c.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center"><div><b>SIP-1004${i}</b> • Konyaaltı <span class="badge">created</span></div><div><button class="btn">Detay</button></div></div>`;
+      orderList.append(c);
+    }
+
+    // Ek Depo placeholder
+    const ekBody = document.querySelector('#tblEkDepo tbody');
+    for(let i=0;i<3;i++){
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>Ürün ${i+1}</td><td>PRD-${i+1}</td><td>A-0${i+1}</td><td>${i+2}</td><td class="muted">Eksik</td><td><button class="btn">Kontrole Al</button></td>`;
+      ekBody.append(tr);
+    }
+
+    // Settings — tema değiştirici (style önerisi)
+    const selTheme = document.getElementById('selTheme');
+    selTheme?.addEventListener('change', ()=>{
+      document.documentElement.dataset.theme = selTheme.value;
     });
 
-    document.getElementById('btnNewOrder').addEventListener('click', ()=>{
-      orderModal.classList.remove('hidden');
-    });
+    // Label ön izleme butonları
+    document.getElementById('btnLabelPreview')?.addEventListener('click', ()=> alert('Ön izleme app.js tarafında uygulanır.'));
+    document.getElementById('btnLabelPrint')?.addEventListener('click', ()=> alert('Yazdırma app.js tarafında uygulanır.'));
 
-    document.getElementById('cancelOrderBtn').addEventListener('click', ()=>{
-      orderModal.classList.add('hidden');
-    });
+    // Dialog aç/kapat helper (index tarafında gerekli yerlerde kullanılabilir)
+    const dlgOrder = document.getElementById('dlgOrder');
+    const dlgDetail = document.getElementById('dlgDetail');
+    const dlgScanner = document.getElementById('dlgScanner');
 
-    document.getElementById('saveOrderBtn').addEventListener('click', ()=>{
-      const branch = document.getElementById('branchInput').value.trim();
-      const product = document.getElementById('productInput').value.trim();
-      const qty = document.getElementById('qtyInput').value.trim();
-      if(!branch || !product || !qty){
-        alert('Lütfen tüm alanları doldur.');
-        return;
-      }
-      const list = document.getElementById('orderList');
-      const item = document.createElement('div');
-      item.className = 'card';
-      item.innerHTML = `<b>${branch}</b> - ${product} (${qty} adet)`;
-      list.appendChild(item);
-      orderModal.classList.add('hidden');
-      document.getElementById('branchInput').value='';
-      document.getElementById('productInput').value='';
-      document.getElementById('qtyInput').value='';
-    });
+    window.__ui__ = { activate, dlgOrder, dlgDetail, dlgScanner };
   </script>
 </body>
 </html>
