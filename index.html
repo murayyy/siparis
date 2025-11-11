@@ -1,46 +1,126 @@
 <!DOCTYPE html>
 <html lang="tr">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>📦 Depo Otomasyonu</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Depo Otomasyonu Sistemi</title>
 
-  <!-- Stil -->
-  <link rel="stylesheet" href="style.css" />
+  <!-- Stil dosyası -->
+  <link rel="stylesheet" href="style.css">
 
   <!-- Firebase SDK -->
   <script type="module" src="firebase.js"></script>
-
-  <!-- Ana Uygulama -->
   <script type="module" src="app.js" defer></script>
+
+  <style>
+    body { font-family: 'Segoe UI', sans-serif; margin: 0; background: #f7f9fa; }
+    header { background: #00796b; color: #fff; padding: 16px; display: flex; justify-content: space-between; align-items: center; }
+    header h1 { font-size: 20px; margin: 0; }
+    nav button { margin-left: 8px; }
+    main { padding: 20px; }
+    .hidden { display: none !important; }
+    .card { background: white; border-radius: 8px; padding: 16px; margin-bottom: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    .btn { border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; }
+    .btn-primary { background: #00796b; color: white; }
+    .btn-danger { background: #c62828; color: white; }
+    .btn-secondary { background: #0288d1; color: white; }
+    input, select { width: 100%; padding: 8px; margin-top: 6px; margin-bottom: 12px; border: 1px solid #ccc; border-radius: 4px; }
+  </style>
 </head>
 <body>
   <header>
-    <h1>Depo Otomasyonu</h1>
+    <h1>📦 Depo Otomasyonu</h1>
     <nav>
-      <button id="loginBtn">Giriş</button>
-      <button id="logoutBtn" class="hidden">Çıkış</button>
+      <button id="btnLogin">Giriş</button>
+      <button id="btnLogout" class="hidden">Çıkış</button>
     </nav>
   </header>
 
-  <main id="main">
+  <main>
+    <!-- GİRİŞ EKRANI -->
     <section id="loginSection">
-      <h2>Kullanıcı Girişi</h2>
-      <input id="email" type="email" placeholder="E-posta" />
-      <input id="password" type="password" placeholder="Şifre" />
-      <button id="signinBtn">Giriş Yap</button>
-      <p id="loginMessage"></p>
+      <div class="card">
+        <h2>Kullanıcı Girişi</h2>
+        <input id="email" type="email" placeholder="E-posta adresi" required>
+        <input id="password" type="password" placeholder="Şifre" required>
+        <button id="signinBtn" class="btn btn-primary">Giriş Yap</button>
+        <p id="loginMsg"></p>
+      </div>
     </section>
 
+    <!-- SİPARİŞLER EKRANI -->
     <section id="ordersSection" class="hidden">
-      <h2>Siparişler</h2>
-      <div id="orderList"></div>
-      <button id="newOrderBtn">Yeni Sipariş</button>
+      <div class="card">
+        <h2>Siparişler</h2>
+        <div id="orderList"></div>
+        <hr>
+        <button id="btnNewOrder" class="btn btn-secondary">Yeni Sipariş Ekle</button>
+      </div>
     </section>
+
+    <!-- YENİ SİPARİŞ MODALI -->
+    <div id="orderModal" class="hidden" style="position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); display:flex; justify-content:center; align-items:center;">
+      <div class="card" style="max-width:400px; width:90%;">
+        <h3>Yeni Sipariş</h3>
+        <input id="branchInput" placeholder="Şube Adı">
+        <input id="productInput" placeholder="Ürün Adı">
+        <input id="qtyInput" type="number" placeholder="Miktar">
+        <button id="saveOrderBtn" class="btn btn-primary">Kaydet</button>
+        <button id="cancelOrderBtn" class="btn btn-danger">İptal</button>
+      </div>
+    </div>
   </main>
 
-  <footer>
-    <p>© 2025 Depo Otomasyonu - Tüm hakları saklıdır.</p>
+  <footer style="text-align:center; padding:16px; font-size:13px; color:#777;">
+    © 2025 Depo Otomasyonu Sistemi — Tuğlular Group
   </footer>
+
+  <script>
+    // Basit JS Etkileşimleri (Firebase app.js devreye girene kadar placeholder)
+    const loginSection = document.getElementById('loginSection');
+    const ordersSection = document.getElementById('ordersSection');
+    const orderModal = document.getElementById('orderModal');
+
+    document.getElementById('signinBtn').addEventListener('click', () => {
+      loginSection.classList.add('hidden');
+      ordersSection.classList.remove('hidden');
+      document.getElementById('btnLogin').classList.add('hidden');
+      document.getElementById('btnLogout').classList.remove('hidden');
+    });
+
+    document.getElementById('btnLogout').addEventListener('click', () => {
+      ordersSection.classList.add('hidden');
+      loginSection.classList.remove('hidden');
+      document.getElementById('btnLogout').classList.add('hidden');
+      document.getElementById('btnLogin').classList.remove('hidden');
+    });
+
+    document.getElementById('btnNewOrder').addEventListener('click', ()=>{
+      orderModal.classList.remove('hidden');
+    });
+
+    document.getElementById('cancelOrderBtn').addEventListener('click', ()=>{
+      orderModal.classList.add('hidden');
+    });
+
+    document.getElementById('saveOrderBtn').addEventListener('click', ()=>{
+      const branch = document.getElementById('branchInput').value.trim();
+      const product = document.getElementById('productInput').value.trim();
+      const qty = document.getElementById('qtyInput').value.trim();
+      if(!branch || !product || !qty){
+        alert('Lütfen tüm alanları doldur.');
+        return;
+      }
+      const list = document.getElementById('orderList');
+      const item = document.createElement('div');
+      item.className = 'card';
+      item.innerHTML = `<b>${branch}</b> - ${product} (${qty} adet)`;
+      list.appendChild(item);
+      orderModal.classList.add('hidden');
+      document.getElementById('branchInput').value='';
+      document.getElementById('productInput').value='';
+      document.getElementById('qtyInput').value='';
+    });
+  </script>
 </body>
 </html>
