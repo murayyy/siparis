@@ -2044,3 +2044,69 @@ setInterval(()=>{ try{ const vis = !document.hidden; if(vis) document.getElement
 // -----------------------------
 logInfo('Final genişletme bloğu yüklendi (Netlify)');
 
+
+
+/* === MEGA GENISLETME v2 (safe-append, no template literals) === */
+
+const FF = (function(){
+  const f = new Map(Object.entries({WS_ENABLED:true, PERF_PROFILER:true, AI_MOCK:true, ZIP_EXPORT:true, PDF_EXPORT:true, CHARTS:true, WORKER_ENABLED:true}));
+  return { on:(n)=>!!f.get(n), set:(n,v)=>f.set(n,!!v), dump:()=>Object.fromEntries(f) };
+})();
+
+const Net = (function(){
+  function jitter(base, attempt){ var max = Math.min(10000, base*Math.pow(2,attempt)); return Math.floor(Math.random()*max); }
+  function classify(err){ var m=String(err&&err.message||err); if(/timeout|network|Failed to fetch|abort/i.test(m)) return 'transient'; if(/permission|denied|unauth/i.test(m)) return 'auth'; if(/not-found|404/i.test(m)) return 'notfound'; return 'unknown'; }
+  async function retry(fn, opt){ opt=opt||{}; var tries=opt.tries||4, base=opt.base||250, last; for(var a=0;a<tries;a++){ try{ return await fn(); }catch(e){ last=e; if(classify(e)==='auth') break; await new Promise(function(r){ setTimeout(r, jitter(base,a)); }); } } throw last; }
+  return { jitter:jitter, classify:classify, retry:retry };
+})();
+
+var WS = (function(){
+  var ws=null, url='wss://example.invalid/depo-sync', alive=false, tries=0, subs=new Set();
+  function connect(){ if(!FF.on('WS_ENABLED')) return; try{ ws = new WebSocket(url); }catch(e){ schedule(); return; }
+    ws.onopen=function(){ alive=true; tries=0; logInfo('WS connected'); publish({type:'open'}); ping(); };
+    ws.onmessage=function(e){ try{ publish(JSON.parse(e.data)); }catch(err){} };
+    ws.onclose=function(){ alive=false; publish({type:'close'}); schedule(); };
+    ws.onerror=function(){ alive=false; publish({type:'error'}); try{ ws.close(); }catch(_){} schedule(); };
+  }
+  function schedule(){ setTimeout(connect, Math.min(10000, 500*++tries)); }
+  function ping(){ if(!alive) return; try{ ws.send(JSON.stringify({type:'ping', at:Date.now()})); }catch(_){} setTimeout(ping, 20000); }
+  function send(o){ try{ ws&&ws.send(JSON.stringify(o)); }catch(_){} }
+  function subscribe(fn){ subs.add(fn); return function(){ subs.delete(fn); }; }
+  function publish(evt){ subs.forEach(function(fn){ try{ fn(evt); }catch(_){} }); }
+  var _c = createOrder; createOrder = async function(p){ var id=await _c(p); send({type:'order_created', id:id}); return id; };
+  var _s = setPickedQty; setPickedQty = async function(oid,iid,pk){ await _s(oid,iid,pk); send({type:'item_picked', oid:oid, iid:iid, pk:pk}); };
+  return { connect:connect, send:send, subscribe:subscribe };
+})();
+WS.connect();
+
+var CountUI = (function(){
+  var layer=null, list=[], pos=0, running=false;
+  function open(){ if(layer) return; running=true; list = (Inventory.list&&Inventory.list())||[]; pos=0;
+    layer = el('div',{style:'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:10060'});
+    var card = el('div',{className:'card',style:'width:96%;max-width:820px;max-height:90vh;overflow:auto'},
+      el('h3',{},'Canli Sayim'),
+      el('div',{},'Ok tuslari ile gez, Enter kaydet, ESC cik'),
+      el('div',{id:'cuList'})
+    );
+    layer.append(card); document.body.append(layer); render();
+  }
+  function close(){ if(!layer) return; layer.remove(); layer=null; running=false; }
+  function render(){ var host = layer.querySelector('#cuList'); host.innerHTML='';
+    list.forEach(function(r,i){ var row = el('div',{className:'card', style: 'border:'+(i===pos?'2px solid #007aff':'1px solid #eee')}, el('div',{}, r.code+' • Raf '+r.aisle), el('div',{}, 'Mevcut: '+r.qty+' | Yeni: '+(r.counted!=null?r.counted:r.qty)) ); host.append(row); });
+  }
+  function inc(d){ if(!running) return; var r=list[pos]; r.counted=(r.counted!=null?r.counted:r.qty)+(d||0); render(); }
+  function move(d){ pos = (pos + d + list.length) % list.length; render(); }
+  function save(){ var diff = list.map(function(r){ return {code:r.code, qty:(r.counted!=null?r.counted:r.qty)}; }); Inventory.reconcile&&Inventory.reconcile(diff); toast('Sayim tamam: '+diff.length+' kalem'); }
+  window.addEventListener('keydown', function(e){ if(!running) return; if(e.key==='Escape'){ e.preventDefault(); close(); } else if(e.key==='ArrowUp'){ e.preventDefault(); move(-1); } else if(e.key==='ArrowDown'){ e.preventDefault(); move(1); } else if(e.key==='ArrowLeft'){ e.preventDefault(); inc(-1); } else if(e.key==='ArrowRight'){ e.preventDefault(); inc(1); } else if(e.key==='Enter'){ e.preventDefault(); save(); } });
+  return { open:open, close:close };
+})();
+
+window.addEventListener('keydown', function(e){ if(e.key==='F2'){ e.preventDefault(); CountUI.open(); } });
+
+// Basit rapor fonksiyonlari (PDF kisaltma yok, mevcut exportPickingPDF var)
+async function exportOrdersBasicPDF(){ try{ await ensureLib('jspdf'); var jsPDF = window.jspdf.jsPDF; var docp = new jsPDF(); docp.text('Siparis Raporu', 12, 16); var list = await repo.listOrders({forRole:ROLES.MANAGER}); var y=28; list.forEach(function(o,i){ var line = (i+1)+'. '+o.id+'  '+o.branch+'  '+o.status+'  lines:'+(o.items?o.items.length:0); docp.text(line.substring(0,90), 12, y); y+=6; if(y>280){ docp.addPage(); y=16; } }); docp.save('orders_basic.pdf'); }catch(e){ logError('basic pdf err', e); } }
+
+// Worker destekli CSV parse wrapper (varsa)
+var _importCSV2 = importOrdersFromCSV; importOrdersFromCSV = async function(file){ try{ if(WorkerKit && WorkerKit.parseCSVAsync){ var txt=await file.text(); var rows=await WorkerKit.parseCSVAsync(txt); for(var i=0;i<rows.length;i++){ var row=rows[i]; var id=await repo.addOrder({ branch: row.Branch||row.branch||'Bilinmeyen', status: STATUS.CREATED, createdAt: serverTimestamp(), createdBy: state.user.uid, assignedTo: null }); await repo.addOrderItem(id, { code: row.Code||row.code||'GEN', name: row.Name||row.name||'Urun', aisle: row.Aisle||row.aisle||'A-01', quantity: Number(row.Qty||row.quantity||1), picked: 0 }); } toast('CSV ice aktarma (worker) tamam'); await loadOrders(); return; } }catch(e){ logError('worker csv err', e); } return _importCSV2(file); };
+
+logInfo('Mega genisletme v2 (safe) eklendi.');
