@@ -1745,3 +1745,301 @@ const ErrorPanel = (()=>{
 Object.assign(window, { URT, WSSync, Label, Exporter, CountSession, Scheduler, V, Stress, ErrorPanel });
 logInfo('Genişletilmiş kurumsal modüller yüklendi');
 
+
+/* =====================================================================
+   ★★★ NETLIFY FİNAL GENİŞLETME BLOĞU — ~Büyük Modül Paketi (v1) ★★★
+   Bu blok, app.js dosyasını Netlify üzerinde tek dosya olarak çalışacak
+   şekilde **daha da** genişletir. Index.html’e dokunmadan; gerekli üçüncü
+   parti kütüphaneler çalışma anında dinamik yüklenecektir.
+   Dahiller:
+     - ScriptLoader (Chart.js, JSZip, jsPDF, QRCode) — CDN üzerinden
+     - Realtime Notify & BroadcastChannel — sekmeler arası senkron
+     - Palet Yönetimi + QR Etiketi — sipariş detay modaline butonlar
+     - Dashboard Charts — statusChart içine canvas+Chart.js bar/line
+     - Arşiv Modülü — orders → archived_orders (kopya + sil/taşı)
+     - ZIP/CSV/PDF Export — JSZip + jsPDF (PDF’de tablo render)
+     - AI Mock Özetleyici — yerel istatistikten cümle üretir
+     - DevTools (Ctrl+Alt+D) — gizli menü (seed, log panel, cache temizle)
+     - Perf Profiler 2.0 — süre toplama ve tablo görünümü
+   Not: Aşağıdaki kodlar index.html’e yeni element eklemeden, var olan
+   ID/alanlara bağlanır; yeni UI parça gerektiğinde modal ve popup ile
+   render edilir.
+   ===================================================================== */
+
+// -----------------------------
+// ScriptLoader — CDN'den kütüphane yükleyici
+// -----------------------------
+const ScriptLoader = (()=>{
+  const cache = new Map();
+  function load(url, check){
+    if(cache.has(url)) return cache.get(url);
+    const p = new Promise((resolve, reject)=>{
+      if(check && getGlobal(check)) return resolve(getGlobal(check));
+      const s = document.createElement('script'); s.src=url; s.async=true;
+      s.onload = ()=> resolve(check? getGlobal(check): true);
+      s.onerror = (e)=> reject(new Error('Script yüklenemedi: '+url));
+      document.head.append(s);
+    });
+    cache.set(url,p); return p;
+  }
+  function getGlobal(path){
+    return path.split('.').reduce((a,k)=> a?.[k], window);
+  }
+  return { load, getGlobal };
+})();
+
+// CDN kaynakları (sabit sürümler)
+const CDN = {
+  chart: { url: 'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js', check: 'Chart' },
+  jszip: { url: 'https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js', check: 'JSZip' },
+  jspdf: { url: 'https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js', check: 'jspdf.jsPDF' },
+  qrcode: { url: 'https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js', check: 'QRCode' },
+};
+
+async function ensureLib(name){
+  const c = CDN[name]; if(!c) throw new Error('Unknown lib '+name);
+  return ScriptLoader.load(c.url, c.check);
+}
+
+// -----------------------------
+// Realtime Notify & BroadcastChannel
+// -----------------------------
+const Bus = (()=>{
+  const bc = 'BroadcastChannel' in window? new BroadcastChannel('depo-bus'): null;
+  const listeners = new Set();
+  function pub(type, data){
+    const msg = { type, data, at: Date.now() };
+    listeners.forEach(fn=>{ try{ fn(msg); }catch{} });
+    try{ bc?.postMessage(msg); }catch{}
+  }
+  function sub(fn){ listeners.add(fn); return ()=> listeners.delete(fn); }
+  bc?.addEventListener('message', (e)=> listeners.forEach(fn=> fn(e.data)) );
+  return { pub, sub };
+})();
+
+function notifyToast(title, body){
+  toast(`${title} • ${body||''}`);
+  try{ if('Notification' in window && Notification.permission==='granted'){ new Notification(title, {body}); } }catch{}
+}
+
+// integrate: sipariş olayları
+(function hookOrderEvents(){
+  const _create = createOrder;
+  createOrder = async function(p){ const id = await _create(p); Bus.pub('order_created',{id}); notifyToast('Yeni Sipariş', String(id||'')); return id; };
+  const _approve = qcApprove; qcApprove = async function(oid){ await _approve(oid); Bus.pub('order_qc_approved',{id:oid}); notifyToast('QC Onaylandı', oid); };
+})();
+
+// -----------------------------
+// Palet Yönetimi + QR Etiketi
+// -----------------------------
+const Pallet = (()=>{
+  // Firestore: orders/{id}/pallets alt koleksiyonunu kullanacağız
+  async function col(orderId){ return collection(db,'orders', orderId, 'pallets'); }
+
+  async function list(orderId){ const snap = await getDocs(await col(orderId)); return snap.docs.map(d=>({id:d.id, ...d.data()})); }
+  async function create(order, {name, note}){
+    // basit içerik: tüm kalemler ve toplam adet
+    const lines = (order.items||[]).map(x=>({ code:x.code, name:x.name, qty:(x.picked||0)||x.quantity||0 }));
+    const payload = { name: name||('Palet-'+Date.now()), note: note||'', createdAt: serverTimestamp(), lines };
+    const ref = await addDoc(await col(order.id), payload); return {id: ref.id, ...payload};
+  }
+
+  async function buildQRData(pallet){
+    const data = {name:pallet.name, id:pallet.id||'', note:pallet.note||'', ts: Date.now()};
+    return JSON.stringify(data);
+  }
+
+  async function printQRLabel(pallet){
+    await ensureLib('qrcode');
+    const data = await buildQRData(pallet);
+    const html = `<!doctype html><html><head><meta charset="utf-8"><title>${pallet.name}</title>
+      <style>body{font-family:Arial;padding:16px} .box{border:2px solid #111;border-radius:10px;padding:16px;}
+      canvas{image-rendering:pixelated}
+      </style></head><body>
+      <div class="box"><h2>Palet • ${pallet.name}</h2><div id="q"></div><div>Not: ${pallet.note||''}</div></div>
+    </body></html>`;
+    const w = window.open('','_blank'); w.document.write(html); w.document.close();
+    const q = w.document.getElementById('q');
+    await window.QRCode.toCanvas(document.createElement('canvas'), data, {width:256}).then(c=> q.append(c));
+    w.focus(); w.print();
+  }
+
+  return { list, create, printQRLabel };
+})();
+
+// openOrderDetail içine palet butonları ekle (wrap teknik)
+(function extendOrderDetailForPallet(){
+  const _open = openOrderDetail;
+  openOrderDetail = function(order){
+    _open(order);
+    // modal açıldıktan sonra butonları en alta ekleyelim
+    const body = document.getElementById('dlgDetailBody');
+    const footerBtns = document.querySelector('#dlgDetail form .toolbar');
+    if(!footerBtns) return;
+    const btnMake = el('button',{className:'btn', onClick:async()=>{
+      const name = prompt('Palet adı', 'Palet-1')||'Palet';
+      const note = prompt('Not (opsiyonel)')||'';
+      const row = await Pallet.create(order, {name, note});
+      toast('Palet oluşturuldu: '+row.name);
+    }}, 'Palet Oluştur');
+    const btnQR = el('button',{className:'btn', onClick:async()=>{
+      const list = await Pallet.list(order.id); if(!list.length) return alert('Önce palet oluştur.');
+      await Pallet.printQRLabel(list[0]);
+    }}, 'Palet QR Yazdır');
+    footerBtns.append(btnMake, btnQR);
+  };
+})();
+
+// -----------------------------
+// Dashboard Charts (Chart.js)
+// -----------------------------
+(async function enhanceDashboardCharts(){
+  try{
+    await ensureLib('chart');
+    const host = document.getElementById('statusChart'); if(!host) return;
+    host.innerHTML = '';
+    const cvs = el('canvas', {style:'max-height:260px;width:100%'}); host.append(cvs);
+    const orders = await repo.listOrders({forRole: ROLES.MANAGER});
+    const byStatus = orders.reduce((a,o)=>{ a[o.status]=(a[o.status]||0)+1; return a; }, {});
+    const labels = Object.keys(byStatus); const data = Object.values(byStatus);
+    const Chart = ScriptLoader.getGlobal('Chart');
+    new Chart(cvs.getContext('2d'), {
+      type: 'bar', data: { labels, datasets: [{ label:'Sipariş', data }] }, options: { responsive:true, plugins:{legend:{display:false}}, scales:{ y:{ beginAtZero:true } } }
+    });
+  }catch(e){ logError('Chart yüklenemedi', e); }
+})();
+
+// -----------------------------
+// Arşiv Modülü (Firestore + ZIP Export)
+// -----------------------------
+const Archive = (()=>{
+  function colArchived(){ return collection(db, 'archived_orders'); }
+  async function moveToArchive(order){
+    try{
+      // kopyala
+      const payload = { ...order, archivedAt: serverTimestamp() };
+      await addDoc(colArchived(), payload);
+      // ana kaydı arşivle
+      await updateDoc(doc(db,'orders',order.id), { status: STATUS.ARCHIVED });
+      toast('Arşive taşındı');
+    }catch(e){ logError('Arşiv hatası', e); toast('Arşive taşıma başarısız'); }
+  }
+  async function exportZip(){
+    await ensureLib('jszip');
+    const zip = new JSZip();
+    const orders = await repo.listOrders({forRole:ROLES.MANAGER});
+    const rows = orders.map(o=>({ id:o.id, branch:o.branch, status:o.status, lines: (o.items||[]).length }));
+    const csv = 'ID,Branch,Status,Lines
+'+ rows.map(r=> `${r.id},${r.branch},${r.status},${r.lines}`).join('
+');
+    zip.file('orders.csv', csv);
+    const blob = await zip.generateAsync({type:'blob'});
+    const a = el('a',{href:URL.createObjectURL(blob), download:'archive.zip'}); a.click(); setTimeout(()=>URL.revokeObjectURL(a.href), 500);
+  }
+  return { moveToArchive, exportZip };
+})();
+
+// index Archive view butonlarına bağla (varsa)
+(function wireArchiveView(){
+  document.getElementById('btnArchiveRefresh')?.addEventListener('click', async ()=>{
+    const list = await repo.listOrders({forRole:ROLES.MANAGER});
+    const host = document.getElementById('archiveList'); if(!host) return; host.innerHTML='';
+    list.filter(o=> o.status===STATUS.ARCHIVED).forEach(o=> host.append(orderCard(o)));
+  });
+})();
+
+// -----------------------------
+// PDF Export (jsPDF) — Rapor Tablosu
+// -----------------------------
+async function exportReportPDF(){
+  try{
+    await ensureLib('jspdf');
+    const { jsPDF } = window.jspdf;
+    const docp = new jsPDF();
+    docp.setFontSize(14); docp.text('Sipariş Raporu', 12, 16);
+    const list = await repo.listOrders({forRole:ROLES.MANAGER});
+    const rows = list.map((o,i)=> [String(i+1), o.id, o.branch, o.status, String(o.items?.length||0)]);
+    // basit tablo çizimi
+    let y = 24; docp.setFontSize(10);
+    docp.text('No  ID             Branch        Status      Lines', 12, y); y+=6;
+    rows.forEach(r=>{ docp.text((r[0]+'   '+r[1]+'   '+(r[2]||'')+'   '+r[3]+'   '+r[4]).slice(0,80), 12, y); y+=6; if(y>280){ docp.addPage(); y=16; } });
+    docp.save('report.pdf');
+  }catch(e){ logError('PDF export hata', e); }
+}
+
+// -----------------------------
+// AI Mock Özetleyici — Basit yerel analiz
+// -----------------------------
+const AIMock = (()=>{
+  function topMissingProducts(orders){
+    const miss = new Map(); // code->count
+    for(const o of orders){
+      for(const it of (o.items||[])){
+        const lack = Math.max(0, (it.quantity||0) - (it.picked||0));
+        if(lack>0){ miss.set(it.code, (miss.get(it.code)||0)+lack); }
+      }
+    }
+    return Array.from(miss, ([code,qty])=>({code,qty})).sort((a,b)=> b.qty-a.qty).slice(0,10);
+  }
+  async function summarize(){
+    const orders = await repo.listOrders({forRole:ROLES.MANAGER});
+    const top = topMissingProducts(orders);
+    const total = orders.length; const lines = orders.reduce((s,o)=> s+(o.items?.length||0),0);
+    let s = `Toplam ${total} sipariş, ${lines} kalem. Eksik en yüksek 3: `;
+    s += top.slice(0,3).map(x=> `${x.code}(${x.qty})`).join(', ');
+    return s;
+  }
+  return { summarize };
+})();
+
+// -----------------------------
+// DevTools — Ctrl+Alt+D ile gizli menü
+// -----------------------------
+(function devtools(){
+  function openMenu(){
+    const w = el('div',{style:'position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:10050'});
+    const c = el('div',{className:'card',style:'width:92%;max-width:600px'},
+      el('h3',{},'DevTools'),
+      el('div',{},
+        el('button',{className:'btn', onClick:()=> seedFakeData(10)},'Seed 10'), ' ',
+        el('button',{className:'btn', onClick:()=> ErrorPanel.view()},'Log Panel'), ' ',
+        el('button',{className:'btn', onClick:()=> cacheStore.set('pendingQueue', [])},'Queue Temizle'), ' ',
+        el('button',{className:'btn', onClick:async()=>{ const s=await AIMock.summarize(); alert(s); }},'AI Özet'), ' ',
+        el('button',{className:'btn', onClick:()=> exportReportPDF()},'PDF Rapor'), ' ',
+        el('button',{className:'btn', onClick:()=> Archive.exportZip()},'ZIP Dışa Aktar'), ' ',
+      ),
+      el('div',{style:'display:flex;justify-content:flex-end;margin-top:10px'}, el('button',{className:'btn', onClick:()=> w.remove()},'Kapat'))
+    );
+    w.append(c); document.body.append(w);
+  }
+  window.addEventListener('keydown', (e)=>{ if(e.ctrlKey && e.altKey && (e.key==='d' || e.key==='D')){ e.preventDefault(); openMenu(); } });
+})();
+
+// -----------------------------
+// Perf Profiler 2.0 — Ölçümler ve tablo
+// -----------------------------
+const Perf = (()=>{
+  const buf = [];
+  function mark(tag, ms){ buf.push({tag, ms, at: Date.now()}); if(buf.length>500) buf.shift(); }
+  async function time(tag, fn){ const t0=performance.now(); const r = await fn(); mark(tag, performance.now()-t0); return r; }
+  function view(){
+    const w = window.open('', '_blank');
+    w.document.write('<pre style="font-family:Consolas">'+ buf.map(x=> `${new Date(x.at).toLocaleTimeString()}  ${x.tag.padEnd(24)}  ${x.ms.toFixed(1)} ms`).join('
+') +'</pre>');
+  }
+  return { mark, time, view };
+})();
+
+// örnek: loadOrders zamanını ölç
+const _origLoadOrders = loadOrders;
+loadOrders = async function(){ return Perf.time('loadOrders', ()=> _origLoadOrders()); };
+
+// -----------------------------
+// Otomatik Dashboard Yenileme (15sn)
+// -----------------------------
+setInterval(()=>{ try{ const vis = !document.hidden; if(vis) document.getElementById('btnRefreshDashboard')?.click(); }catch{} }, 15000);
+
+// -----------------------------
+// Son mesaj
+// -----------------------------
+logInfo('Final genişletme bloğu yüklendi (Netlify)');
