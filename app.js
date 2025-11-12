@@ -1,903 +1,2046 @@
-/*
- app.js — Depo Otomasyonu (Web) — TAM SÜRÜM (tek dosya)
- ---------------------------------------------------------------------
- Bu dosya, Firebase (Auth + Firestore) üzerinde çalışan kapsamlı bir depo
- otomasyonu uyg.
- 
- Özellikler (özet):
-  - Firebase Auth e‑posta/şifre girişi
-  - Rol bazlı görünüm (manager, picker, qc) — kullanıcı profili belgesinden
-  - Firestore koleksiyonları: users, orders, order_items, ek_depo, logs
-  - Sipariş CRUD (oluşturma, güncelleme, silme, arşivleme)
-  - Toplayıcı akışı: ata → picking → picked
-  - QC akışı: picked → qc/approved → completed
-  - Ek Depo (eksik ürünlerin yönetimi ve kontrole aktarma)
-  - Offline queue (net yokken yerel kuyruk ve yeniden gönderim)
-  - Yerel cache (IndexedDB üzerinden basit anahtar/değer)
-  - CSV/Excel dışa aktarma, yazdırma fişi
-  - Kamera ile barkod/QR okuma (getUserMedia + BarcodeDetector fallback)
-  - Bildirim (Notification API), sesli uyarı
-  - Basit RBAC (manager görür, picker sadece kendi atanan siparişleri görür)
-  - Hata günlüğü ve olay loglama (logs)
-  - PWA kancaları (manifest + service worker bekler)
-  - UI bağlayıcıları: index.html’deki id’ler ile tam uyum
+<!DOCTYPE html>
+<html lang="tr" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="light dark" />
+  <title>📦 Depo Otomasyonu • Kurumsal Web Uygulaması</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='16' fill='%2300796b'/><text x='50' y='60' font-size='54' text-anchor='middle' fill='white'>📦</text></svg>"/>
 
- Notlar:
-  - Firebase modülünü (firebase.js) v9 modular importlarıyla dışa aktaracak
-    şekilde hazırladığın varsayılır.
-  - Koleksiyon isimleri: 'users', 'orders', 'order_items', 'ek_depo', 'logs'
-  - Güvenlik için Firestore rules düzenlenmelidir (örnek ayrı dosyada olmalı).
-  - Kod büyük; üretimde parçalara ayırman tavsiye edilir.
- ---------------------------------------------------------------------
-*/
+  <!-- Manifest & SW (opsiyonel; PWA için) -->
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#00796b" />
 
-// =============================
-//  Firebase Modül İçe Aktarım
-// =============================
-import {
-  auth, db,
-  signInWithEmailAndPassword, signOut, onAuthStateChanged,
-  collection, doc, addDoc, getDoc, getDocs, updateDoc, deleteDoc,
-  serverTimestamp, query, where, orderBy, limit,
-} from './firebase.js';
+  <!-- Firebase + App -->
+  <script type="module" src="firebase.js"></script>
+  <script type="module" src="app.js" defer></script>
 
-// =============================
-//  Yardımcı Kısa Seçiciler
-// =============================
-const $ = (sel) => document.querySelector(sel);
-const $$ = (sel) => document.querySelectorAll(sel);
+  <style>
+    /* Ek minimal stiller (style.css ile birlikte çalışır) */
+    :root { --sidebar-w: 260px; }
+    body, html { height: 100%; }
+    .layout { display: grid; grid-template-columns: var(--sidebar-w) 1fr; grid-template-rows: 56px 1fr; grid-template-areas: 'topbar topbar' 'sidebar main'; min-height: 100vh; }
+    .topbar { grid-area: topbar; background: var(--primary); color: #fff; display:flex; align-items:center; padding: 0 12px; gap: 8px; }
+    .topbar .brand { font-weight: 700; letter-spacing: .3px; display:flex; align-items:center; gap: 8px; }
+    .topbar .brand .logo { width: 28px; height: 28px; display:inline-grid; place-items:center; background: rgba(255,255,255,.15); border-radius: 6px; }
+    .topbar .spacer { flex:1; }
+    .sidebar { grid-area: sidebar; background: #fff; border-right:1px solid #e5e7eb; overflow:auto; }
+    .sidebar .section-title { padding: 14px 16px; font-size: 12px; color:#6b7280; text-transform:uppercase; letter-spacing: .08em; }
+    .sidebar a { display:flex; align-items:center; gap: 10px; padding: 10px 14px; text-decoration:none; color: inherit; border-left:3px solid transparent; }
+    .sidebar a:hover { background:#f3f4f6; }
+    .sidebar a.active { background:#eefcf9; border-left-color: var(--primary); color: var(--primary); font-weight:600; }
+    .main { grid-area: main; padding: 16px; }
 
-function el(tag, attrs = {}, ...children){
-  const e = document.createElement(tag);
-  Object.entries(attrs).forEach(([k,v]) => {
-    if (k.startsWith('on') && typeof v === 'function') {
-      e.addEventListener(k.substring(2).toLowerCase(), v);
-    } else if (k === 'className') {
-      e.className = v;
-    } else if (v !== undefined && v !== null) {
-      e.setAttribute(k, v);
+    .grid { display:grid; gap:12px; }
+    .g-2 { grid-template-columns: repeat(2, minmax(0,1fr)); }
+    .g-3 { grid-template-columns: repeat(3, minmax(0,1fr)); }
+    .g-4 { grid-template-columns: repeat(4, minmax(0,1fr)); }
+    @media (max-width: 1100px) { .g-4{grid-template-columns: repeat(2, minmax(0,1fr));} }
+    @media (max-width: 800px) { .layout{grid-template-columns: 1fr; grid-template-areas: 'topbar' 'main';} .sidebar{display:none;} }
+
+    .kpi { display:flex; flex-direction:column; gap:6px; }
+    .kpi .num { font-size: 26px; font-weight: 700; }
+
+    .toolbar { display:flex; flex-wrap:wrap; gap: 8px; align-items:center; margin-bottom: 12px; }
+    .toolbar .spacer { flex:1; }
+
+    .table { width:100%; border-collapse: collapse; background:#fff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
+    .table th, .table td { border-bottom:1px solid #eee; padding: 10px; text-align:left; font-size: 14px; }
+    .table th { background: #f9fafb; font-size: 12px; color:#6b7280; text-transform: uppercase; letter-spacing: .06em; }
+    .badge { padding: 2px 6px; border-radius: 999px; font-size: 12px; background:#eef2ff; color:#3730a3; }
+    .badge.green { background:#ecfdf5; color:#065f46; }
+    .badge.yellow { background:#fffbeb; color:#92400e; }
+    .badge.gray { background:#f3f4f6; color:#374151; }
+
+    .split { display:grid; grid-template-columns: 1.2fr .8fr; gap:12px; }
+    @media (max-width: 1100px) { .split { grid-template-columns: 1fr; } }
+
+    .muted { color:#6b7280; font-size: 12px; }
+    .danger { color: var(--danger); }
+
+    dialog.modal { border:none; border-radius: 12px; box-shadow: 0 20px 60px rgba(0,0,0,.25); width:min(900px, 92vw); max-height:90vh; }
+    dialog::backdrop { background: rgba(0,0,0,.45); }
+
+    .pill { border-radius: 999px; padding: 4px 10px; background:#f3f4f6; }
+    .nowrap { white-space: nowrap; }
+  </style>
+</head>
+
+<body>
+  <!-- LAYOUT -->
+  <div class="layout">
+    <!-- TOPBAR -->
+    <div class="topbar">
+      <div class="brand">
+        <span class="logo">📦</span>
+        <span>Depo Otomasyonu</span>
+      </div>
+      <div class="pill" id="envBadge">WEB • PROD</div>
+      <div class="spacer"></div>
+      <button id="btnLogin" class="btn">Giriş</button>
+      <button id="btnLogout" class="btn hidden">Çıkış</button>
+    </div>
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+      <div class="section-title">Menü</div>
+      <a href="#dashboard" data-view="dashboard" class="active" id="navDashboard">🏠 Dashboard</a>
+      <a href="#orders" data-view="orders" id="navOrders">🧾 Siparişler</a>
+      <a href="#picking" data-view="picking" id="navPicking">🧺 Toplama</a>
+      <a href="#qc" data-view="qc" id="navQC">✅ QC / Kontrol</a>
+      <a href="#ekdepo" data-view="ekdepo" id="navEkDepo">➕ Ek Depo</a>
+      <a href="#archive" data-view="archive" id="navArchive">🗃️ Arşiv</a>
+
+      <div class="section-title">Stok & Etiket</div>
+      <a href="#inventory" data-view="inventory" id="navInventory">📦 Envanter</a>
+      <a href="#labels" data-view="labels" id="navLabels">🏷️ Etiket & Barkod</a>
+
+      <div class="section-title">Raporlama</div>
+      <a href="#reports" data-view="reports" id="navReports">📊 Raporlar</a>
+
+      <div class="section-title">Sistem</div>
+      <a href="#settings" data-view="settings" id="navSettings">⚙️ Ayarlar</a>
+      <a href="#help" data-view="help" id="navHelp">❓ Yardım</a>
+    </aside>
+
+    <!-- MAIN -->
+    <main class="main" id="appMain">
+
+      <!-- VIEW: LOGIN (overlay) -->
+      <section id="loginSection">
+        <div class="grid g-2">
+          <div class="card">
+            <h2>Giriş</h2>
+            <p class="muted">E‑posta ve şifreniz ile giriş yapın.</p>
+            <input id="email" type="email" placeholder="E‑posta" />
+            <input id="password" type="password" placeholder="Şifre" />
+            <div class="toolbar">
+              <button id="signinBtn" class="btn btn-primary">Giriş Yap</button>
+              <span id="loginMsg" class="muted"></span>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3>Hızlı Bilgi</h3>
+            <ul>
+              <li>RBAC: Manager / Picker / QC</li>
+              <li>F9: CSV dışa aktar</li>
+              <li>F1: Ayarlar</li>
+              <li>Ctrl+Z / Ctrl+Y: Geri al / Yinele</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- VIEW: DASHBOARD -->
+      <section id="view-dashboard">
+        <div class="toolbar">
+          <h2>Dashboard</h2>
+          <div class="spacer"></div>
+          <button class="btn" id="btnRefreshDashboard">Yenile</button>
+        </div>
+        <div class="grid g-4">
+          <div class="card kpi"><div class="muted">Toplam Sipariş</div><div class="num" id="kpiOrders">0</div></div>
+          <div class="card kpi"><div class="muted">Toplam Kalem</div><div class="num" id="kpiLines">0</div></div>
+          <div class="card kpi"><div class="muted">Bekleyen QC</div><div class="num" id="kpiQC">0</div></div>
+          <div class="card kpi"><div class="muted">Tamamlanan</div><div class="num" id="kpiDone">0</div></div>
+        </div>
+
+        <div class="split" style="margin-top:12px;">
+          <div class="card">
+            <div class="toolbar">
+              <strong>Son Siparişler</strong>
+              <div class="spacer"></div>
+              <button class="btn" id="btnDashCSV">CSV</button>
+            </div>
+            <table class="table" id="tblDashOrders">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Şube</th>
+                  <th>Durum</th>
+                  <th>Oluşturma</th>
+                  <th class="nowrap">Atanan</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+          <div class="card">
+            <div class="toolbar"><strong>Durumlara Göre</strong></div>
+            <div id="statusChart" style="height:280px; display:grid; place-items:center;" class="muted">(Basit çubuk grafik — app.js hesaplıyor)</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- VIEW: ORDERS -->
+      <section id="view-orders" class="hidden">
+        <div class="toolbar">
+          <h2>Siparişler</h2>
+          <div class="spacer"></div>
+          <input id="qOrders" placeholder="Ara: şube, ürün, kod..." style="max-width:280px" />
+          <button class="btn" id="btnOrdersCSV">CSV Dışa Aktar</button>
+          <label class="btn">
+            <input type="file" id="inpOrdersCSV" accept=".csv" style="display:none" />
+            CSV İçe Aktar
+          </label>
+          <button class="btn btn-secondary" id="btnNewOrder">Yeni Sipariş</button>
+        </div>
+
+        <div id="orderList" class="grid"></div>
+      </section>
+
+      <!-- VIEW: PICKING -->
+      <section id="view-picking" class="hidden">
+        <div class="toolbar">
+          <h2>Toplama</h2>
+          <div class="spacer"></div>
+          <button class="btn" id="btnPickingRefresh">Yenile</button>
+        </div>
+        <div id="pickingList" class="grid"></div>
+      </section>
+
+      <!-- VIEW: QC -->
+      <section id="view-qc" class="hidden">
+        <div class="toolbar">
+          <h2>QC / Kontrol</h2>
+          <div class="spacer"></div>
+          <button class="btn" id="btnQCRefresh">Yenile</button>
+        </div>
+        <div id="qcList" class="grid"></div>
+      </section>
+
+      <!-- VIEW: EK DEPO -->
+      <section id="view-ekdepo" class="hidden">
+        <div class="toolbar">
+          <h2>Ek Depo (Eksikler)</h2>
+          <div class="spacer"></div>
+          <button class="btn" id="btnEkDepoRefresh">Yenile</button>
+        </div>
+        <table class="table" id="tblEkDepo">
+          <thead>
+            <tr>
+              <th>Ürün</th>
+              <th>Kod</th>
+              <th>Raf</th>
+              <th>Miktar</th>
+              <th>Not</th>
+              <th>Aksiyon</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </section>
+
+      <!-- VIEW: ARCHIVE -->
+      <section id="view-archive" class="hidden">
+        <div class="toolbar">
+          <h2>Arşiv</h2>
+          <div class="spacer"></div>
+          <button class="btn" id="btnArchiveRefresh">Yenile</button>
+        </div>
+        <div id="archiveList" class="grid"></div>
+      </section>
+
+      <!-- VIEW: INVENTORY -->
+      <section id="view-inventory" class="hidden">
+        <div class="toolbar">
+          <h2>Envanter</h2>
+          <div class="spacer"></div>
+          <button class="btn" id="btnInventoryScan">Barkod Tara</button>
+          <button class="btn" id="btnInventoryRefresh">Yenile</button>
+        </div>
+        <div class="split">
+          <div class="card">
+            <strong>Ürün Listesi</strong>
+            <table class="table" id="tblInventory">
+              <thead>
+                <tr>
+                  <th>Ürün</th>
+                  <th>Kod</th>
+                  <th>Raf</th>
+                  <th>Stok</th>
+                  <th>Son Hareket</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+          <div class="card">
+            <strong>Hızlı İşlemler</strong>
+            <div class="grid g-2" style="margin-top: 8px;">
+              <div class="card">
+                <div class="muted">Stok Giriş</div>
+                <input id="invInCode" placeholder="Kod" />
+                <input id="invInQty" type="number" placeholder="Miktar" />
+                <button class="btn btn-primary" id="btnInvIn">Kaydet</button>
+              </div>
+              <div class="card">
+                <div class="muted">Stok Çıkış</div>
+                <input id="invOutCode" placeholder="Kod" />
+                <input id="invOutQty" type="number" placeholder="Miktar" />
+                <button class="btn btn-danger" id="btnInvOut">Kaydet</button>
+              </div>
+            </div>
+            <div class="muted" style="margin-top:8px">Not: Bu modül demo amaçlıdır; gerçek stoklar Firestore/Mikro ile senkronize edilir.</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- VIEW: LABELS -->
+      <section id="view-labels" class="hidden">
+        <div class="toolbar">
+          <h2>Etiket & Barkod</h2>
+          <div class="spacer"></div>
+          <button class="btn" id="btnLabelPreview">Ön İzleme</button>
+          <button class="btn" id="btnLabelPrint">Yazdır</button>
+        </div>
+        <div class="grid g-3">
+          <div class="card">
+            <strong>100×100 mm Argox</strong>
+            <p class="muted">Kodu, isim, fiyat, lot, tarih</p>
+            <svg viewBox="0 0 300 150" style="width:100%;background:#fff;border:1px solid #eee;border-radius:6px">
+              <rect x="8" y="8" width="284" height="134" rx="8" fill="#f8fafc" stroke="#e2e8f0"/>
+              <text x="20" y="32" font-size="16">ÜRÜN ADI</text>
+              <text x="20" y="56" font-size="12" fill="#4b5563">KOD: PRD‑0001</text>
+              <text x="20" y="76" font-size="12" fill="#4b5563">LOT: 2409‑001</text>
+              <text x="20" y="96" font-size="12" fill="#4b5563">TARİH: 11.11.2025</text>
+              <rect x="180" y="36" width="100" height="100" fill="#111" rx="6" />
+            </svg>
+          </div>
+          <div class="card">
+            <strong>Raf Etiketi 58×40</strong>
+            <p class="muted">Ürün adı + Barkod</p>
+            <svg viewBox="0 0 300 150" style="width:100%;background:#fff;border:1px solid #eee;border-radius:6px">
+              <rect x="8" y="8" width="284" height="134" rx="8" fill="#fff" stroke="#e2e8f0"/>
+              <text x="20" y="40" font-size="18">KAVRULMUŞ BADEM 500g</text>
+              <rect x="20" y="60" width="260" height="60" fill="#111"/>
+            </svg>
+          </div>
+          <div class="card">
+            <strong>Palet Etiketi A5</strong>
+            <p class="muted">Sipariş ID + Şube + Tarih</p>
+            <svg viewBox="0 0 300 150" style="width:100%;background:#fff;border:1px solid #eee;border-radius:6px">
+              <rect x="8" y="8" width="284" height="134" rx="8" fill="#fff" stroke="#e2e8f0"/>
+              <text x="20" y="40" font-size="20">SIP‑10045</text>
+              <text x="20" y="70" font-size="14">Şube: Konyaaltı</text>
+              <text x="20" y="92" font-size="14">Tarih: 11.11.2025</text>
+            </svg>
+          </div>
+        </div>
+      </section>
+
+      <!-- VIEW: REPORTS -->
+      <section id="view-reports" class="hidden">
+        <div class="toolbar">
+          <h2>Raporlar</h2>
+          <div class="spacer"></div>
+          <button class="btn" id="btnReportGenerate">Raporu Oluştur</button>
+          <button class="btn" id="btnReportExport">PDF</button>
+        </div>
+        <div class="card">
+          <div class="grid g-3">
+            <div>
+              <label class="muted">Tarih (Başlangıç)</label>
+              <input id="repStart" type="date" />
+            </div>
+            <div>
+              <label class="muted">Tarih (Bitiş)</label>
+              <input id="repEnd" type="date" />
+            </div>
+            <div>
+              <label class="muted">Durum</label>
+              <select id="repStatus">
+                <option value="">Tümü</option>
+                <option>created</option>
+                <option>assigned</option>
+                <option>picking</option>
+                <option>picked</option>
+                <option>qc</option>
+                <option>completed</option>
+                <option>archived</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <table class="table" id="tblReport">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Şube</th>
+              <th>Durum</th>
+              <th>Kalem</th>
+              <th>Oluşturma</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </section>
+
+      <!-- VIEW: SETTINGS -->
+      <section id="view-settings" class="hidden">
+        <div class="toolbar">
+          <h2>Ayarlar</h2>
+          <div class="spacer"></div>
+          <button class="btn" id="btnClearCache">Cache Temizle</button>
+        </div>
+        <div class="grid g-3">
+          <div class="card">
+            <strong>Tema</strong>
+            <select id="selTheme">
+              <option value="light">Light</option>
+              <option value="dark">Dark</option>
+            </select>
+          </div>
+          <div class="card">
+            <strong>Dil</strong>
+            <select id="selLang">
+              <option value="tr">Türkçe</option>
+              <option value="en">English</option>
+            </select>
+          </div>
+          <div class="card">
+            <strong>Bildirimler</strong>
+            <button class="btn" id="btnNotify">İzin İste</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- VIEW: HELP -->
+      <section id="view-help" class="hidden">
+        <div class="toolbar"><h2>Yardım</h2></div>
+        <div class="card">
+          <h3>Kısayollar</h3>
+          <ul>
+            <li>F1: Ayarlar</li>
+            <li>F9: CSV dışa aktarma</li>
+            <li>Ctrl+Z / Ctrl+Y: Geri al / Yinele</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Hata Çözümü</h3>
+          <p class="muted">Bağlantı sorunlarında tarayıcı konsolunu ve Firestore kurallarını kontrol edin.</p>
+        </div>
+      </section>
+
+      <!-- DIALOGS / MODALS TEMPLATES -->
+      <dialog id="dlgOrder" class="modal">
+        <form method="dialog">
+          <div class="toolbar">
+            <h3>Sipariş</h3>
+            <div class="spacer"></div>
+            <button class="btn" value="close">Kapat</button>
+          </div>
+          <div class="grid g-3">
+            <div>
+              <label class="muted">Şube</label>
+              <input id="dlgBranch" placeholder="Şube adı"/>
+            </div>
+            <div>
+              <label class="muted">Ürün</label>
+              <input id="dlgProduct" placeholder="Ürün adı"/>
+            </div>
+            <div>
+              <label class="muted">Miktar</label>
+              <input id="dlgQty" type="number" placeholder="Miktar"/>
+            </div>
+          </div>
+          <div class="toolbar">
+            <button class="btn btn-primary" id="dlgSave">Kaydet</button>
+          </div>
+        </form>
+      </dialog>
+
+      <dialog id="dlgDetail" class="modal">
+        <form method="dialog">
+          <div class="toolbar">
+            <h3 id="dlgDetailTitle">Sipariş Detayı</h3>
+            <div class="spacer"></div>
+            <button class="btn" value="close">Kapat</button>
+          </div>
+          <div id="dlgDetailBody" class="grid"></div>
+          <div class="toolbar">
+            <button class="btn" id="btnDetailStart">Toplamaya Başla</button>
+            <button class="btn btn-primary" id="btnDetailSendQC">QC'ye Gönder</button>
+            <button class="btn" id="btnDetailArchive">Arşivle</button>
+            <button class="btn btn-primary" id="btnDetailQCApprove">QC Onayla</button>
+          </div>
+        </form>
+      </dialog>
+
+      <dialog id="dlgScanner" class="modal">
+        <form method="dialog">
+          <div class="toolbar">
+            <h3>Barkod/QR Tara</h3>
+            <div class="spacer"></div>
+            <button class="btn" value="close">Kapat</button>
+          </div>
+          <video id="cam" autoplay playsinline style="width:100%;border-radius:8px;background:#000;min-height:260px"></video>
+          <div class="toolbar">
+            <span class="muted">Kodu okuttuktan sonra pencereyi kapatabilirsiniz.</span>
+          </div>
+        </form>
+      </dialog>
+
+    </main>
+  </div>
+
+  <footer style="text-align:center; padding:16px; font-size:12px; color:#6b7280">© 2025 Depo Otomasyonu — Tuğlular Group</footer>
+
+  <script>
+    // Basit router: sidebar linkleri ile view değişimi
+    const views = {
+      dashboard: document.getElementById('view-dashboard'),
+      orders: document.getElementById('view-orders'),
+      picking: document.getElementById('view-picking'),
+      qc: document.getElementById('view-qc'),
+      ekdepo: document.getElementById('view-ekdepo'),
+      archive: document.getElementById('view-archive'),
+      inventory: document.getElementById('view-inventory'),
+      labels: document.getElementById('view-labels'),
+      reports: document.getElementById('view-reports'),
+      settings: document.getElementById('view-settings'),
+      help: document.getElementById('view-help')
+    };
+
+    function activate(id){
+      for(const k in views){ views[k].classList.add('hidden'); }
+      if(views[id]) views[id].classList.remove('hidden');
+      document.querySelectorAll('.sidebar a').forEach(a=> a.classList.remove('active'));
+      const active = document.querySelector(`.sidebar a[data-view="${id}"]`);
+      if(active) active.classList.add('active');
     }
-  });
-  for (const c of children){
-    if (Array.isArray(c)) c.forEach((x)=>e.append(x));
-    else if (c instanceof Node) e.append(c);
-    else if (c !== undefined && c !== null) e.append(String(c));
-  }
-  return e;
-}
 
-// =============================
-//  Global Durum
-// =============================
-const state = {
-  user: null,           // Firebase user
-  userDoc: null,        // users koleksiyonundaki profil {role, displayName, ...}
-  unsubOrders: null,    // snapshot listener temizleyici (gelecek genişleme)
-  cache: new Map(),     // hızlı bellek önbelleği
-  online: navigator.onLine,
-  pendingQueue: [],     // offline işlemler kuyruğu
-  scanner: null,        // camera scanner handle
-};
-
-// =============================
-//  UI Köprüleri (index.html id’leri)
-// =============================
-const ui = {
-  loginSection: $('#loginSection'),
-  ordersSection: $('#ordersSection'),
-  loginMsg: $('#loginMsg'),
-  orderList: $('#orderList'),
-  email: $('#email'),
-  password: $('#password'),
-  signinBtn: $('#signinBtn'),
-  btnLogin: $('#btnLogin'),
-  btnLogout: $('#btnLogout'),
-  btnNewOrder: $('#btnNewOrder'),
-  orderModal: $('#orderModal'),
-  branchInput: $('#branchInput'),
-  productInput: $('#productInput'),
-  qtyInput: $('#qtyInput'),
-  saveOrderBtn: $('#saveOrderBtn'),
-  cancelOrderBtn: $('#cancelOrderBtn'),
-};
-
-// =============================
-//  Basit Logger ve Hata Yakalama
-// =============================
-function logInfo(message, data){
-  console.info('[INFO]', message, data||'');
-  writeLog({level:'info', message, data}).catch(console.error);
-}
-function logError(message, err){
-  console.error('[ERROR]', message, err);
-  writeLog({level:'error', message, data:String(err)}).catch(()=>{});
-}
-
-async function writeLog(entry){
-  try{
-    const colRef = collection(db, 'logs');
-    await addDoc(colRef, {...entry, ts: serverTimestamp(), uid: state.user?.uid||null});
-  }catch(e){
-    // offline ise sessize al
-  }
-}
-
-// =============================
-//  Offline Kuyruk & Basit Cache
-// =============================
-const cacheStore = (()=>{
-  // Basit IndexedDB KV-store
-  const DB = 'depo_cache_db';
-  const STORE = 'kv';
-  let dbi = null;
-
-  function open(){
-    return new Promise((resolve, reject)=>{
-      const req = indexedDB.open(DB, 1);
-      req.onupgradeneeded = ()=>{
-        const db = req.result;
-        if(!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE);
-      };
-      req.onsuccess = ()=>{ dbi = req.result; resolve(); };
-      req.onerror = ()=> reject(req.error);
+    document.querySelectorAll('.sidebar a').forEach(a=>{
+      a.addEventListener('click', (e)=>{
+        e.preventDefault(); activate(a.dataset.view);
+        history.replaceState(null, '', a.getAttribute('href'));
+      });
     });
-  }
-  async function ready(){ if(!dbi) await open(); }
-  async function set(key, val){
-    await ready();
-    return new Promise((resolve, reject)=>{
-      const tx = dbi.transaction(STORE,'readwrite');
-      tx.objectStore(STORE).put(val, key);
-      tx.oncomplete = ()=>resolve(); tx.onerror = ()=>reject(tx.error);
+
+    // Login section başlangıçta görünür kalır; app.js auth durumunda gizler/gösterir
+
+    // Dashboard mock doldurma — app.js gerçek veriyi yüklerken boş görünmesin
+    const tblDash = document.querySelector('#tblDashOrders tbody');
+    for(let i=0;i<6;i++){
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>SIP-10${40+i}</td><td>Konyaaltı</td><td><span class="badge">created</span></td><td>—</td><td class="muted">—</td>`;
+      tblDash.append(tr);
+    }
+
+    // Orders — boş placeholder
+    const orderList = document.getElementById('orderList');
+    for(let i=0;i<4;i++){
+      const c = document.createElement('div'); c.className='card';
+      c.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center"><div><b>SIP-1004${i}</b> • Konyaaltı <span class="badge">created</span></div><div><button class="btn">Detay</button></div></div>`;
+      orderList.append(c);
+    }
+
+    // Ek Depo placeholder
+    const ekBody = document.querySelector('#tblEkDepo tbody');
+    for(let i=0;i<3;i++){
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>Ürün ${i+1}</td><td>PRD-${i+1}</td><td>A-0${i+1}</td><td>${i+2}</td><td class="muted">Eksik</td><td><button class="btn">Kontrole Al</button></td>`;
+      ekBody.append(tr);
+    }
+
+    // Settings — tema değiştirici (style önerisi)
+    const selTheme = document.getElementById('selTheme');
+    selTheme?.addEventListener('change', ()=>{
+      document.documentElement.dataset.theme = selTheme.value;
     });
-  }
-  async function get(key){
-    await ready();
-    return new Promise((resolve, reject)=>{
-      const tx = dbi.transaction(STORE,'readonly');
-      const req = tx.objectStore(STORE).get(key);
-      req.onsuccess = ()=>resolve(req.result);
-      req.onerror = ()=>reject(req.error);
-    });
-  }
-  return { set, get };
+
+    // Label ön izleme butonları
+    document.getElementById('btnLabelPreview')?.addEventListener('click', ()=> alert('Ön izleme app.js tarafında uygulanır.'));
+    document.getElementById('btnLabelPrint')?.addEventListener('click', ()=> alert('Yazdırma app.js tarafında uygulanır.'));
+
+    // Dialog aç/kapat helper (index tarafında gerekli yerlerde kullanılabilir)
+    const dlgOrder = document.getElementById('dlgOrder');
+    const dlgDetail = document.getElementById('dlgDetail');
+    const dlgScanner = document.getElementById('dlgScanner');
+
+    window.__ui__ = { activate, dlgOrder, dlgDetail, dlgScanner };
+  </script>
+</body>
+</html>
+
+/* =====================================================================
+   GENİŞLETME PAKETİ — KURUMSAL MODÜLLER (i18n, Workflow, Policy, Stok Defteri,
+   Gelişmiş Arama, Profiler, Background Sync, Retry/Backoff, WS Sync, Test Helpers)
+   ---------------------------------------------------------------------
+   Not: Bu bloklar app.js’i kurumsal ölçekli tek dosya mimariye yaklaştırır.
+   Her modül bağımsız kullanılabilir ve üstteki ana akışla entegredir.
+   ===================================================================== */
+
+// =============================
+// I18N — Çok Dillilik
+// =============================
+const i18n = (()=>{
+  const dict = {
+    tr: {
+      NEW_ORDER: 'Yeni Sipariş', ORDER: 'Sipariş', BRANCH: 'Şube', PRODUCT: 'Ürün', QTY: 'Miktar',
+      STATUS: 'Durum', CREATED_AT: 'Oluşturma', ASSIGNED_TO: 'Atanan',
+      PICKING_START: 'Toplamaya Başla', SEND_QC: "QC'ye Gönder", ARCHIVE: 'Arşivle', QC_APPROVE: 'QC Onayla',
+      EXPORT_CSV: 'CSV Dışa Aktar', IMPORT_CSV: 'CSV İçe Aktar', REFRESH: 'Yenile', SEARCH: 'Ara',
+      INVENTORY: 'Envanter', STOCK_IN: 'Stok Giriş', STOCK_OUT: 'Stok Çıkış', SAVE: 'Kaydet', CANCEL: 'İptal',
+      BARCODE_SCAN: 'Barkod Tara', SETTINGS: 'Ayarlar', THEME: 'Tema', LANGUAGE: 'Dil', NOTIFICATIONS: 'Bildirimler',
+      INFO_SAVED: 'Kaydedildi', ERROR: 'Hata', OFFLINE_ENQUEUED: 'Çevrimdışı: sıraya alındı'
+    },
+    en: {
+      NEW_ORDER: 'New Order', ORDER: 'Order', BRANCH: 'Branch', PRODUCT: 'Product', QTY: 'Quantity',
+      STATUS: 'Status', CREATED_AT: 'Created At', ASSIGNED_TO: 'Assigned To',
+      PICKING_START: 'Start Picking', SEND_QC: 'Send to QC', ARCHIVE: 'Archive', QC_APPROVE: 'QC Approve',
+      EXPORT_CSV: 'Export CSV', IMPORT_CSV: 'Import CSV', REFRESH: 'Refresh', SEARCH: 'Search',
+      INVENTORY: 'Inventory', STOCK_IN: 'Stock In', STOCK_OUT: 'Stock Out', SAVE: 'Save', CANCEL: 'Cancel',
+      BARCODE_SCAN: 'Scan Barcode', SETTINGS: 'Settings', THEME: 'Theme', LANGUAGE: 'Language', NOTIFICATIONS: 'Notifications',
+      INFO_SAVED: 'Saved', ERROR: 'Error', OFFLINE_ENQUEUED: 'Offline: queued'
+    }
+  };
+  let lang = 'tr';
+  function t(key){ return (dict[lang] && dict[lang][key]) || key; }
+  function setLang(l){ if(dict[l]) lang = l; }
+  return { t, setLang };
 })();
 
-function enqueue(op){
-  state.pendingQueue.push(op);
-  cacheStore.set('pendingQueue', state.pendingQueue).catch(()=>{});
-}
-
-async function flushQueue(){
-  if(!state.online || state.pendingQueue.length===0) return;
-  const copy = [...state.pendingQueue];
-  state.pendingQueue.length = 0;
-  for(const op of copy){
-    try{ await op(); }
-    catch(e){ logError('Kuyruk görevi başarısız, tekrar kuyruğa alınıyor', e); enqueue(op); }
+// =============================
+// PolicyEngine — Rol Bazlı Kural Denetleyicisi
+// =============================
+const PolicyEngine = (()=>{
+  const rules = {
+    createOrder: [ROLES.MANAGER],
+    assignOrder: [ROLES.MANAGER],
+    startPicking: [ROLES.MANAGER, ROLES.PICKER],
+    sendToQC: [ROLES.MANAGER, ROLES.PICKER],
+    qcApprove: [ROLES.QC, ROLES.MANAGER],
+    archiveOrder: [ROLES.MANAGER],
+    exportCSV: [ROLES.MANAGER],
+  };
+  function can(action){
+    const role = state.userDoc?.role;
+    const allow = rules[action];
+    return !!allow && allow.includes(role);
   }
-  cacheStore.set('pendingQueue', state.pendingQueue).catch(()=>{});
-}
-
-window.addEventListener('online', ()=>{ state.online = true; flushQueue(); });
-window.addEventListener('offline', ()=>{ state.online = false; });
+  return { can };
+})();
 
 // =============================
-//  RBAC & Yardımcılar
+// WorkflowEngine — Durum Geçişleri
 // =============================
-const ROLES = { MANAGER: 'manager', PICKER: 'picker', QC: 'qc' };
-
-function isManager(){ return state.userDoc?.role === ROLES.MANAGER; }
-function isPicker(){ return state.userDoc?.role === ROLES.PICKER; }
-function isQC(){ return state.userDoc?.role === ROLES.QC; }
-
-function show(elem){ elem?.classList?.remove('hidden'); }
-function hide(elem){ elem?.classList?.add('hidden'); }
-
-function toast(msg){
-  // basit toast
-  const t = el('div', {className:'card', style:'position:fixed;right:12px;bottom:12px;z-index:9999'} , msg);
-  document.body.append(t);
-  setTimeout(()=>t.remove(), 2200);
-}
-
-function formatTs(ts){
-  try{ return new Date(ts?.seconds? ts.seconds*1000: ts).toLocaleString(); }catch{ return '-'; }
-}
+const WorkflowEngine = (()=>{
+  const transitions = {
+    [STATUS.CREATED]: { assign: STATUS.ASSIGNED, archive: STATUS.ARCHIVED },
+    [STATUS.ASSIGNED]: { startPicking: STATUS.PICKING, archive: STATUS.ARCHIVED },
+    [STATUS.PICKING]: { toPicked: STATUS.PICKED, archive: STATUS.ARCHIVED },
+    [STATUS.PICKED]: { toQC: STATUS.QC, approve: STATUS.COMPLETED, archive: STATUS.ARCHIVED },
+    [STATUS.QC]: { approve: STATUS.COMPLETED, reject: STATUS.PICKING },
+    [STATUS.COMPLETED]: { archive: STATUS.ARCHIVED },
+    [STATUS.ARCHIVED]: {}
+  };
+  function next(current, action){ return transitions[current]?.[action] || null; }
+  return { next };
+})();
 
 // =============================
-//  Auth Akışı
+// Inventory — Stok Defteri ve Mutabakat
 // =============================
-ui.signinBtn?.addEventListener('click', async ()=>{
-  const email = ui.email.value.trim();
-  const pass = ui.password.value;
-  if(!email || !pass){ ui.loginMsg.textContent = 'E‑posta ve şifre zorunlu.'; return; }
-  ui.signinBtn.disabled = true; ui.loginMsg.textContent = 'Giriş yapılıyor...';
-  try{
-    await signInWithEmailAndPassword(auth, email, pass);
-  }catch(e){
-    ui.loginMsg.textContent = 'Giriş hatası: '+ (e?.message||e);
-  } finally{ ui.signinBtn.disabled = false; }
-});
+const Inventory = (()=>{
+  // Basit stok defteri: { code -> {qty, lastTs, aisle} }
+  const ledger = new Map();
 
-ui.btnLogout?.addEventListener('click', async ()=>{
-  await signOut(auth).catch(()=>{});
-});
+  function ensure(code){ if(!ledger.has(code)) ledger.set(code, { qty:0, lastTs: Date.now(), aisle: 'A-01' }); return ledger.get(code); }
+  function moveIn(code, qty){ const e=ensure(code); e.qty += qty; e.lastTs = Date.now(); logInfo('Stock In',{code,qty}); return e.qty; }
+  function moveOut(code, qty){ const e=ensure(code); e.qty = Math.max(0, e.qty-qty); e.lastTs = Date.now(); logInfo('Stock Out',{code,qty}); return e.qty; }
+  function setAisle(code, aisle){ const e=ensure(code); e.aisle = aisle; }
+  function get(code){ return ledger.get(code)||{qty:0,aisle:'A-01',lastTs:0}; }
+  function list(){ return Array.from(ledger, ([code,rec])=>({code, ...rec})); }
 
-onAuthStateChanged(auth, async (user)=>{
-  state.user = user;
-  if(!user){
-    hide(ui.btnLogout); show(ui.btnLogin);
-    show(ui.loginSection); hide(ui.ordersSection);
-    ui.loginMsg.textContent = '';
-    return;
+  // Mutabakat (örn. sayım sonuçlarını uygula)
+  function reconcile(counts){
+    // counts: [{code, qty}]
+    for(const c of counts){ const e=ensure(c.code); e.qty = c.qty; e.lastTs = Date.now(); }
   }
-  show(ui.btnLogout); hide(ui.btnLogin);
-  hide(ui.loginSection); show(ui.ordersSection);
-  await bootstrapUserProfile();
-  await restoreQueue();
-  await loadOrders();
-});
 
-async function bootstrapUserProfile(){
-  try{
-    const ref = doc(db, 'users', state.user.uid);
-    const snap = await getDoc(ref);
-    state.userDoc = snap.exists()? snap.data(): { role: ROLES.MANAGER, displayName: state.user.email };
-  }catch(e){ logError('Kullanıcı profili okunamadı', e); }
-}
+  return { moveIn, moveOut, setAisle, get, list, reconcile };
+})();
 
-async function restoreQueue(){
-  try{
-    const saved = await cacheStore.get('pendingQueue');
-    if(Array.isArray(saved)) state.pendingQueue = saved; // not: fonksiyonlar serileşmez; bu sadece placeholder
-  }catch{}
+// =============================
+// AdvancedSearch — Basit Dizinleme ve Arama
+// =============================
+const AdvancedSearch = (()=>{
+  const idx = new Map(); // token -> Set(orderId)
+  function tokenize(s){ return String(s||'').toLowerCase().split(/[^a-z0-9ğüşöçı]+/).filter(Boolean); }
+  function add(order){
+    const tokens = new Set([
+      ...tokenize(order.id), ...tokenize(order.branch),
+      ...((order.items||[]).flatMap(it=> [...tokenize(it.name), ...tokenize(it.code)]))
+    ]);
+    for(const t of tokens){ if(!idx.has(t)) idx.set(t, new Set()); idx.get(t).add(order.id); }
+  }
+  function build(orders){ idx.clear(); orders.forEach(add); }
+  function search(query){
+    const tokens = tokenize(query);
+    if(tokens.length===0) return [];
+    let result = null;
+    for(const t of tokens){
+      const set = idx.get(t) || new Set();
+      result = result? new Set([...result].filter(x=> set.has(x))) : new Set(set);
+    }
+    return Array.from(result||[]);
+  }
+  return { build, search };
+})();
+
+// =============================
+// Profiler — Performans Ölçümü
+// =============================
+const Profiler = (()=>{
+  const marks = new Map();
+  function start(key){ marks.set(key, performance.now()); }
+  function end(key){ const t = performance.now() - (marks.get(key)||performance.now()); marks.delete(key); return t; }
+  function log(key){ const ms = end(key); logInfo('profile:'+key, {ms}); return ms; }
+  return { start, end, log };
+})();
+
+// =============================
+// Retry / Backoff — Dayanıklı Çağrılar
+// =============================
+async function withRetry(fn, {tries=3, base=200}={}){
+  let attempt=0, last;
+  while(attempt<tries){
+    try{ return await fn(); }catch(e){ last=e; await new Promise(r=>setTimeout(r, base*Math.pow(2,attempt))); attempt++; }
+  }
+  throw last;
 }
 
 // =============================
-//  Sipariş Veri Modeli
+// Background Sync (basit zamanlayıcı)
 // =============================
-const STATUS = {
-  CREATED: 'created', ASSIGNED: 'assigned', PICKING: 'picking',
-  PICKED: 'picked', QC: 'qc', COMPLETED: 'completed', ARCHIVED:'archived'
+const BgSync = (()=>{
+  let timer=null; let interval=15000;
+  function start(){ if(timer) return; timer = setInterval(()=> flushQueue().catch(()=>{}), interval); }
+  function stop(){ clearInterval(timer); timer=null; }
+  function setIntervalMs(ms){ interval=ms; if(timer){ stop(); start(); } }
+  return { start, stop, setIntervalMs };
+})();
+BgSync.start();
+
+// =============================
+// WS Sync (Mock) — Gerçek Zamanlı Bildirimler
+// =============================
+const Realtime = (()=>{
+  let listeners = new Set();
+  function subscribe(fn){ listeners.add(fn); return ()=>listeners.delete(fn); }
+  function publish(evt){ listeners.forEach(fn=>{ try{ fn(evt);}catch{} }); }
+  // Firestore trigger replacement (mock): yeni sipariş → publish
+  const _origCreateOrder = createOrder;
+  createOrder = async function(payload){ const res = await _origCreateOrder(payload); try{ publish({type:'order_created', payload}); }catch{} return res; };
+  return { subscribe, publish };
+})();
+
+// =============================
+// Test Helpers — Veri Üreticiler, Sahte İş Yükü
+// =============================
+const TestKit = (()=>{
+  function genOrders(n=50){
+    const branches=['Konyaaltı','Kepez','Muratpaşa','Aksu','Döşemealtı'];
+    const arr=[];
+    for(let i=0;i<n;i++){
+      arr.push({
+        branch: branches[i%branches.length],
+        status: STATUS.CREATED,
+        createdAt: serverTimestamp(),
+        createdBy: state.user?.uid||'dev',
+        assignedTo: null,
+        items: Array.from({length: (i%4)+1}).map((_,k)=>({
+          code:`PRD-${String(Math.random()).slice(2,7)}`,
+          name:`Ürün ${k+1}`,
+          aisle:`A-${String(Math.floor(Math.random()*10)).padStart(2,'0')}`,
+          quantity: Math.floor(Math.random()*12)+1,
+          picked:0
+        }))
+      });
+    }
+    return arr;
+  }
+  async function pushOrders(batch=20){
+    const items=genOrders(batch);
+    for(const o of items){
+      const id= await repo.addOrder({branch:o.branch,status:o.status,createdAt:o.createdAt,createdBy:o.createdBy,assignedTo:o.assignedTo});
+      for(const it of o.items){ await repo.addOrderItem(id, it); }
+    }
+    await loadOrders();
+  }
+  return { genOrders, pushOrders };
+})();
+
+// =============================
+// Entegrasyon Noktaları — UI Bağlama (Index tarafı ile)
+// =============================
+(function bindIndexControls(){
+  // Tema ve dil
+  const selTheme = document.getElementById('selTheme');
+  const selLang = document.getElementById('selLang');
+  selLang?.addEventListener('change', ()=> i18n.setLang(selLang.value) );
+
+  // Raporlar
+  const repBtn = document.getElementById('btnReportGenerate');
+  repBtn?.addEventListener('click', async ()=>{
+    const tbody = document.querySelector('#tblReport tbody'); tbody.innerHTML='';
+    const list = await repo.listOrders({forRole: isManager()?ROLES.MANAGER:(isPicker()?ROLES.PICKER:ROLES.QC)});
+    for(const o of list){
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${o.id}</td><td>${o.branch}</td><td><span class="badge">${o.status}</span></td><td>${(o.items||[]).length}</td><td>${formatTs(o.createdAt)}</td>`;
+      tbody.append(tr);
+    }
+  });
+
+  // Inventory quick actions
+  document.getElementById('btnInvIn')?.addEventListener('click', ()=>{
+    const code = document.getElementById('invInCode').value.trim();
+    const qty = parseInt(document.getElementById('invInQty').value,10)||0;
+    if(!code||qty<=0) return toast('Kod/miktar gerekir');
+    Inventory.moveIn(code, qty); toast('Stok girişi kaydedildi');
+    renderInventory();
+  });
+  document.getElementById('btnInvOut')?.addEventListener('click', ()=>{
+    const code = document.getElementById('invOutCode').value.trim();
+    const qty = parseInt(document.getElementById('invOutQty').value,10)||0;
+    if(!code||qty<=0) return toast('Kod/miktar gerekir');
+    Inventory.moveOut(code, qty); toast('Stok çıkışı kaydedildi');
+    renderInventory();
+  });
+
+  async function renderInventory(){
+    const tbody = document.querySelector('#tblInventory tbody'); if(!tbody) return; tbody.innerHTML='';
+    for(const r of Inventory.list()){
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${r.name||'-'}</td><td>${r.code}</td><td>${r.aisle}</td><td>${r.qty}</td><td>${new Date(r.lastTs).toLocaleString()}</td>`;
+      tbody.append(tr);
+    }
+  }
+  renderInventory();
+})();
+
+// =============================
+// Gelişmiş Arama Entegrasyonu — Orders görünümünde
+// =============================
+(async function enhanceOrdersSearch(){
+  const input = document.getElementById('qOrders'); if(!input) return;
+  const orders = await repo.listOrders({forRole: isManager()?ROLES.MANAGER:(isPicker()?ROLES.PICKER:ROLES.QC)});
+  AdvancedSearch.build(orders);
+  input.addEventListener('input', (e)=>{
+    const ids = AdvancedSearch.search(e.target.value);
+    const filtered = ids.length? orders.filter(o=> ids.includes(o.id)) : orders;
+    renderOrders(filtered);
+  });
+})();
+
+// =============================
+// Dashboard İyileştirme — KPI ve Grafik Yer Tutucu
+// =============================
+(async function fillDashboard(){
+  try{
+    Profiler.start('dashboard');
+    const orders = await repo.listOrders({forRole:ROLES.MANAGER});
+    const kpiOrders = document.getElementById('kpiOrders');
+    const kpiLines = document.getElementById('kpiLines');
+    const kpiQC = document.getElementById('kpiQC');
+    const kpiDone = document.getElementById('kpiDone');
+    kpiOrders.textContent = String(orders.length);
+    kpiLines.textContent = String(orders.reduce((s,o)=> s+(o.items?.length||0), 0));
+    kpiQC.textContent = String(orders.filter(o=> [STATUS.PICKED, STATUS.QC].includes(o.status)).length);
+    kpiDone.textContent = String(orders.filter(o=> o.status===STATUS.COMPLETED).length);
+
+    const tbody = document.querySelector('#tblDashOrders tbody'); tbody.innerHTML='';
+    for(const o of orders.slice(0,10)){
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${o.id}</td><td>${o.branch}</td><td><span class="badge">${o.status}</span></td><td>${formatTs(o.createdAt)}</td><td class="muted">${o.assignedTo||''}</td>`;
+      tbody.append(tr);
+    }
+
+    // Basit grafik yer tutucu (text bar)
+    const byStatus = orders.reduce((a,o)=>{a[o.status]=(a[o.status]||0)+1;return a;},{});
+    const max = Math.max(...Object.values(byStatus),1);
+    const chart = Object.entries(byStatus).map(([k,v])=> `${k.padEnd(10)} | ${'▮'.repeat(Math.round((v/max)*20))} ${v}`).join('
+');
+    document.getElementById('statusChart').textContent = chart;
+
+    Profiler.log('dashboard');
+  }catch(e){ logError('Dashboard yüklenemedi', e); }
+})();
+
+/* =====================================================================
+   SON — Genişletme bloğu
+   ===================================================================== */
+
+
+/* =====================================================================
+   EK BLOK — UI UYUM KATMANI & İŞLEVLER (Index ile Tam Uyum)
+   ---------------------------------------------------------------------
+   Bu bölüm, index.html tarafındaki tüm buton/id bağlamalarını gerçekleştirir,
+   Picking/QC/EkDepo/Arşiv görünümlerini doldurur, rapor ve etiket çıktıları,
+   bildirim/temizlik/yenileme aksiyonlarını ekler. Böylece tek dosya app.js
+   index ile uçtan uca çalışır hale gelir.
+   ===================================================================== */
+
+// -----------------------------
+// Yardımcı UI Seçiciler
+// -----------------------------
+const UIx = {
+  // Dashboard
+  btnRefreshDashboard: document.getElementById('btnRefreshDashboard'),
+  btnDashCSV: document.getElementById('btnDashCSV'),
+  // Orders
+  btnOrdersCSV: document.getElementById('btnOrdersCSV'),
+  inpOrdersCSV: document.getElementById('inpOrdersCSV'),
+  // Picking
+  btnPickingRefresh: document.getElementById('btnPickingRefresh'),
+  pickingList: document.getElementById('pickingList'),
+  // QC
+  btnQCRefresh: document.getElementById('btnQCRefresh'),
+  qcList: document.getElementById('qcList'),
+  // Ek Depo
+  btnEkDepoRefresh: document.getElementById('btnEkDepoRefresh'),
+  tblEkDepoBody: document.querySelector('#tblEkDepo tbody'),
+  // Archive
+  btnArchiveRefresh: document.getElementById('btnArchiveRefresh'),
+  archiveList: document.getElementById('archiveList'),
+  // Inventory
+  btnInventoryScan: document.getElementById('btnInventoryScan'),
+  btnInventoryRefresh: document.getElementById('btnInventoryRefresh'),
+  // Labels
+  btnLabelPreview: document.getElementById('btnLabelPreview'),
+  btnLabelPrint: document.getElementById('btnLabelPrint'),
+  // Reports
+  btnReportExport: document.getElementById('btnReportExport'),
+  // Settings
+  btnClearCache: document.getElementById('btnClearCache'),
+  btnNotify: document.getElementById('btnNotify'),
 };
 
-function orderCard(o){
-  const top = el('div', {className:'card'});
-  const title = el('div', {style:'display:flex;justify-content:space-between;gap:8px;align-items:center;'},
-    el('div',{},
-      el('b',{}, `${o.id||'(yeni)'} • ${o.branch}`), ' ',
-      el('span',{style:'color:#666'}, `Durum: ${o.status} | Kalem: ${o.items?.length||0}`)
-    ),
-    el('div',{},
-      isManager() && el('button', {className:'btn btn-secondary', onClick:()=>assignToSelf(o)}, 'Ata'),
-      ' ',
-      el('button', {className:'btn', onClick:()=>openOrderDetail(o)}, 'Detay')
-    )
-  );
-  top.append(title);
-  return top;
-}
-
-function renderOrders(list){
-  ui.orderList.innerHTML = '';
-  list.forEach(o=> ui.orderList.append(orderCard(o)) );
-}
-
-// =============================
-//  Firestore Yardımcıları
-// =============================
-const colOrders = () => collection(db, 'orders');
-const colOrderItems = (orderId) => collection(db, 'orders', orderId, 'items');
-const colEkDepo = () => collection(db, 'ek_depo');
-
-async function loadOrders(){
-  try{
-    let qref;
-    if(isManager()){
-      qref = query(colOrders(), orderBy('createdAt','desc'), limit(50));
-    } else if (isPicker()){
-      qref = query(colOrders(), where('assignedTo','==', state.user.uid), orderBy('createdAt','desc'), limit(50));
-    } else {
-      // QC
-      qref = query(colOrders(), where('status','in',[STATUS.PICKED, STATUS.QC]), orderBy('createdAt','desc'), limit(50));
-    }
-    const snap = await getDocs(qref);
-    const orders = [];
-    for(const d of snap.docs){
-      const data = d.data();
-      const itemsSnap = await getDocs(colOrderItems(d.id));
-      const items = itemsSnap.docs.map((x)=> ({id:x.id, ...x.data()}));
-      orders.push({ id:d.id, ...data, items });
-    }
-    renderOrders(orders);
-  }catch(e){ logError('Siparişler yüklenemedi', e); toast('Siparişler yüklenemedi'); }
-}
-
-async function createOrder({branch, items}){
-  const base = {
-    branch,
-    status: STATUS.CREATED,
-    createdAt: serverTimestamp(),
-    createdBy: state.user.uid,
-    assignedTo: null,
-  };
-  const doCreate = async ()=>{
-    const d = await addDoc(colOrders(), base);
-    for(const it of items){
-      await addDoc(colOrderItems(d.id), it);
-    }
-    logInfo('Yeni sipariş oluşturuldu', {orderId:d.id});
-  };
-  if(state.online) return doCreate();
-  enqueue(doCreate); toast('Çevrimdışı: sipariş sıraya alındı');
-}
-
-async function updateOrder(orderId, patch){
-  const fn = ()=> updateDoc(doc(db,'orders', orderId), patch);
-  if(state.online) return fn(); enqueue(fn);
-}
-
-async function archiveOrder(orderId){
-  await updateOrder(orderId, {status: STATUS.ARCHIVED});
-  toast('Sipariş arşive taşındı');
-}
-
-async function assignToSelf(order){
-  if(!isManager()) return;
-  await updateOrder(order.id, {assignedTo: state.user.uid, status: STATUS.ASSIGNED});
-  toast('Sipariş sana atandı');
-  await loadOrders();
-}
-
-async function startPicking(orderId){
-  await updateOrder(orderId, {status: STATUS.PICKING});
-}
-
-async function setPickedQty(orderId, itemId, picked){
-  const fn = ()=> updateDoc(doc(db, 'orders', orderId, 'items', itemId), {picked});
-  if(state.online) return fn(); enqueue(fn);
-}
-
-async function sendToQC(orderId){
-  await updateOrder(orderId, {status: STATUS.PICKED});
-}
-
-async function qcApprove(orderId){
-  await updateOrder(orderId, {status: STATUS.COMPLETED, qcBy: state.user.uid});
-}
-
-async function markMissing(orderId, item, missingQty, note){
-  const payload = {
-    orderId,
-    code: item.code,
-    name: item.name,
-    aisle: item.aisle,
-    quantity: missingQty,
-    note: note||'',
-    createdAt: serverTimestamp(),
-  };
-  const fn = ()=> addDoc(colEkDepo(), payload);
-  if(state.online) return fn(); enqueue(fn);
-}
-
-// =============================
-//  UI — Yeni Sipariş Modal ve İşlevler
-// =============================
-ui.btnNewOrder?.addEventListener('click', ()=> show(ui.orderModal));
-ui.cancelOrderBtn?.addEventListener('click', ()=> hide(ui.orderModal));
-ui.saveOrderBtn?.addEventListener('click', async ()=>{
-  const branch = ui.branchInput.value.trim();
-  const product = ui.productInput.value.trim();
-  const qty = parseInt(ui.qtyInput.value,10)||0;
-  if(!branch || !product || qty<=0){ return alert('Alanlar zorunlu ve miktar > 0 olmalı'); }
-  await createOrder({
-    branch,
-    items: [{code: slug(product), name: product, aisle: 'A-01', quantity: qty, picked: 0}]
-  });
-  hide(ui.orderModal);
-  ui.branchInput.value = ui.productInput.value = ui.qtyInput.value = '';
-  await loadOrders();
+// -----------------------------
+// Dashboard events
+// -----------------------------
+UIx.btnRefreshDashboard?.addEventListener('click', ()=>{
+  // yeniden doldurma için fillDashboard fonksiyonunu yeniden çağır
+  (async ()=>{
+    try{
+      const k = document.getElementById('kpiOrders');
+      if(!k) return; // görünüm gizliyse çık
+      const orders = await repo.listOrders({forRole:ROLES.MANAGER});
+      document.getElementById('kpiOrders').textContent = String(orders.length);
+      document.getElementById('kpiLines').textContent = String(orders.reduce((s,o)=> s+(o.items?.length||0), 0));
+      document.getElementById('kpiQC').textContent = String(orders.filter(o=> [STATUS.PICKED, STATUS.QC].includes(o.status)).length);
+      document.getElementById('kpiDone').textContent = String(orders.filter(o=> o.status===STATUS.COMPLETED).length);
+      const tbody = document.querySelector('#tblDashOrders tbody'); tbody.innerHTML='';
+      for(const o of orders.slice(0,10)){
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${o.id}</td><td>${o.branch}</td><td><span class="badge">${o.status}</span></td><td>${formatTs(o.createdAt)}</td><td class="muted">${o.assignedTo||''}</td>`;
+        tbody.append(tr);
+      }
+    }catch(e){ logError('Dashboard refresh error', e); }
+  })();
 });
 
-function slug(s){ return s.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,''); }
+UIx.btnDashCSV?.addEventListener('click', ()=> exportOrdersToCSV());
 
-// =============================
-//  Detay Diyaloğu — Toplayıcı & QC Akışı
-// =============================
-function openOrderDetail(order){
-  const modal = buildOrderDetailModal(order);
-  document.body.append(modal);
+// -----------------------------
+// Orders events
+// -----------------------------
+UIx.btnOrdersCSV?.addEventListener('click', ()=> exportOrdersToCSV());
+UIx.inpOrdersCSV?.addEventListener('change', (e)=>{
+  const f = e.target.files?.[0]; if(f) importOrdersFromCSV(f);
+});
+
+// -----------------------------
+// Picking view
+// -----------------------------
+async function renderPicking(){
+  if(!UIx.pickingList) return; UIx.pickingList.innerHTML='';
+  const orders = await repo.listOrders({forRole:ROLES.PICKER});
+  const picking = orders.filter(o=> [STATUS.ASSIGNED, STATUS.PICKING].includes(o.status));
+  for(const o of picking){ UIx.pickingList.append(orderCard(o)); }
 }
 
-function buildOrderDetailModal(order){
-  const wrap = el('div',{id:'modalDetail', style:'position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:10000'});
-  const card = el('div',{className:'card', style:'width:95%;max-width:850px;max-height:90vh;overflow:auto'});
+UIx.btnPickingRefresh?.addEventListener('click', ()=> renderPicking());
 
-  const header = el('div',{style:'display:flex;justify-content:space-between;align-items:center;gap:8px'},
-    el('div',{}, el('h3',{}, `Sipariş • ${order.id} • ${order.branch}`), el('div',{style:'color:#666'}, `Durum: ${order.status}`)),
-    el('div',{},
-      el('button',{className:'btn', onClick:()=>wrap.remove()},'Kapat')
-    )
-  );
-
-  const itemsBox = el('div',{});
-  (order.items||[]).forEach(it=> itemsBox.append(itemRow(order, it)) );
-
-  const actions = el('div',{style:'display:flex;gap:8px;flex-wrap:wrap;margin-top:12px'},
-    isPicker() && el('button',{className:'btn btn-secondary', onClick:()=>{startPicking(order.id).then(()=>toast('Toplamaya başlandı'));}},'Toplamaya Başla'),
-    isPicker() && el('button',{className:'btn btn-primary', onClick:()=>{sendToQC(order.id).then(()=>{toast('QC'ye gönderildi'); wrap.remove(); loadOrders();});}},'QC'ye Gönder'),
-    isManager() && el('button',{className:'btn', onClick:()=>{archiveOrder(order.id).then(()=>{wrap.remove(); loadOrders();});}},'Arşivle'),
-    isQC() && el('button',{className:'btn btn-primary', onClick:()=>{qcApprove(order.id).then(()=>{toast('QC Onaylandı'); wrap.remove(); loadOrders();});}},'QC Onayla'),
-  );
-
-  card.append(header, itemsBox, actions);
-  wrap.append(card);
-  return wrap;
+// -----------------------------
+// QC view
+// -----------------------------
+async function renderQC(){
+  if(!UIx.qcList) return; UIx.qcList.innerHTML='';
+  const orders = await repo.listOrders({forRole:ROLES.QC});
+  const awaiting = orders.filter(o=> [STATUS.PICKED, STATUS.QC].includes(o.status));
+  for(const o of awaiting){ UIx.qcList.append(orderCard(o)); }
 }
 
-function itemRow(order, it){
-  const r = el('div',{className:'card'},
-    el('div',{style:'display:flex;justify-content:space-between;align-items:center;gap:8px'},
-      el('div',{}, el('b',{}, `${it.name}`), ' ', el('span',{style:'color:#666'}, `${it.code} • Raf: ${it.aisle}`)),
-      el('div',{}, `Istenen: ${it.quantity} • Toplanan: ${it.picked||0}`)
-    ),
-    el('div',{style:'display:flex;gap:8px;flex-wrap:wrap;margin-top:8px'},
-      isPicker() && el('button',{className:'btn', onClick:async()=>{
-        const v = await promptNumber('Toplanan miktar', it.picked||0, 0, it.quantity);
-        if(v==null) return; await setPickedQty(order.id, it.id, v); toast('Güncellendi');
-      }}, 'Toplananı Ayarla'),
-      isPicker() && el('button',{className:'btn', onClick:async()=>{
-        const miss = await promptNumber('Eksik miktar', 1, 0, it.quantity-(it.picked||0));
-        if(miss==null || miss<=0) return; const note = prompt('Not (opsiyonel)')||''; await markMissing(order.id, it, miss, note); toast('Ek Depo'ya eklendi');
-      }}, 'Eksik İşaretle'),
-      el('button',{className:'btn', onClick:()=> openScannerForItem(order, it)}, 'Barkod Tara')
-    )
-  );
-  return r;
-}
+UIx.btnQCRefresh?.addEventListener('click', ()=> renderQC());
 
-function promptNumber(title, def, min, max){
-  return new Promise((resolve)=>{
-    const w = el('div',{style:'position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;zIndex:10001'});
-    const c = el('div',{className:'card', style:'width:95%;max-width:340px'},
-      el('h3',{}, title),
-      el('input',{type:'number', id:'pn', value:def, min, max}),
-      el('div',{style:'display:flex;gap:8px;justify-content:flex-end;margin-top:8px'},
-        el('button',{className:'btn', onClick:()=>{w.remove(); resolve(null);} }, 'İptal'),
-        el('button',{className:'btn btn-primary', onClick:()=>{ const v = parseInt($('#pn').value,10); w.remove(); resolve(isNaN(v)?null:v); }}, 'Kaydet'),
-      )
-    );
-    w.append(c); document.body.append(w);
-    $('#pn').focus();
-  });
-}
-
-// =============================
-//  Barkod/QR Okuma
-// =============================
-async function openScannerForItem(order, it){
-  const wrap = el('div',{style:'position:fixed;inset:0;background:rgba(0,0,0,.8);display:flex;align-items:center;justify-content:center;z-index:10002'});
-  const box = el('div',{className:'card', style:'width:95%;max-width:520px;color:#111'},
-    el('h3',{},'Barkod/QR Tara'),
-    el('video',{id:'cam', autoplay:true, playsinline:true, style:'width:100%;border-radius:8px;background:#000'}),
-    el('div',{style:'display:flex;gap:8px;justify-content:flex-end;margin-top:8px'},
-      el('button',{className:'btn', onClick:()=>{stopCam(); wrap.remove();}},'Kapat')
-    )
-  );
-  wrap.append(box); document.body.append(wrap);
-
-  const stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});
-  const video = $('#cam'); video.srcObject = stream; await video.play();
-
-  let detector = null;
-  if('BarcodeDetector' in window){
-    try{ detector = new window.BarcodeDetector({formats:['ean_13','ean_8','code_128','qr_code']}); }catch{}
-  }
-
-  let raf;
-  async function tick(){
-    try{
-      if(detector){
-        const codes = await detector.detect(video);
-        if(codes?.length){
-          const code = codes[0].rawValue;
-          await onScanSuccess(code);
-          stopCam(); wrap.remove(); return;
-        }
-      }
-      // fallback: nothing
-    }catch{}
-    raf = requestAnimationFrame(tick);
-  }
-  raf = requestAnimationFrame(tick);
-
-  async function onScanSuccess(code){
-    toast('Okundu: '+code);
-    // örnek: kod eşleşirse picked++
-    if(code?.toLowerCase().includes((it.code||'').toLowerCase().slice(0,4))){
-      const next = Math.min((it.picked||0)+1, it.quantity);
-      await setPickedQty(order.id, it.id, next);
-      await loadOrders();
-    }
-  }
-
-  function stopCam(){
-    cancelAnimationFrame(raf);
-    stream.getTracks().forEach(t=>t.stop());
-  }
-}
-
-// =============================
-//  Dışa Aktarma & Yazdırma
-// =============================
-async function exportOrdersToCSV(){
+// -----------------------------
+// Ek Depo view
+// -----------------------------
+async function renderEkDepo(){
+  if(!UIx.tblEkDepoBody) return; UIx.tblEkDepoBody.innerHTML='';
   try{
+    const snap = await getDocs(colEkDepo());
+    for(const d of snap.docs){
+      const x = d.data();
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${x.name||'-'}</td>
+        <td>${x.code||'-'}</td>
+        <td>${x.aisle||'-'}</td>
+        <td>${x.quantity||0}</td>
+        <td class="muted">${x.note||''}</td>
+        <td><button class="btn" data-id="${d.id}">Kontrole Al</button></td>`;
+      tr.querySelector('button')?.addEventListener('click', ()=>{
+        // Basit örnek: kontrole alınca QC listesine yönlendirme (iş akışınızda farklı olabilir)
+        toast('Kalem kontrole alındı');
+      });
+      UIx.tblEkDepoBody.append(tr);
+    }
+  }catch(e){ logError('EkDepo render error', e); }
+}
+
+UIx.btnEkDepoRefresh?.addEventListener('click', ()=> renderEkDepo());
+
+// -----------------------------
+// Archive view
+// -----------------------------
+async function renderArchive(){
+  if(!UIx.archiveList) return; UIx.archiveList.innerHTML='';
+  const orders = await repo.listOrders({forRole:ROLES.MANAGER});
+  const archived = orders.filter(o=> o.status===STATUS.ARCHIVED);
+  for(const o of archived){ UIx.archiveList.append(orderCard(o)); }
+}
+
+UIx.btnArchiveRefresh?.addEventListener('click', ()=> renderArchive());
+
+// -----------------------------
+// Inventory — Scan & Refresh
+// -----------------------------
+UIx.btnInventoryScan?.addEventListener('click', ()=>{
+  // Demo: scanner aç, okunan kodu stok giriş olarak işleyelim
+  const fakeOrder = {id:'inv', items:[]};
+  const fakeItem = {code:'GEN', name:'GENERIC', aisle:'A-01', quantity:999, picked:0};
+  openScannerForItem(fakeOrder, fakeItem);
+});
+
+UIx.btnInventoryRefresh?.addEventListener('click', ()=>{
+  // Index tarafında tabloyu Inventory.list ile güncelleyen renderInventory zaten bağlandı
+  toast('Envanter yenilendi');
+});
+
+// -----------------------------
+// Labels — Preview & Print
+// -----------------------------
+UIx.btnLabelPreview?.addEventListener('click', ()=>{
+  const html = `<!doctype html><html><head><meta charset="utf-8"><title>Etiket Ön İzleme</title>
+  <style>body{font-family:Arial;padding:16px} .b{border:1px solid #ddd;border-radius:8px;padding:12px;margin:10px 0}</style>
+  </head><body>
+    <div class="b"><h3>100×100 Argox</h3><div>KOD: PRD‑0001 — ÜRÜN: Demo — LOT: 2409‑001 — TARİH: ${new Date().toLocaleDateString()}</div></div>
+    <div class="b"><h3>Raf 58×40</h3><div>KAVRULMUŞ BADEM 500g</div></div>
+    <div class="b"><h3>Palet A5</h3><div>SIP‑10045 — Konyaaltı</div></div>
+  </body></html>`;
+  const w = window.open('', '_blank'); w.document.write(html); w.document.close(); w.focus();
+});
+
+UIx.btnLabelPrint?.addEventListener('click', ()=>{
+  const w = window.open('', '_blank');
+  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Etiket Yazdır</title>
+    <style>@page{size:A4;margin:8mm} body{font-family:Arial}</style>
+  </head><body>
+    <div>Bu sayfada seçilen etiketlerin şablonu yazdırılır (örnek).</div>
+  </body></html>`);
+  w.document.close(); w.focus(); w.print();
+});
+
+// -----------------------------
+// Reports — Export (PDF)
+// -----------------------------
+UIx.btnReportExport?.addEventListener('click', ()=>{
+  const table = document.getElementById('tblReport'); if(!table) return;
+  const html = `<!doctype html><html><head><meta charset="utf-8"><title>Rapor</title>
+  <style>@page{size:A4;margin:12mm} body{font-family:Arial} table{border-collapse:collapse;width:100%} th,td{border:1px solid #ddd;padding:6px;font-size:12px}</style>
+  </head><body>${table.outerHTML}</body></html>`;
+  const w = window.open('', '_blank'); w.document.write(html); w.document.close(); w.focus(); w.print();
+});
+
+// -----------------------------
+// Settings — Cache Temizle & Bildirim
+// -----------------------------
+UIx.btnClearCache?.addEventListener('click', async ()=>{
+  try{
+    await cacheStore.set('pendingQueue', []);
+    toast('Cache temizlendi');
+  }catch(e){ toast('Cache temizlenemedi'); }
+});
+
+UIx.btnNotify?.addEventListener('click', ()=> ensureNotificationPerm());
+
+// -----------------------------
+// İlk yüklemede bazı görünümleri besle
+// -----------------------------
+(async function warmup(){
+  try{
+    await renderPicking();
+    await renderQC();
+    await renderEkDepo();
+    await renderArchive();
+  }catch(e){ /* sessiz */ }
+})();
+
+/* =====================================================================
+   EK BLOK — PALETLEME & SAYIM OTURUMU (GELİŞMİŞ)
+   ---------------------------------------------------------------------
+   Paletleme: Sipariş içindeki kalemleri palet ID’leri ile gruplayıp çıktı
+   almayı sağlar. Sayım oturumu: belirli reyonlar için sayım başlatır,
+   barkod ile sayım girişi yapar, sonuçları mutabakata uygular.
+   ===================================================================== */
+
+const Palletizer = (()=>{
+  const pallets = new Map(); // palletId -> {items:[{orderId,itemId,code,qty}]}
+  function ensure(id){ if(!pallets.has(id)) pallets.set(id,{items:[]}); return pallets.get(id); }
+  function add(id, {orderId,itemId,code,qty}){ ensure(id).items.push({orderId,itemId,code,qty}); }
+  function list(){ return Array.from(pallets, ([id,v])=>({id, ...v})); }
+  function clear(){ pallets.clear(); }
+  function print(id){
+    const p = pallets.get(id); if(!p) return toast('Palet bulunamadı');
+    const html = `<!doctype html><html><head><meta charset="utf-8"><title>Palet ${id}</title>
+    <style>@page{size:A4;margin:12mm} body{font-family:Arial} table{border-collapse:collapse;width:100%} th,td{border:1px solid #ddd;padding:6px;font-size:12px}</style>
+    </head><body><h2>Palet ${id}</h2>
+    <table><thead><tr><th>Order</th><th>Code</th><th>Qty</th></tr></thead><tbody>
+    ${p.items.map(x=>`<tr><td>${x.orderId}</td><td>${x.code}</td><td>${x.qty}</td></tr>`).join('')}
+    </tbody></table></body></html>`;
+    const w = window.open('', '_blank'); w.document.write(html); w.document.close(); w.focus(); w.print();
+  }
+  return { add, list, clear, print };
+})();
+
+const CountSession = (()=>{
+  let active=null; // {id, startedAt, aisle, lines: Map(code->qty)}
+  function start(aisle){ active = { id: 'CNT-'+String(Date.now()).slice(-6), startedAt: Date.now(), aisle, lines: new Map() }; toast('Sayım başladı: '+aisle); }
+  function add(code, qty=1){ if(!active) return; active.lines.set(code, (active.lines.get(code)||0)+qty); }
+  function remove(code, qty=1){ if(!active) return; active.lines.set(code, Math.max(0,(active.lines.get(code)||0)-qty)); }
+  function finish(){ if(!active) return null; const res = { ...active, lines: Array.from(active.lines, ([code,qty])=>({code,qty})) }; active=null; return res; }
+  function isActive(){ return !!active; }
+  return { start, add, remove, finish, isActive };
+})();
+
+// Sayım kısayolları
+window.addEventListener('keydown', (e)=>{
+  if(e.key==='F6'){ CountSession.start('A-01'); }
+  if(e.key==='F7'){ CountSession.add('PRD-0001', 1); }
+  if(e.key==='F8'){ const res = CountSession.finish(); if(res){ Inventory.reconcile(res.lines); toast('Sayım sonuçları uygulandı'); } }
+});
+
+/* =====================================================================
+   BİTİŞ — UI uyum + ileri modüller
+   ===================================================================== */
+
+
+/* =====================================================================
+   CORE FOUNDATION — TAM UYUMLU APP.JS ALTYAPISI
+   ---------------------------------------------------------------------
+   Aşağıdaki blok, index.html’de referans verilen tüm fonksiyon/yardımcıların
+   eksiksiz çalışması için çekirdek tanımları sağlar. (ROLES/STATUS/state,
+   Firebase bağlayıcıları, UI yardımcıları, log/toast, cacheStore, offline
+   kuyruk, renderOrders/orderCard, createOrder/setPickedQty, scanner, vb.)
+   ===================================================================== */
+
+// Güvenli tekrar tanımlama koruması
+if(!window.__APP_CORE__){
+  window.__APP_CORE__ = true;
+
+  // -----------------------------
+  // Sabitler ve Global State
+  // -----------------------------
+  const ROLES = window.ROLES || (window.ROLES = { MANAGER:'manager', PICKER:'picker', QC:'qc' });
+  const STATUS = window.STATUS || (window.STATUS = {
+    CREATED:'created', ASSIGNED:'assigned', PICKING:'picking', PICKED:'picked', QC:'qc', COMPLETED:'completed', ARCHIVED:'archived'
+  });
+  const state = window.state || (window.state = { user:null, userDoc:null });
+
+  // -----------------------------
+  // Firebase Bağlayıcıları (firebase.js modülünden beklenenler)
+  // -----------------------------
+  // Not: firebase.js şu isimleri export etmeli: app, auth, db, serverTimestamp,
+  // col/ops: collection, doc, setDoc, getDoc, getDocs, updateDoc, addDoc, deleteDoc,
+  // query, where, orderBy, limit
+  // Burada global scope’a erişiyoruz; module yüklemesinde window üzerine atanmış kabul ediyoruz.
+  const {
+    app, auth, db,
+    serverTimestamp,
+    collection, doc, setDoc, getDoc, getDocs, updateDoc, addDoc, deleteDoc,
+    query, where, orderBy, limit
+  } = window;
+
+  // -----------------------------
+  // Koleksiyon Yardımcıları
+  // -----------------------------
+  function colOrders(){ return collection(db,'orders'); }
+  function colOrderItems(orderId){ return collection(db,'orders',orderId,'items'); }
+  function colUsers(){ return collection(db,'users'); }
+  function colLogs(){ return collection(db,'logs'); }
+  function colEkDepo(){ return collection(db,'ekdepo'); }
+
+  // -----------------------------
+  // Util: DOM & Format
+  // -----------------------------
+  function $(sel,root=document){ return root.querySelector(sel); }
+  function $all(sel,root=document){ return Array.from(root.querySelectorAll(sel)); }
+  function el(tag, attrs={}, ...kids){
+    const n = document.createElement(tag);
+    for(const k in attrs){ const v = attrs[k]; if(k==='className') n.className=v; else if(k==='style') n.setAttribute('style',v); else if(k.startsWith('on')&&typeof v==='function') n.addEventListener(k.slice(2), v); else n.setAttribute(k,v); }
+    for(const k of kids){ if(k==null) continue; if(k instanceof Node) n.append(k); else n.append(document.createTextNode(String(k))); }
+    return n;
+  }
+  function formatTs(ts){
+    try{
+      if(!ts) return '';
+      const d = ts.toDate? ts.toDate() : (typeof ts==='number'? new Date(ts) : new Date(ts));
+      return d.toLocaleString();
+    }catch{ return ''; }
+  }
+
+  // -----------------------------
+  // Log & Toast
+  // -----------------------------
+  function logInfo(msg, data){ console.log('[INFO]', msg, data||''); }
+  function logError(msg, err){ console.error('[ERR]', msg, err); }
+  function toast(text){
+    const t = el('div',{style:'position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:#111;color:#fff;padding:10px 14px;border-radius:999px;z-index:10000;opacity:.96;box-shadow:0 4px 18px rgba(0,0,0,.25)'} , text);
+    document.body.append(t); setTimeout(()=>{ t.remove(); }, 2000);
+  }
+
+  // -----------------------------
+  // Mini KV Store (IndexedDB yoksa localStorage fallback)
+  // -----------------------------
+  const cacheStore = window.cacheStore || (window.cacheStore = (function(){
+    const P = 'APPKV:';
+    async function set(k,v){ try{ localStorage.setItem(P+k, JSON.stringify(v)); }catch(e){} }
+    async function get(k){ try{ const s = localStorage.getItem(P+k); return s? JSON.parse(s): null; }catch(e){ return null; } }
+    async function del(k){ try{ localStorage.removeItem(P+k); }catch(e){} }
+    return { set, get, del };
+  })());
+
+  // -----------------------------
+  // Offline Kuyruk (CRUD queue)
+  // -----------------------------
+  async function enqueue(op){
+    const list = await cacheStore.get('pendingQueue') || [];
+    list.push({...op, at: Date.now()});
+    await cacheStore.set('pendingQueue', list);
+    toast(i18n.t('OFFLINE_ENQUEUED'));
+  }
+  async function flushQueue(){
+    const list = await cacheStore.get('pendingQueue') || [];
+    if(!list.length) return;
+    const rest = [];
+    for(const op of list){
+      try{
+        if(op.kind==='createOrder'){
+          const ref = await addDoc(colOrders(), op.payload);
+          for(const it of (op.items||[])){ await addDoc(colOrderItems(ref.id), it); }
+        } else if(op.kind==='patchOrder'){
+          await updateDoc(doc(db,'orders',op.id), op.patch);
+        } else if(op.kind==='patchItem'){
+          await updateDoc(doc(db,'orders',op.orderId,'items',op.itemId), op.patch);
+        }
+      }catch(e){ rest.push(op); }
+    }
+    await cacheStore.set('pendingQueue', rest);
+    if(rest.length) logError('Queue partially flushed', rest);
+  }
+  window.flushQueue = flushQueue;
+
+  // -----------------------------
+  // Auth yardımcıları (index login alanını app.js yönetsin)
+  // -----------------------------
+  async function fetchUserDoc(uid){
+    try{ const d = await getDoc(doc(db,'users',uid)); return d.exists()? {id:d.id, ...d.data()} : null; }
+    catch(e){ logError('userDoc',e); return null; }
+  }
+  (function initAuthUI(){
+    const btnLogin = document.getElementById('btnLogin');
+    const btnLogout = document.getElementById('btnLogout');
+    const signinBtn = document.getElementById('signinBtn');
+    const email = document.getElementById('email');
+    const password = document.getElementById('password');
+    const loginSection = document.getElementById('loginSection');
+
+    btnLogin?.addEventListener('click', ()=> activate('dashboard'));
+    btnLogout?.addEventListener('click', async ()=>{ try{ await auth.signOut(); }catch{} });
+
+    signinBtn?.addEventListener('click', async ()=>{
+      try{
+        const cr = await auth.signInWithEmailAndPassword(auth.getAuth? auth.getAuth():auth, email.value.trim(), password.value);
+        state.user = cr.user; state.userDoc = await fetchUserDoc(cr.user.uid);
+        loginSection?.classList.add('hidden');
+        toast('Giriş başarılı');
+      }catch(e){ logError('signin', e); $('#loginMsg').textContent = 'Giriş başarısız'; }
+    });
+
+    const _onAuth = (auth.onAuthStateChanged||window.onAuthStateChanged);
+    if(_onAuth){
+      _onAuth(auth.getAuth? auth.getAuth():auth, async (u)=>{
+        state.user = u||null; state.userDoc = u? await fetchUserDoc(u.uid) : null;
+        if(u){ loginSection?.classList.add('hidden'); }
+        else { loginSection?.classList.remove('hidden'); }
+      });
+    }
+  })();
+
+  // -----------------------------
+  // Log Yazımı
+  // -----------------------------
+  async function writeLog(entry){ try{ await addDoc(colLogs(), {...entry, at: serverTimestamp(), uid: state.user?.uid||null}); }catch(e){ /* yut */ } }
+
+  // -----------------------------
+  // Yetki Yardımcıları
+  // -----------------------------
+  function isManager(){ return state.userDoc?.role===ROLES.MANAGER; }
+  function isPicker(){ return state.userDoc?.role===ROLES.PICKER; }
+  function isQC(){ return state.userDoc?.role===ROLES.QC; }
+
+  // -----------------------------
+  // Sipariş Oluşturma / Güncelleme API
+  // -----------------------------
+  async function createOrder(payload){
+    const body = {
+      branch: payload.branch||'Bilinmeyen',
+      status: STATUS.CREATED,
+      createdAt: serverTimestamp(),
+      createdBy: state.user?.uid||'sys',
+      assignedTo: payload.assignedTo||null
+    };
+    try{
+      const ref = await addDoc(colOrders(), body);
+      for(const it of (payload.items||[])){ await addDoc(colOrderItems(ref.id), it); }
+      await writeLog({type:'order_create', orderId: ref.id});
+      return ref.id;
+    }catch(e){ await enqueue({kind:'createOrder', payload:body, items:payload.items}); return null; }
+  }
+
+  async function setPickedQty(orderId, itemId, picked){
+    try{
+      await updateDoc(doc(db,'orders',orderId,'items',itemId), { picked });
+      await writeLog({type:'item_pick', orderId, itemId, picked});
+    }catch(e){ await enqueue({kind:'patchItem', orderId, itemId, patch:{picked}}); }
+  }
+
+  async function sendOrderToQC(orderId){
+    const next = WorkflowEngine.next(STATUS.PICKED, 'toQC') || STATUS.QC;
+    try{ await updateDoc(doc(db,'orders',orderId), { status: next }); }
+    catch(e){ await enqueue({kind:'patchOrder', id:orderId, patch:{status:next}}); }
+  }
+
+  async function approveQC(orderId){
+    const next = WorkflowEngine.next(STATUS.QC, 'approve') || STATUS.COMPLETED;
+    try{ await updateDoc(doc(db,'orders',orderId), { status: next }); }
+    catch(e){ await enqueue({kind:'patchOrder', id:orderId, patch:{status:next}}); }
+  }
+
+  async function archiveOrder(orderId){
+    const next = WorkflowEngine.next(STATUS.COMPLETED, 'archive') || STATUS.ARCHIVED;
+    try{ await updateDoc(doc(db,'orders',orderId), { status: next }); }
+    catch(e){ await enqueue({kind:'patchOrder', id:orderId, patch:{status:next}}); }
+  }
+
+  // -----------------------------
+  // Listeleme/Render
+  // -----------------------------
+  async function loadOrders(){
     const qref = query(colOrders(), orderBy('createdAt','desc'), limit(200));
     const snap = await getDocs(qref);
-    const rows = [['ID','Branch','Status','CreatedAt','AssignedTo']];
+    const items = [];
     for(const d of snap.docs){
-      const o = d.data();
-      rows.push([d.id, o.branch, o.status, o.createdAt?.seconds||'', o.assignedTo||'']);
+      const lines = (await getDocs(colOrderItems(d.id))).docs.map(x=>({id:x.id, ...x.data()}));
+      items.push({id:d.id, ...d.data(), items:lines});
     }
-    const csv = rows.map(r=> r.map(x=>`"${String(x).replaceAll('"','""')}"`).join(',')).join('\n');
-    const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
-    const a = el('a',{href:URL.createObjectURL(blob), download:'orders.csv'}); a.click();
-  }catch(e){ logError('CSV dışa aktarma hatası', e); }
-}
-
-function printOrderSlip(order){
-  const w = window.open('', '_blank');
-  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Fiş ${order.id}</title>
-  <style>body{font-family:Arial;padding:16px} h2{margin:0 0 12px} table{border-collapse:collapse;width:100%} td,th{border:1px solid #ddd;padding:8px}</style>
-  </head><body>`);
-  w.document.write(`<h2>Sipariş • ${order.id}</h2><div>Şube: ${order.branch} — Durum: ${order.status}</div>`);
-  w.document.write('<table><thead><tr><th>Ürün</th><th>Kod</th><th>Raf</th><th>İstenen</th><th>Toplanan</th></tr></thead><tbody>');
-  (order.items||[]).forEach(it=>{
-    w.document.write(`<tr><td>${it.name}</td><td>${it.code}</td><td>${it.aisle}</td><td>${it.quantity}</td><td>${it.picked||0}</td></tr>`);
-  });
-  w.document.write('</tbody></table>');
-  w.document.write('</body></html>');
-  w.document.close();
-  w.focus();
-  w.print();
-}
-
-// =============================
-//  Bildirimler
-// =============================
-async function ensureNotificationPerm(){
-  if(!('Notification' in window)) return false;
-  if(Notification.permission==='granted') return true;
-  if(Notification.permission!=='denied'){
-    const p = await Notification.requestPermission();
-    return p==='granted';
+    renderOrders(items);
+    return items;
   }
-  return false;
+
+  function orderCard(o){
+    const left = el('div',{}, el('b',{}, o.id), ' • ', o.branch, ' ', el('span',{className:'badge'}, o.status));
+    const act = el('div',{});
+    const btn = el('button',{className:'btn', onClick:()=> openOrderDetail(o)}, 'Detay');
+    act.append(btn);
+    return el('div',{className:'card'}, el('div',{style:'display:flex;justify-content:space-between;align-items:center'}, left, act));
+  }
+
+  function renderOrders(list){
+    const host = document.getElementById('orderList'); if(!host) return; host.innerHTML='';
+    for(const o of list){ host.append(orderCard(o)); }
+  }
+
+  // -----------------------------
+  // Detay Dialogu
+  // -----------------------------
+  async function openOrderDetail(order){
+    const dlg = document.getElementById('dlgDetail'); const title = document.getElementById('dlgDetailTitle'); const body = document.getElementById('dlgDetailBody');
+    title.textContent = `Sipariş ${order.id} — ${order.branch}`; body.innerHTML='';
+    const tbl = el('table',{className:'table'});
+    const thead = el('thead',{}, el('tr',{}, el('th',{},'Ürün'), el('th',{},'Kod'), el('th',{},'Raf'), el('th',{},'İstenen'), el('th',{},'Toplanan'), el('th',{},'Aksiyon')));
+    const tbody = el('tbody',{});
+    for(const it of (order.items||[])){
+      const tr = el('tr',{});
+      const inp = el('input',{type:'number', value:String(it.picked||0), style:'width:80px'});
+      const btnS = el('button',{className:'btn', onClick:()=> openScannerForItem(order,it)}, 'Tara');
+      const btnU = el('button',{className:'btn', onClick:()=> setPickedQty(order.id, it.id, Number(inp.value)||0)}, 'Kaydet');
+      tr.append(
+        el('td',{}, it.name||'-'), el('td',{}, it.code||'-'), el('td',{}, it.aisle||'-'),
+        el('td',{}, String(it.quantity||0)), el('td',{}, inp), el('td',{}, el('div',{}, btnS, ' ', btnU))
+      );
+      tbody.append(tr);
+    }
+    tbl.append(thead, tbody); body.append(tbl);
+
+    $('#btnDetailStart')?.addEventListener('click', ()=> toast('Toplamaya başlandı'));
+    $('#btnDetailSendQC')?.addEventListener('click', async ()=>{ await sendOrderToQC(order.id); toast('QC\'ye gönderildi'); });
+    $('#btnDetailQCApprove')?.addEventListener('click', async ()=>{ await approveQC(order.id); toast('QC onaylandı'); });
+    $('#btnDetailArchive')?.addEventListener('click', async ()=>{ await archiveOrder(order.id); toast('Arşivlendi'); });
+
+    dlg.showModal();
+  }
+
+  // -----------------------------
+  // Barkod/QR Tarayıcı (basit getUserMedia + manuel giriş fallback)
+  // -----------------------------
+  async function openScannerForItem(order, item){
+    const dlg = document.getElementById('dlgScanner');
+    const video = document.getElementById('cam');
+    let stream=null; let stopped=false;
+    try{
+      stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});
+      video.srcObject = stream;
+    }catch(e){ logError('camera',e); }
+
+    function stop(){ if(stopped) return; stopped=true; try{ stream?.getTracks()?.forEach(t=>t.stop()); }catch{} }
+    dlg.addEventListener('close', stop, {once:true});
+
+    // Mock okuyucu: kullanıcıdan prompt ile kod al
+    setTimeout(async ()=>{
+      const code = prompt('Barkod/QR kodu (simülasyon):', item.code||'');
+      if(code){ const val = (Number(prompt('Toplanan miktar:', String(item.picked||0)))||0); await setPickedQty(order.id, item.id, val); toast('Güncellendi'); }
+    }, 600);
+
+    dlg.showModal();
+  }
+
+  // -----------------------------
+  // Bildirim İzni
+  // -----------------------------
+  async function ensureNotificationPerm(){
+    try{
+      if(!('Notification' in window)) return;
+      if(Notification.permission==='granted') return;
+      if(Notification.permission!=='denied') await Notification.requestPermission();
+    }catch{}
+  }
+
+  // -----------------------------
+  // Dışa Aktarım (CSV)
+  // -----------------------------
+  function exportOrdersToCSV(){
+    const rows=[['ID','Branch','Status','Lines','CreatedAt']];
+    (async ()=>{
+      const list = await loadOrders();
+      for(const o of list){ rows.push([o.id, o.branch, o.status, String(o.items?.length||0), formatTs(o.createdAt)]); }
+      const csv = rows.map(r=> r.map(x=>`"${String(x).replace(/"/g,'""')}"`).join(',')).join('
+');
+      const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+      const a = el('a',{href:URL.createObjectURL(blob), download:'orders.csv'}); document.body.append(a); a.click(); setTimeout(()=>URL.revokeObjectURL(a.href), 500);
+    })();
+  }
+
+  // -----------------------------
+  // Global’a yayımla
+  // -----------------------------
+  Object.assign(window, {
+    ROLES, STATUS, state,
+    colOrders, colOrderItems, colEkDepo,
+    $, $all, el, formatTs,
+    logInfo, logError, toast,
+    cacheStore, enqueue, flushQueue,
+    createOrder, setPickedQty, loadOrders, renderOrders, orderCard,
+    openOrderDetail, openScannerForItem, ensureNotificationPerm,
+    exportOrdersToCSV,
+    isManager, isPicker, isQC,
+    writeLog
+  });
 }
 
-async function notifyNewOrder(orderId){
-  if(await ensureNotificationPerm()) new Notification('Yeni Sipariş', { body: `ID: ${orderId}` });
-  // basit sesli uyarı
-  try{ const a = new Audio('data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQgAAAA='); a.play(); }catch{}
-}
-
-// =============================
-//  Gelişmiş Filtre/Arama (İsteğe bağlı genişletme)
-// =============================
-// İleride: şube filtresi, durum filtresi, tarih aralığı vb. UI eklenebilir
-
-// =============================
-//  PWA Hazırlığı (opsiyon)
-// =============================
-// navigator.serviceWorker?.register('/sw.js').catch(()=>{});
-
-// =============================
-//  Global Kısa Yol Tuşları
-// =============================
-window.addEventListener('keydown', (e)=>{
-  if(e.key==='F9'){ exportOrdersToCSV(); }
-});
-
-// =============================
-//  DEBUG Yardım
-// =============================
-window.__depo__ = { state, loadOrders, exportOrdersToCSV };
-
-// =============================
-//  İlk Mesaj
-// =============================
-logInfo('app.js yüklendi');
+/* =====================================================================
+   SON: CORE FOUNDATION — Artık index ile tam uyumlu, eksik fonksiyon yok.
+   İstersen sonraki blokta: üretim fişi (URT) entegrasyonu, palet-etiket
+   otomatları, XLSX dışa aktarım (SheetJS), WebSocket gerçek zamanlı, vb.
+   ===================================================================== */
 
 
-/* =============================
-   EK: Servis Katmanı, Repo, Utils, Undo/Redo, İçe/Dışa Aktarım, Virtual List, Ayarlar, İstatistikler
-   Not: Bu bölüm işlevselliği genişletir ve büyük kurumsal tek-dosya uygulama yapısına örnektir.
-   ============================= */
+/* =====================================================================
+   MODÜL: URT (Üretim Fişi) Entegrasyonu — Mikro SQL Proxy API
+   Açıklama: Flutter/Mikro tarafındaki gerçek entegrasyon için bir HTTP
+   proxy servis beklenir. Burada fetch ile JSON gönderim/cevap modeli
+   tanımlanır. Hata halinde Retry/Backoff ile yeniden denenir.
+   ===================================================================== */
 
-// -----------------------------
-// Settings / Preferences (IndexedDB)
-// -----------------------------
-const prefs = (()=>{
-  const NS = 'prefs:';
-  async function set(key, val){ await cacheStore.set(NS+key, val); }
-  async function get(key){ return await cacheStore.get(NS+key); }
-  return { set, get };
+const URT = (()=>{
+  const cfg = {
+    endpoint: '/api/urt', // ör: http://127.0.0.1:8000/api/urt
+    timeoutMs: 12000,
+  };
+
+  async function _post(path, data){
+    const ctrl = new AbortController(); const t = setTimeout(()=>ctrl.abort(), cfg.timeoutMs);
+    try{
+      const res = await fetch(cfg.endpoint+path, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(data), signal: ctrl.signal});
+      if(!res.ok) throw new Error('HTTP '+res.status);
+      return await res.json();
+    } finally { clearTimeout(t); }
+  }
+
+  async function createProductionSlip({slipNo, branch, lines, note}){
+    const payload = { slipNo, branch, note: note||'', lines: lines.map(x=>({ code:x.code, qty:x.qty, name:x.name })) };
+    return withRetry(()=> _post('/create', payload), {tries:3, base:500});
+  }
+
+  async function health(){
+    try{ const r = await _post('/health', {}); return r?.ok===true; }catch{ return false; }
+  }
+
+  return { createProductionSlip, health };
 })();
 
-// Tema ve dil tercihleri
-(async ()=>{
-  const theme = await prefs.get('theme') || 'light';
-  document.documentElement.dataset.theme = theme;
+/* =====================================================================
+   MODÜL: WebSocket Sync — Sunucu ile Gerçek Zamanlı Senkronizasyon
+   Not: Sunucu örnek URL’si invalid; gerçek endpoint ile değiştir.
+   ===================================================================== */
+
+const WSSync = (()=>{
+  let ws=null; let connected=false; let tries=0; const listeners = new Set();
+
+  function connect(url='wss://example.invalid/depo-sync'){
+    if(ws && connected) return; tries++;
+    try{
+      ws = new WebSocket(url);
+      ws.onopen = ()=>{ connected=true; tries=0; logInfo('WS connected'); publish({type:'ws_open'}); };
+      ws.onmessage = (ev)=>{ try{ const msg = JSON.parse(ev.data); publish(msg); }catch(e){ logError('ws message parse', e); } };
+      ws.onclose = ()=>{ connected=false; publish({type:'ws_close'}); scheduleReconnect(); };
+      ws.onerror = ()=>{ connected=false; publish({type:'ws_error'}); try{ ws.close(); }catch{} scheduleReconnect(); };
+    }catch(e){ scheduleReconnect(); }
+  }
+  function scheduleReconnect(){ setTimeout(()=> connect(), Math.min(10000, 500*tries)); }
+  function send(obj){ try{ ws?.send(JSON.stringify(obj)); }catch(e){} }
+  function subscribe(fn){ listeners.add(fn); return ()=>listeners.delete(fn); }
+  function publish(evt){ for(const fn of listeners){ try{ fn(evt); }catch{} } }
+
+  // Sipariş oluşturulunca yayınla
+  const _origCreate = createOrder;
+  createOrder = async function(p){ const id = await _origCreate(p); try{ send({type:'order_created', id}); }catch{} return id; };
+
+  return { connect, send, subscribe };
+})();
+
+WSSync.connect();
+
+/* =====================================================================
+   MODÜL: Palet & Etiket Otomatı — HTML Şablon + Yazdırma
+   ===================================================================== */
+
+const Label = (()=>{
+  function palletLabel({orderId, branch, date}){
+    return `<!doctype html><html><head><meta charset="utf-8"><title>Palet ${orderId}</title>
+    <style>body{font-family:Arial;padding:14mm} .box{border:2px solid #111;border-radius:8px;padding:18px} h1{margin:0 0 10px}</style></head><body>
+    <div class="box">
+      <h1>Palet Etiketi</h1>
+      <div><b>Sipariş:</b> ${orderId}</div>
+      <div><b>Şube:</b> ${branch}</div>
+      <div><b>Tarih:</b> ${date||new Date().toLocaleDateString()}</div>
+    </div></body></html>`;
+  }
+  function printHTML(html){ const w=window.open('','_blank'); w.document.write(html); w.document.close(); w.focus(); w.print(); }
+  return { palletLabel, printHTML };
+})();
+
+/* =====================================================================
+   MODÜL: XLSX & PDF Exporter (lite) — Harici kütüphanesiz hafif çözümler
+   Not: Gerçek XLSX için SheetJS gerekir; burada CSV + minimal PDF (canvas)
+   üretimi yapılır. PDF çıktısı tarayıcı print ile alınabilir.
+   ===================================================================== */
+
+const Exporter = (()=>{
+  function toCSV(rows){ return rows.map(r=> r.map(x=>`"${String(x).replace(/"/g,'""')}"`).join(',')).join('
+'); }
+  function download(name, blob){ const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href), 500); }
+  async function ordersCSV(){
+    const list = await loadOrders();
+    const rows = [['ID','Branch','Status','Lines','CreatedAt']];
+    for(const o of list){ rows.push([o.id, o.branch, o.status, (o.items?.length||0), formatTs(o.createdAt)]); }
+    download('orders.csv', new Blob([toCSV(rows)], {type:'text/csv;charset=utf-8;'}));
+  }
+  function reportPDF(title, rows){
+    const w = window.open('', '_blank');
+    w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${title}</title>
+      <style>body{font-family:Arial;padding:16px} table{border-collapse:collapse;width:100%} td,th{border:1px solid #ddd;padding:6px}</style>
+      </head><body>`);
+    w.document.write(`<h2>${title}</h2><table><thead><tr>${rows[0].map(x=>`<th>${x}</th>`).join('')}</tr></thead><tbody>`);
+    for(const r of rows.slice(1)){ w.document.write(`<tr>${r.map(x=>`<td>${x}</td>`).join('')}</tr>`); }
+    w.document.write('</tbody></table></body></html>'); w.document.close(); w.focus(); w.print();
+  }
+  return { ordersCSV, reportPDF };
+})();
+
+/* =====================================================================
+   MODÜL: Sayım & Mutabakat Oturumu — Canlı Sayım, Fark Analizi
+   ===================================================================== */
+
+const CountSession = (()=>{
+  let session = null; // {id, startedAt, items: Map(code -> {expected, counted})}
+
+  function start(id){ session = { id: id||('CS-'+Date.now()), startedAt: Date.now(), items: new Map() }; toast('Sayım başlatıldı'); return session.id; }
+  function addScan(code){ const row = session.items.get(code)||{expected: Inventory.get(code).qty||0, counted:0}; row.counted++; session.items.set(code, row); return row; }
+  function setCount(code, val){ const row = session.items.get(code)||{expected:0, counted:0}; row.counted = val; session.items.set(code,row); }
+  function diff(){ if(!session) return []; return Array.from(session.items, ([code,row])=>({code, expected:row.expected, counted:row.counted, delta: (row.counted - row.expected)})); }
+  function finish(){ const out = diff(); session=null; toast('Sayım tamamlandı'); return out; }
+  return { start, addScan, setCount, diff, finish };
+})();
+
+/* =====================================================================
+   MODÜL: Görev Zamanlayıcı — Planlı İşler (Temizlik, Sync, Rapor)
+   ===================================================================== */
+
+const Scheduler = (()=>{
+  const jobs = new Map();
+  function every(key, ms, fn){ clear(key); const id=setInterval(fn, ms); jobs.set(key, id); }
+  function at8am(key, fn){
+    clear(key);
+    const now = new Date();
+    const next = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 8, 0, 0, 0);
+    if(next<=now) next.setDate(next.getDate()+1);
+    const wait = next-now;
+    const t = setTimeout(()=>{ fn(); every(key, 24*60*60*1000, fn); }, wait);
+    jobs.set(key, t);
+  }
+  function clear(key){ const t=jobs.get(key); if(!t) return; clearTimeout(t); clearInterval(t); jobs.delete(key); }
+  return { every, at8am, clear };
+})();
+
+// Örnek planlı görevler
+Scheduler.every('flush', 20000, ()=> flushQueue().catch(()=>{}));
+Scheduler.at8am('daily-report', async ()=>{
+  const list = await loadOrders();
+  const rows = [['ID','Branch','Status','Lines','CreatedAt']];
+  for(const o of list){ rows.push([o.id, o.branch, o.status, (o.items?.length||0), formatTs(o.createdAt)]); }
+  Exporter.reportPDF('Günlük Sipariş Raporu', rows);
+});
+
+/* =====================================================================
+   MODÜL: Form Validator & Helpers
+   ===================================================================== */
+
+const V = {
+  required: (v)=> (v!=null && String(v).trim()!==''),
+  positiveInt: (v)=> Number.isInteger(v=Number(v)) && v>0,
+  max: (n)=>(v)=> Number(v)<=n,
+  min: (n)=>(v)=> Number(v)>=n,
+};
+
+function ensureNewOrderForm({branch, product, qty}){
+  if(!V.required(branch)) throw new Error('Şube zorunlu');
+  if(!V.required(product)) throw new Error('Ürün zorunlu');
+  if(!V.positiveInt(qty)) throw new Error('Miktar > 0 olmalı');
+}
+
+/* =====================================================================
+   MODÜL: Stres Testi — Yük Altında Davranış
+   ===================================================================== */
+
+const Stress = (()=>{
+  async function burstCreate(n=20){
+    for(let i=0;i<n;i++){
+      await createOrder({ branch:'Stress', items:[{code:'ST-'+i, name:'Test', aisle:'A-01', quantity:1, picked:0}] });
+    }
+    toast('Stres: siparişler eklendi');
+  }
+  async function randomPick(iter=50){
+    const list = await loadOrders(); if(!list.length) return;
+    for(let i=0;i<iter;i++){
+      const o = list[Math.floor(Math.random()*list.length)];
+      if(!(o.items||[]).length) continue;
+      const it = o.items[Math.floor(Math.random()*o.items.length)];
+      await setPickedQty(o.id, it.id, Math.min((it.picked||0)+1, it.quantity));
+    }
+    toast('Stres: rastgele pick bitti');
+  }
+  return { burstCreate, randomPick };
+})();
+
+/* =====================================================================
+   MODÜL: Gelişmiş Hata Toplayıcı — UI üstü Log Panel
+   ===================================================================== */
+
+const ErrorPanel = (()=>{
+  const q = [];
+  function push(level, message){ q.push({ts:new Date(), level, message}); if(q.length>100) q.shift(); }
+  function view(){
+    const w = window.open('', '_blank');
+    w.document.write('<pre style="font-family:Consolas,monospace;white-space:pre-wrap">'+ q.map(x=> `[${x.ts.toLocaleTimeString()}] ${x.level.toUpperCase()} ${x.message}`).join('
+') +'</pre>');
+  }
+  // patch loggers
+  const _info = logInfo; const _err = logError;
+  logInfo = function(msg, data){ push('info', msg); _info(msg, data); };
+  logError = function(msg, err){ push('error', msg+': '+(err?.message||err)); _err(msg, err); };
+  return { view };
+})();
+
+/* =====================================================================
+   MODÜL: UI Köprüleri — index.html butonlarını app.js fonksiyonlarına bağla
+   ===================================================================== */
+
+(function wireIndexButtons(){
+  // Orders CSV
+  document.getElementById('btnOrdersCSV')?.addEventListener('click', ()=> Exporter.ordersCSV());
+  document.getElementById('btnDashCSV')?.addEventListener('click', ()=> Exporter.ordersCSV());
+
+  // Yeni sipariş dialog (index.html#dlgOrder)
+  const dlgOrder = document.getElementById('dlgOrder');
+  document.getElementById('btnNewOrder')?.addEventListener('click', ()=> dlgOrder.showModal());
+  document.getElementById('dlgSave')?.addEventListener('click', async (e)=>{
+    e.preventDefault();
+    const branch = document.getElementById('dlgBranch').value.trim();
+    const product = document.getElementById('dlgProduct').value.trim();
+    const qty = parseInt(document.getElementById('dlgQty').value,10)||0;
+    try{
+      ensureNewOrderForm({branch, product, qty});
+      await createOrder({ branch, items:[{ code: slug(product), name: product, aisle:'A-01', quantity: qty, picked:0 }] });
+      dlgOrder.close(); await loadOrders(); toast('Sipariş eklendi');
+    }catch(e){ alert(e.message||e); }
+  });
+
+  // Labels
+  document.getElementById('btnLabelPreview')?.addEventListener('click', ()=>{
+    const html = Label.palletLabel({orderId:'SIP-XXXX', branch:'Konyaaltı'}); const w = window.open('','_blank'); w.document.write(html); w.document.close();
+  });
+  document.getElementById('btnLabelPrint')?.addEventListener('click', ()=> Label.printHTML(Label.palletLabel({orderId:'SIP-XXXX', branch:'Konyaaltı'})) );
+
+  // Reports
+  document.getElementById('btnReportExport')?.addEventListener('click', async ()=>{
+    const list = await loadOrders(); const rows=[['ID','Branch','Status','Lines','CreatedAt']];
+    for(const o of list){ rows.push([o.id,o.branch,o.status,(o.items?.length||0),formatTs(o.createdAt)]); }
+    Exporter.reportPDF('Sipariş Raporu', rows);
+  });
+
+  // Yardımcı
+  document.getElementById('btnRefreshDashboard')?.addEventListener('click', ()=> location.reload());
+})();
+
+/* =====================================================================
+   MODÜL: Son Dokunuşlar — Global Export ve Hazır Mesaj
+   ===================================================================== */
+
+Object.assign(window, { URT, WSSync, Label, Exporter, CountSession, Scheduler, V, Stress, ErrorPanel });
+logInfo('Genişletilmiş kurumsal modüller yüklendi');
+
+
+/* =====================================================================
+   ★★★ NETLIFY FİNAL GENİŞLETME BLOĞU — ~Büyük Modül Paketi (v1) ★★★
+   Bu blok, app.js dosyasını Netlify üzerinde tek dosya olarak çalışacak
+   şekilde **daha da** genişletir. Index.html’e dokunmadan; gerekli üçüncü
+   parti kütüphaneler çalışma anında dinamik yüklenecektir.
+   Dahiller:
+     - ScriptLoader (Chart.js, JSZip, jsPDF, QRCode) — CDN üzerinden
+     - Realtime Notify & BroadcastChannel — sekmeler arası senkron
+     - Palet Yönetimi + QR Etiketi — sipariş detay modaline butonlar
+     - Dashboard Charts — statusChart içine canvas+Chart.js bar/line
+     - Arşiv Modülü — orders → archived_orders (kopya + sil/taşı)
+     - ZIP/CSV/PDF Export — JSZip + jsPDF (PDF’de tablo render)
+     - AI Mock Özetleyici — yerel istatistikten cümle üretir
+     - DevTools (Ctrl+Alt+D) — gizli menü (seed, log panel, cache temizle)
+     - Perf Profiler 2.0 — süre toplama ve tablo görünümü
+   Not: Aşağıdaki kodlar index.html’e yeni element eklemeden, var olan
+   ID/alanlara bağlanır; yeni UI parça gerektiğinde modal ve popup ile
+   render edilir.
+   ===================================================================== */
+
+// -----------------------------
+// ScriptLoader — CDN'den kütüphane yükleyici
+// -----------------------------
+const ScriptLoader = (()=>{
+  const cache = new Map();
+  function load(url, check){
+    if(cache.has(url)) return cache.get(url);
+    const p = new Promise((resolve, reject)=>{
+      if(check && getGlobal(check)) return resolve(getGlobal(check));
+      const s = document.createElement('script'); s.src=url; s.async=true;
+      s.onload = ()=> resolve(check? getGlobal(check): true);
+      s.onerror = (e)=> reject(new Error('Script yüklenemedi: '+url));
+      document.head.append(s);
+    });
+    cache.set(url,p); return p;
+  }
+  function getGlobal(path){
+    return path.split('.').reduce((a,k)=> a?.[k], window);
+  }
+  return { load, getGlobal };
+})();
+
+// CDN kaynakları (sabit sürümler)
+const CDN = {
+  chart: { url: 'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js', check: 'Chart' },
+  jszip: { url: 'https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js', check: 'JSZip' },
+  jspdf: { url: 'https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js', check: 'jspdf.jsPDF' },
+  qrcode: { url: 'https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js', check: 'QRCode' },
+};
+
+async function ensureLib(name){
+  const c = CDN[name]; if(!c) throw new Error('Unknown lib '+name);
+  return ScriptLoader.load(c.url, c.check);
+}
+
+// -----------------------------
+// Realtime Notify & BroadcastChannel
+// -----------------------------
+const Bus = (()=>{
+  const bc = 'BroadcastChannel' in window? new BroadcastChannel('depo-bus'): null;
+  const listeners = new Set();
+  function pub(type, data){
+    const msg = { type, data, at: Date.now() };
+    listeners.forEach(fn=>{ try{ fn(msg); }catch{} });
+    try{ bc?.postMessage(msg); }catch{}
+  }
+  function sub(fn){ listeners.add(fn); return ()=> listeners.delete(fn); }
+  bc?.addEventListener('message', (e)=> listeners.forEach(fn=> fn(e.data)) );
+  return { pub, sub };
+})();
+
+function notifyToast(title, body){
+  toast(`${title} • ${body||''}`);
+  try{ if('Notification' in window && Notification.permission==='granted'){ new Notification(title, {body}); } }catch{}
+}
+
+// integrate: sipariş olayları
+(function hookOrderEvents(){
+  const _create = createOrder;
+  createOrder = async function(p){ const id = await _create(p); Bus.pub('order_created',{id}); notifyToast('Yeni Sipariş', String(id||'')); return id; };
+  const _approve = qcApprove; qcApprove = async function(oid){ await _approve(oid); Bus.pub('order_qc_approved',{id:oid}); notifyToast('QC Onaylandı', oid); };
 })();
 
 // -----------------------------
-// Repository — Veri Erişim Katmanı
+// Palet Yönetimi + QR Etiketi
 // -----------------------------
-const repo = {
-  async listOrders({forRole}){
-    let qref;
-    if(forRole===ROLES.MANAGER){
-      qref = query(colOrders(), orderBy('createdAt','desc'), limit(100));
-    } else if (forRole===ROLES.PICKER){
-      qref = query(colOrders(), where('assignedTo','==', state.user.uid), orderBy('createdAt','desc'), limit(100));
-    } else {
-      qref = query(colOrders(), where('status','in',[STATUS.PICKED, STATUS.QC]), orderBy('createdAt','desc'), limit(100));
-    }
-    const snap = await getDocs(qref);
-    const out = [];
-    for(const d of snap.docs){
-      const items = (await getDocs(colOrderItems(d.id))).docs.map(x=>({id:x.id, ...x.data()}));
-      out.push({id:d.id, ...d.data(), items});
-    }
-    return out;
-  },
-  async getOrder(orderId){
-    const d = await getDoc(doc(db,'orders',orderId));
-    const items = (await getDocs(colOrderItems(orderId))).docs.map(x=>({id:x.id, ...x.data()}));
-    return {id: d.id, ...d.data(), items};
-  },
-  async addOrder(order){
-    const d = await addDoc(colOrders(), order);
-    return d.id;
-  },
-  async addOrderItem(orderId, item){ await addDoc(colOrderItems(orderId), item); },
-  async patchOrder(orderId, patch){ await updateDoc(doc(db,'orders',orderId), patch); },
-  async patchItem(orderId, itemId, patch){ await updateDoc(doc(db,'orders',orderId,'items',itemId), patch); },
-  async log(entry){ await writeLog(entry); }
-};
+const Pallet = (()=>{
+  // Firestore: orders/{id}/pallets alt koleksiyonunu kullanacağız
+  async function col(orderId){ return collection(db,'orders', orderId, 'pallets'); }
 
-// -----------------------------
-// Undo / Redo (basit stack)
-// -----------------------------
-const historyStack = { undo: [], redo: [] };
-function pushUndo(action){ historyStack.undo.push(action); historyStack.redo.length=0; }
-async function doUndo(){
-  const act = historyStack.undo.pop();
-  if(!act) return; await act.undo(); historyStack.redo.push(act); toast('Geri alındı');
-}
-async function doRedo(){
-  const act = historyStack.redo.pop();
-  if(!act) return; await act.redo(); historyStack.undo.push(act); toast('Yinele');
-}
-
-window.addEventListener('keydown', (e)=>{
-  if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='z'){ e.preventDefault(); doUndo(); }
-  if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='y'){ e.preventDefault(); doRedo(); }
-});
-
-// Örnek kullanım: setPickedQty ile
-const _origSetPickedQty = setPickedQty;
-setPickedQty = async function(orderId, itemId, picked){
-  const before = await getDoc(doc(db,'orders',orderId,'items',itemId));
-  await _origSetPickedQty(orderId, itemId, picked);
-  pushUndo({
-    undo: async()=> repo.patchItem(orderId, itemId, {picked: before.data().picked||0}),
-    redo: async()=> repo.patchItem(orderId, itemId, {picked}),
-  });
-};
-
-// -----------------------------
-// Excel/CSV İçe Aktarma (SheetJS olmadan basit CSV)
-// -----------------------------
-function parseCSV(text){
-  const lines = text.split(/\r?\n/).filter(Boolean);
-  const rows = lines.map(l=> l.split(',').map(s=> s.replace(/^\"|\"$/g,'').replace(/\"\"/g,'\"')));
-  const [hdr,...data] = rows;
-  return data.map(r=> Object.fromEntries(hdr.map((h,i)=>[h.trim(), r[i]])));
-}
-
-async function importOrdersFromCSV(file){
-  const txt = await file.text();
-  const rows = parseCSV(txt);
-  for(const row of rows){
-    const id = await repo.addOrder({
-      branch: row.Branch||row.branch||'Bilinmeyen',
-      status: STATUS.CREATED,
-      createdAt: serverTimestamp(),
-      createdBy: state.user.uid,
-      assignedTo: null,
-    });
-    await repo.addOrderItem(id, {
-      code: row.Code||row.code||'GEN',
-      name: row.Name||row.name||'Ürün',
-      aisle: row.Aisle||row.aisle||'A-01',
-      quantity: Number(row.Qty||row.quantity||1),
-      picked: 0,
-    });
+  async function list(orderId){ const snap = await getDocs(await col(orderId)); return snap.docs.map(d=>({id:d.id, ...d.data()})); }
+  async function create(order, {name, note}){
+    // basit içerik: tüm kalemler ve toplam adet
+    const lines = (order.items||[]).map(x=>({ code:x.code, name:x.name, qty:(x.picked||0)||x.quantity||0 }));
+    const payload = { name: name||('Palet-'+Date.now()), note: note||'', createdAt: serverTimestamp(), lines };
+    const ref = await addDoc(await col(order.id), payload); return {id: ref.id, ...payload};
   }
-  toast('CSV içe aktarma tamam');
-  await loadOrders();
-}
 
-// -----------------------------
-// Virtual List (uzun listeler için performans)
-// -----------------------------
-function virtualize(container, items, renderer, rowH=76){
-  container.innerHTML = '';
-  const viewport = el('div',{style:'position:relative;overflow:auto;max-height:70vh;border:1px solid #eee;border-radius:8px;background:#fff'});
-  const spacer = el('div',{style:`height:${items.length*rowH}px;position:relative;`});
-  viewport.append(spacer); container.append(viewport);
-
-  const pool = new Map();
-  function render(){
-    const top = viewport.scrollTop; const h = viewport.clientHeight;
-    const start = Math.max(0, Math.floor(top/rowH)-5);
-    const end = Math.min(items.length, Math.ceil((top+h)/rowH)+5);
-    // temizle
-    for(const [i,node] of pool){ if(i<start||i>end){ node.remove(); pool.delete(i); } }
-    for(let i=start;i<end;i++){
-      if(pool.has(i)) continue;
-      const node = el('div',{style:`position:absolute;left:0;right:0;top:${i*rowH}px;height:${rowH}px;padding:8px;`});
-      node.append(renderer(items[i], i));
-      spacer.append(node); pool.set(i,node);
-    }
+  async function buildQRData(pallet){
+    const data = {name:pallet.name, id:pallet.id||'', note:pallet.note||'', ts: Date.now()};
+    return JSON.stringify(data);
   }
-  viewport.addEventListener('scroll', render); render();
-}
 
-// Yönetici için sanal liste kullanımı (opsiyon)
-async function renderManagerVirtual(){
-  const items = await repo.listOrders({forRole:ROLES.MANAGER});
-  virtualize(ui.orderList, items, (o)=>orderCard(o));
-}
-
-// -----------------------------
-// İstatistikler / Dashboard
-// -----------------------------
-async function computeStats(){
-  const orders = await repo.listOrders({forRole: isManager()?ROLES.MANAGER: (isPicker()?ROLES.PICKER:ROLES.QC)});
-  const byStatus = orders.reduce((acc,o)=>{ acc[o.status]=(acc[o.status]||0)+1; return acc; },{});
-  const totalLines = orders.reduce((s,o)=> s + (o.items?.length||0), 0);
-  return {count: orders.length, totalLines, byStatus};
-}
-
-async function showStats(){
-  const s = await computeStats();
-  const card = el('div',{className:'card'},
-    el('h3',{},'Özet'),
-    el('div',{}, `Sipariş: ${s.count} | Toplam Kalem: ${s.totalLines}`),
-    el('pre',{}, JSON.stringify(s.byStatus,null,2))
-  );
-  ui.orderList.prepend(card);
-}
-
-// -----------------------------
-// Ayarlar Paneli (tema, dil)
-// -----------------------------
-function openSettings(){
-  const w = el('div',{style:'position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:10010'});
-  const c = el('div',{className:'card',style:'max-width:400px;width:90%'},
-    el('h3',{},'Ayarlar'),
-    el('label',{},'Tema'),
-    (function(){
-      const sel = el('select',{}, el('option',{value:'light'},'Light'), el('option',{value:'dark'},'Dark'));
-      sel.value = document.documentElement.dataset.theme||'light';
-      sel.addEventListener('change', async ()=>{
-        document.documentElement.dataset.theme = sel.value;
-        await prefs.set('theme', sel.value);
-      });
-      return sel;
-    })(),
-    el('div',{style:'display:flex;gap:8px;justify-content:flex-end;margin-top:12px'},
-      el('button',{className:'btn', onClick:()=>w.remove()},'Kapat')
-    )
-  );
-  w.append(c); document.body.append(w);
-}
-
-// Hızlı menü tuşu
-window.addEventListener('keydown', (e)=>{ if(e.key==='F1'){ e.preventDefault(); openSettings(); } });
-
-// -----------------------------
-// Test Verisi Üretici (Yalnızca Geliştirme)
-// -----------------------------
-async function seedFakeData(n=20){
-  const branches = ['Konyaaltı','Kepez','Muratpaşa','Aksu','Döşemealtı'];
-  for(let i=0;i<n;i++){
-    const id = await repo.addOrder({
-      branch: branches[i%branches.length],
-      status: STATUS.CREATED,
-      createdAt: serverTimestamp(),
-      createdBy: state.user.uid,
-      assignedTo: null,
-    });
-    const lines = Math.floor(Math.random()*4)+1;
-    for(let k=0;k<lines;k++){
-      await repo.addOrderItem(id, {
-        code: `PRD-${String(Math.random()).slice(2,6)}`,
-        name: `Ürün ${k+1}`,
-        aisle: `A-${String(Math.floor(Math.random()*10)).padStart(2,'0')}`,
-        quantity: Math.floor(Math.random()*12)+1,
-        picked: 0,
-      });
-    }
+  async function printQRLabel(pallet){
+    await ensureLib('qrcode');
+    const data = await buildQRData(pallet);
+    const html = `<!doctype html><html><head><meta charset="utf-8"><title>${pallet.name}</title>
+      <style>body{font-family:Arial;padding:16px} .box{border:2px solid #111;border-radius:10px;padding:16px;}
+      canvas{image-rendering:pixelated}
+      </style></head><body>
+      <div class="box"><h2>Palet • ${pallet.name}</h2><div id="q"></div><div>Not: ${pallet.note||''}</div></div>
+    </body></html>`;
+    const w = window.open('','_blank'); w.document.write(html); w.document.close();
+    const q = w.document.getElementById('q');
+    await window.QRCode.toCanvas(document.createElement('canvas'), data, {width:256}).then(c=> q.append(c));
+    w.focus(); w.print();
   }
-  await loadOrders();
-}
 
-window.__seed__ = seedFakeData;
+  return { list, create, printQRLabel };
+})();
+
+// openOrderDetail içine palet butonları ekle (wrap teknik)
+(function extendOrderDetailForPallet(){
+  const _open = openOrderDetail;
+  openOrderDetail = function(order){
+    _open(order);
+    // modal açıldıktan sonra butonları en alta ekleyelim
+    const body = document.getElementById('dlgDetailBody');
+    const footerBtns = document.querySelector('#dlgDetail form .toolbar');
+    if(!footerBtns) return;
+    const btnMake = el('button',{className:'btn', onClick:async()=>{
+      const name = prompt('Palet adı', 'Palet-1')||'Palet';
+      const note = prompt('Not (opsiyonel)')||'';
+      const row = await Pallet.create(order, {name, note});
+      toast('Palet oluşturuldu: '+row.name);
+    }}, 'Palet Oluştur');
+    const btnQR = el('button',{className:'btn', onClick:async()=>{
+      const list = await Pallet.list(order.id); if(!list.length) return alert('Önce palet oluştur.');
+      await Pallet.printQRLabel(list[0]);
+    }}, 'Palet QR Yazdır');
+    footerBtns.append(btnMake, btnQR);
+  };
+})();
 
 // -----------------------------
-// Basit WebSocket/Signal Kanalı (placeholder)
+// Dashboard Charts (Chart.js)
 // -----------------------------
-let ws;
-function connectWS(){
+(async function enhanceDashboardCharts(){
   try{
-    ws = new WebSocket('wss://example.invalid/depo');
-    ws.onopen = ()=> logInfo('WS open');
-    ws.onmessage = (ev)=> logInfo('WS message', ev.data);
-    ws.onclose = ()=> logInfo('WS closed');
-  }catch{}
-}
-// connectWS(); // kapalı bırakıldı
+    await ensureLib('chart');
+    const host = document.getElementById('statusChart'); if(!host) return;
+    host.innerHTML = '';
+    const cvs = el('canvas', {style:'max-height:260px;width:100%'}); host.append(cvs);
+    const orders = await repo.listOrders({forRole: ROLES.MANAGER});
+    const byStatus = orders.reduce((a,o)=>{ a[o.status]=(a[o.status]||0)+1; return a; }, {});
+    const labels = Object.keys(byStatus); const data = Object.values(byStatus);
+    const Chart = ScriptLoader.getGlobal('Chart');
+    new Chart(cvs.getContext('2d'), {
+      type: 'bar', data: { labels, datasets: [{ label:'Sipariş', data }] }, options: { responsive:true, plugins:{legend:{display:false}}, scales:{ y:{ beginAtZero:true } } }
+    });
+  }catch(e){ logError('Chart yüklenemedi', e); }
+})();
 
 // -----------------------------
-// Arama Kutusu (opsiyonel UI)
+// Arşiv Modülü (Firestore + ZIP Export)
 // -----------------------------
-(function addSearchBox(){
-  const box = el('div',{className:'card'},
-    el('input',{id:'q', placeholder:'Ara: şube, ürün, kod...'}),
-    el('div',{style:'font-size:12px;color:#666'},'İpucu: F9 → CSV dışa aktarım, F1 → Ayarlar, Ctrl+Z/Y → Geri/İleri')
-  );
-  ui.ordersSection?.prepend(box);
-  $('#q')?.addEventListener('input', async (e)=>{
-    const q = e.target.value.toLowerCase();
-    const list = await repo.listOrders({forRole: isManager()?ROLES.MANAGER: (isPicker()?ROLES.PICKER:ROLES.QC)});
-    const filt = list.filter(o=> o.branch.toLowerCase().includes(q) || (o.items||[]).some(it=> it.name.toLowerCase().includes(q)||String(it.code).toLowerCase().includes(q)) );
-    renderOrders(filt);
+const Archive = (()=>{
+  function colArchived(){ return collection(db, 'archived_orders'); }
+  async function moveToArchive(order){
+    try{
+      // kopyala
+      const payload = { ...order, archivedAt: serverTimestamp() };
+      await addDoc(colArchived(), payload);
+      // ana kaydı arşivle
+      await updateDoc(doc(db,'orders',order.id), { status: STATUS.ARCHIVED });
+      toast('Arşive taşındı');
+    }catch(e){ logError('Arşiv hatası', e); toast('Arşive taşıma başarısız'); }
+  }
+  async function exportZip(){
+    await ensureLib('jszip');
+    const zip = new JSZip();
+    const orders = await repo.listOrders({forRole:ROLES.MANAGER});
+    const rows = orders.map(o=>({ id:o.id, branch:o.branch, status:o.status, lines: (o.items||[]).length }));
+    const csv = 'ID,Branch,Status,Lines
+'+ rows.map(r=> `${r.id},${r.branch},${r.status},${r.lines}`).join('
+');
+    zip.file('orders.csv', csv);
+    const blob = await zip.generateAsync({type:'blob'});
+    const a = el('a',{href:URL.createObjectURL(blob), download:'archive.zip'}); a.click(); setTimeout(()=>URL.revokeObjectURL(a.href), 500);
+  }
+  return { moveToArchive, exportZip };
+})();
+
+// index Archive view butonlarına bağla (varsa)
+(function wireArchiveView(){
+  document.getElementById('btnArchiveRefresh')?.addEventListener('click', async ()=>{
+    const list = await repo.listOrders({forRole:ROLES.MANAGER});
+    const host = document.getElementById('archiveList'); if(!host) return; host.innerHTML='';
+    list.filter(o=> o.status===STATUS.ARCHIVED).forEach(o=> host.append(orderCard(o)));
   });
 })();
 
 // -----------------------------
-// Gelişmiş Yazdırma Şablonu (HTML template)
+// PDF Export (jsPDF) — Rapor Tablosu
 // -----------------------------
-function printA4PickingList(order){
-  const rows = (order.items||[]).map(it=> `<tr><td>${it.name}</td><td>${it.code}</td><td>${it.aisle}</td><td>${it.quantity}</td><td>${it.picked||0}</td><td></td></tr>`).join('');
-  const html = `<!doctype html><html><head><meta charset="utf-8"><title>Picking ${order.id}</title>
-  <style>@page{size:A4;margin:14mm} body{font-family:Arial} h1{font-size:18px} table{border-collapse:collapse;width:100%} th,td{border:1px solid #444;padding:6px;font-size:12px} .muted{color:#666;font-size:12px}</style>
-  </head><body>
-    <h1>Toplama Listesi — ${order.id}</h1>
-    <div class="muted">Şube: ${order.branch} • Durum: ${order.status}</div>
-    <table><thead><tr><th>Ürün</th><th>Kod</th><th>Raf</th><th>İstenen</th><th>Toplanan</th><th>İmza</th></tr></thead><tbody>${rows}</tbody></table>
-  </body></html>`;
-  const w = window.open('', '_blank'); w.document.write(html); w.document.close(); w.focus(); w.print();
+async function exportReportPDF(){
+  try{
+    await ensureLib('jspdf');
+    const { jsPDF } = window.jspdf;
+    const docp = new jsPDF();
+    docp.setFontSize(14); docp.text('Sipariş Raporu', 12, 16);
+    const list = await repo.listOrders({forRole:ROLES.MANAGER});
+    const rows = list.map((o,i)=> [String(i+1), o.id, o.branch, o.status, String(o.items?.length||0)]);
+    // basit tablo çizimi
+    let y = 24; docp.setFontSize(10);
+    docp.text('No  ID             Branch        Status      Lines', 12, y); y+=6;
+    rows.forEach(r=>{ docp.text((r[0]+'   '+r[1]+'   '+(r[2]||'')+'   '+r[3]+'   '+r[4]).slice(0,80), 12, y); y+=6; if(y>280){ docp.addPage(); y=16; } });
+    docp.save('report.pdf');
+  }catch(e){ logError('PDF export hata', e); }
 }
 
 // -----------------------------
-// Yönetici Kısa Eylemler (UI bağlama)
+// AI Mock Özetleyici — Basit yerel analiz
 // -----------------------------
-(function addManagerToolbar(){
-  if(!ui.ordersSection) return;
-  const bar = el('div',{className:'card'},
-    el('button',{className:'btn', onClick:()=>loadOrders()},'Yenile'),
-    ' ',
-    el('button',{className:'btn', onClick:()=>exportOrdersToCSV()},'CSV Dışa Aktar'),
-    ' ',
-    el('label', {className:'btn'},
-      el('input',{type:'file', accept:'.csv', style:'display:none', onChange:(e)=>{ const f=e.target.files[0]; if(f) importOrdersFromCSV(f); }}),
-      'CSV İçe Aktar'
-    ),
-  );
-  ui.ordersSection.prepend(bar);
+const AIMock = (()=>{
+  function topMissingProducts(orders){
+    const miss = new Map(); // code->count
+    for(const o of orders){
+      for(const it of (o.items||[])){
+        const lack = Math.max(0, (it.quantity||0) - (it.picked||0));
+        if(lack>0){ miss.set(it.code, (miss.get(it.code)||0)+lack); }
+      }
+    }
+    return Array.from(miss, ([code,qty])=>({code,qty})).sort((a,b)=> b.qty-a.qty).slice(0,10);
+  }
+  async function summarize(){
+    const orders = await repo.listOrders({forRole:ROLES.MANAGER});
+    const top = topMissingProducts(orders);
+    const total = orders.length; const lines = orders.reduce((s,o)=> s+(o.items?.length||0),0);
+    let s = `Toplam ${total} sipariş, ${lines} kalem. Eksik en yüksek 3: `;
+    s += top.slice(0,3).map(x=> `${x.code}(${x.qty})`).join(', ');
+    return s;
+  }
+  return { summarize };
 })();
+
+// -----------------------------
+// DevTools — Ctrl+Alt+D ile gizli menü
+// -----------------------------
+(function devtools(){
+  function openMenu(){
+    const w = el('div',{style:'position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:10050'});
+    const c = el('div',{className:'card',style:'width:92%;max-width:600px'},
+      el('h3',{},'DevTools'),
+      el('div',{},
+        el('button',{className:'btn', onClick:()=> seedFakeData(10)},'Seed 10'), ' ',
+        el('button',{className:'btn', onClick:()=> ErrorPanel.view()},'Log Panel'), ' ',
+        el('button',{className:'btn', onClick:()=> cacheStore.set('pendingQueue', [])},'Queue Temizle'), ' ',
+        el('button',{className:'btn', onClick:async()=>{ const s=await AIMock.summarize(); alert(s); }},'AI Özet'), ' ',
+        el('button',{className:'btn', onClick:()=> exportReportPDF()},'PDF Rapor'), ' ',
+        el('button',{className:'btn', onClick:()=> Archive.exportZip()},'ZIP Dışa Aktar'), ' ',
+      ),
+      el('div',{style:'display:flex;justify-content:flex-end;margin-top:10px'}, el('button',{className:'btn', onClick:()=> w.remove()},'Kapat'))
+    );
+    w.append(c); document.body.append(w);
+  }
+  window.addEventListener('keydown', (e)=>{ if(e.ctrlKey && e.altKey && (e.key==='d' || e.key==='D')){ e.preventDefault(); openMenu(); } });
+})();
+
+// -----------------------------
+// Perf Profiler 2.0 — Ölçümler ve tablo
+// -----------------------------
+const Perf = (()=>{
+  const buf = [];
+  function mark(tag, ms){ buf.push({tag, ms, at: Date.now()}); if(buf.length>500) buf.shift(); }
+  async function time(tag, fn){ const t0=performance.now(); const r = await fn(); mark(tag, performance.now()-t0); return r; }
+  function view(){
+    const w = window.open('', '_blank');
+    w.document.write('<pre style="font-family:Consolas">'+ buf.map(x=> `${new Date(x.at).toLocaleTimeString()}  ${x.tag.padEnd(24)}  ${x.ms.toFixed(1)} ms`).join('
+') +'</pre>');
+  }
+  return { mark, time, view };
+})();
+
+// örnek: loadOrders zamanını ölç
+const _origLoadOrders = loadOrders;
+loadOrders = async function(){ return Perf.time('loadOrders', ()=> _origLoadOrders()); };
+
+// -----------------------------
+// Otomatik Dashboard Yenileme (15sn)
+// -----------------------------
+setInterval(()=>{ try{ const vis = !document.hidden; if(vis) document.getElementById('btnRefreshDashboard')?.click(); }catch{} }, 15000);
+
+// -----------------------------
+// Son mesaj
+// -----------------------------
+logInfo('Final genişletme bloğu yüklendi (Netlify)');
+
