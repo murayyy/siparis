@@ -1,17 +1,26 @@
-/*
-  app.js — Depo Otomasyonu (Web) — Tam Proje Çekirdeği
+// app.js — Depo Otomasyonu (Firebase v10 Modular ile uyumlu)
 
-  Özellikler:
-   - Firebase Auth (email + şifre)
-   - Rol: manager / picker / qc (users/{uid}.role)
-   - Siparişler: created → assigned → picking → picked → qc → completed → archived
-   - Basit offline kuyruk (net yoksa sıraya al)
-   - Sipariş listesi, detay, toplama adet güncelleme
-   - Barkod/QR: Kamera + BarcodeDetector (varsa), yoksa manuel giriş
-   - CSV dışa aktarma (F9 kısayolu)
-*/
+// ======================= IMPORTLAR =======================
+import {
+  auth,
+  db,
+  signInWithEmailAndPassword,
+  signOut,
+  onAuthStateChanged,
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  updateDoc,
+  addDoc,
+  query,
+  where,
+  orderBy,
+  serverTimestamp
+} from "./firebase.js";
 
-// =============== Kısa Seçiciler & Yardımcılar ===============
+
+// ======================= KISA SEÇİCİLER =======================
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
 
@@ -69,7 +78,7 @@ function formatTs(ts) {
   }
 }
 
-// =============== Roller & Durumlar ===============
+// ======================= SABİTLER =======================
 const ROLES = {
   MANAGER: "manager",
   PICKER: "picker",
@@ -86,7 +95,6 @@ const STATUS = {
   ARCHIVED: "archived"
 };
 
-// =============== Global Durum ===============
 const state = {
   user: null,
   userDoc: null,
@@ -101,7 +109,7 @@ window.addEventListener("offline", () => {
   state.online = false;
 });
 
-// =============== UI Elemanları ===============
+// ======================= UI REFERANSLARI =======================
 const ui = {
   loginSection: $("#loginSection"),
   ordersSection: $("#ordersSection"),
@@ -117,8 +125,6 @@ const ui = {
   searchInput: $("#searchInput"),
   btnRefresh: $("#btnRefresh"),
   btnExportCsv: $("#btnExportCsv"),
-
-  // Yeni sipariş modalı
   btnNewOrder: $("#btnNewOrder"),
   orderModal: $("#orderModal"),
   branchInput: $("#branchInput"),
@@ -128,7 +134,7 @@ const ui = {
   cancelOrderBtn: $("#cancelOrderBtn")
 };
 
-// =============== Offline Kuyruk ===============
+// ======================= OFFLINE KUYRUK =======================
 const queue = [];
 function enqueue(fn) {
   queue.push(fn);
@@ -147,8 +153,7 @@ async function flushQueue() {
   }
 }
 
-// =============== Auth Akışı ===============
-
+// ======================= AUTH =======================
 ui.signinBtn?.addEventListener("click", async () => {
   const email = ui.email.value.trim();
   const pass = ui.password.value;
@@ -160,7 +165,8 @@ ui.signinBtn?.addEventListener("click", async () => {
   ui.loginMsg.textContent = "Giriş yapılıyor...";
 
   try {
-    await auth.signInWithEmailAndPassword(email, pass);
+    // 🔴 ÖNEMLİ: Modular çağrı
+    await signInWithEmailAndPassword(auth, email, pass);
   } catch (e) {
     ui.loginMsg.textContent = "Giriş hatası: " + (e?.message || e);
   } finally {
@@ -169,13 +175,13 @@ ui.signinBtn?.addEventListener("click", async () => {
 });
 
 ui.btnLogout?.addEventListener("click", () => {
-  auth.signOut().catch(() => {});
+  signOut(auth).catch(() => {});
 });
 
-auth.onAuthStateChanged(async (user) => {
+// 🔴 ÖNEMLİ: Modular onAuthStateChanged
+onAuthStateChanged(auth, async (user) => {
   state.user = user || null;
   if (!user) {
-    // logout
     show(ui.loginSection);
     hide(ui.ordersSection);
     show(ui.btnLogin);
@@ -198,9 +204,9 @@ auth.onAuthStateChanged(async (user) => {
 
 async function bootstrapUser() {
   try {
-    const ref = db.collection("users").doc(state.user.uid);
-    const snap = await ref.get();
-    state.userDoc = snap.exists
+    const ref = doc(db, "users", state.user.uid);
+    const snap = await getDoc(ref);
+    state.userDoc = snap.exists()
       ? snap.data()
       : { role: ROLES.MANAGER, displayName: state.user.email };
   } catch (e) {
@@ -222,16 +228,11 @@ function isQC() {
   return state.userDoc?.role === ROLES.QC;
 }
 
-// =============== Firestore Yardımcı ===============
-function colOrders() {
-  return db.collection("orders");
-}
-function colOrderItems(orderId) {
-  return colOrders().doc(orderId).collection("items");
-}
+// ======================= FIRESTORE HELPERS =======================
+const colOrders = () => collection(db, "orders");
+const colOrderItems = (orderId) => collection(db, "orders", orderId, "items");
 
-// =============== Sipariş API ===============
-
+// ======================= SİPARİŞ API =======================
 async function createOrder({ branch, items }) {
   const base = {
     branch,
@@ -242,11 +243,11 @@ async function createOrder({ branch, items }) {
   };
 
   const run = async () => {
-    const docRef = await colOrders().add(base);
+    const ref = await addDoc(colOrders(), base);
     for (const it of items) {
-      await colOrderItems(docRef.id).add(it);
+      await addDoc(colOrderItems(ref.id), it);
     }
-    logInfo("order created", { id: docRef.id });
+    logInfo("order created", { id: ref.id });
     toast("Sipariş oluşturuldu");
   };
 
@@ -256,16 +257,14 @@ async function createOrder({ branch, items }) {
 }
 
 async function updateOrder(orderId, patch) {
-  const run = () => colOrders().doc(orderId).update(patch);
+  const run = () => updateDoc(doc(db, "orders", orderId), patch);
   if (state.online) return run();
   enqueue(run);
 }
 
 async function setPickedQty(orderId, itemId, picked) {
   const run = () =>
-    colOrderItems(orderId).doc(itemId).update({
-      picked: picked
-    });
+    updateDoc(doc(db, "orders", orderId, "items", itemId), { picked });
   if (state.online) return run();
   enqueue(run);
 }
@@ -303,34 +302,34 @@ async function qcApprove(orderId) {
   loadOrders();
 }
 
-// =============== Sipariş Listeleme & Arama ===============
-
+// ======================= LİSTELEME & ARAMA =======================
 let lastOrders = [];
 
 async function loadOrders() {
   try {
-    let q = colOrders();
+    let qRef;
     if (isManager()) {
-      q = q.orderBy("createdAt", "desc").limit(100);
+      qRef = query(colOrders(), orderBy("createdAt", "desc"));
     } else if (isPicker()) {
-      q = q
-        .where("assignedTo", "==", state.user.uid)
-        .orderBy("createdAt", "desc")
-        .limit(100);
+      qRef = query(
+        colOrders(),
+        where("assignedTo", "==", state.user.uid),
+        orderBy("createdAt", "desc")
+      );
     } else {
-      // QC
-      q = q
-        .where("status", "in", [STATUS.PICKED, STATUS.QC])
-        .orderBy("createdAt", "desc")
-        .limit(100);
+      qRef = query(
+        colOrders(),
+        where("status", "in", [STATUS.PICKED, STATUS.QC]),
+        orderBy("createdAt", "desc")
+      );
     }
 
-    const snap = await q.get();
+    const snap = await getDocs(qRef);
     const orders = [];
 
     for (const d of snap.docs) {
       const o = d.data();
-      const itemsSnap = await colOrderItems(d.id).get();
+      const itemsSnap = await getDocs(colOrderItems(d.id));
       const items = itemsSnap.docs.map((x) => ({ id: x.id, ...x.data() }));
       orders.push({ id: d.id, ...o, items });
     }
@@ -349,7 +348,6 @@ function renderOrders(list) {
     ui.orderList.append(el("div", { className: "card muted" }, "Kayıt yok"));
     return;
   }
-
   list.forEach((o) => ui.orderList.append(orderCard(o)));
 }
 
@@ -386,19 +384,13 @@ function orderCard(o) {
         isManager() &&
           el(
             "button",
-            {
-              className: "btn btn-light",
-              onClick: () => assignToSelf(o)
-            },
+            { className: "btn btn-light", onClick: () => assignToSelf(o) },
             "Ata"
           ),
         " ",
         el(
           "button",
-          {
-            className: "btn btn-primary",
-            onClick: () => openOrderDetail(o)
-          },
+          { className: "btn btn-primary", onClick: () => openOrderDetail(o) },
           "Detay"
         )
       )
@@ -429,8 +421,7 @@ ui.btnRefresh?.addEventListener("click", () => {
   loadOrders();
 });
 
-// =============== Detay Modalı ===============
-
+// ======================= DETAY MODAL =======================
 function openOrderDetail(order) {
   const wrap = el("div", {
     style:
@@ -592,8 +583,7 @@ function openOrderDetail(order) {
   document.body.append(wrap);
 }
 
-// =============== Barkod / QR Okuma ===============
-
+// ======================= BARKOD / QR =======================
 async function openScannerForItem(order, it) {
   const layer = el("div", {
     style:
@@ -701,19 +691,16 @@ async function openScannerForItem(order, it) {
   }, 700);
 }
 
-// =============== CSV Dışa Aktarma (F9) ===============
-
+// ======================= CSV EXPORT (F9) =======================
 async function exportOrdersToCSV() {
   try {
-    const snap = await colOrders()
-      .orderBy("createdAt", "desc")
-      .limit(300)
-      .get();
+    const qRef = query(colOrders(), orderBy("createdAt", "desc"));
+    const snap = await getDocs(qRef);
     const rows = [["ID", "Branch", "Status", "Lines", "CreatedAt"]];
 
     for (const d of snap.docs) {
       const o = d.data();
-      const itemsSnap = await colOrderItems(d.id).get();
+      const itemsSnap = await getDocs(colOrderItems(d.id));
       rows.push([
         d.id,
         o.branch || "",
@@ -754,8 +741,7 @@ window.addEventListener("keydown", (e) => {
   }
 });
 
-// =============== Yeni Sipariş Modal Bağlama ===============
-
+// ======================= YENİ SİPARİŞ MODALI =======================
 ui.btnNewOrder?.addEventListener("click", () => {
   if (ui.orderModal?.showModal) ui.orderModal.showModal();
   else show(ui.orderModal);
@@ -805,7 +791,7 @@ function slug(s) {
     .replace(/^-|-$/g, "");
 }
 
-// =============== Global API (debug için) ===============
+// ======================= DEBUG API =======================
 window.depoApp = {
   state,
   ROLES,
@@ -816,4 +802,4 @@ window.depoApp = {
   exportOrdersToCSV
 };
 
-logInfo("app.js yüklendi");
+logInfo("app.js (modular Firebase) yüklendi");
