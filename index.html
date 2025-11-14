@@ -84,18 +84,19 @@
     </form>
   </dialog>
 
-  <!-- Firebase SDK (Compat) -->
+  <!-- Firebase SDK (Compat KEEP edilmiştir — AMA modül çakışmasın diye ESM modüllerden ayrı durur) -->
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
 
-  <!-- Proje scriptleri -->
-  <script src="firebase.js"></script>
-  <script src="app.js"></script>
+  <!-- Firebase ESM + App (module olarak yüklenir) -->
+  <script type="module" src="firebase.js"></script>
+  <script type="module" src="app.js"></script>
+
+  <!-- PWA Service Worker -->
   <script>
-    // PWA Service Worker
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('sw.js').catch(function () {});
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("sw.js").catch(() => {});
     }
   </script>
 </body>
