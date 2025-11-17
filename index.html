@@ -2,103 +2,126 @@
 <html lang="tr">
 <head>
   <meta charset="UTF-8" />
-  <title>Depo Otomasyonu</title>
+  <title>Depo Sipariş PWA</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <link rel="manifest" href="manifest.json" />
+
   <link rel="stylesheet" href="style.css" />
+
+  <!-- PWA manifest -->
+  <link rel="manifest" href="manifest.webmanifest" />
+  <meta name="theme-color" content="#111827" />
+
+  <!-- Icons (optional) -->
+  <link rel="icon" type="image/png" href="icon-192.png" />
 </head>
 <body>
-  <header class="topbar">
-    <div class="topbar-left">
-      <span class="logo">📦 Depo Otomasyonu</span>
+  <header class="app-header">
+    <div class="app-title">
+      <span class="logo-box">📦</span>
+      <div>
+        <h1>Depo Sipariş Yönetimi</h1>
+        <p class="subtitle">Şube siparişleri · Toplama · Kontrol</p>
+      </div>
     </div>
-    <div class="topbar-right">
-      <button id="btnLogin" class="btn btn-light">Giriş</button>
-      <button id="btnLogout" class="btn btn-danger hidden">Çıkış</button>
+    <div class="app-user">
+      <span id="userInfo"></span>
+      <button id="logoutBtn" class="btn-outline hidden">Çıkış</button>
     </div>
   </header>
 
-  <!-- LOGIN -->
-  <main id="loginSection" class="view">
-    <div class="card auth-card">
-      <h2>Depo Giriş</h2>
-      <label>E-posta</label>
-      <input id="email" type="email" placeholder="kullanici@firma.com" />
-      <label>Şifre</label>
-      <input id="password" type="password" placeholder="Şifre" />
-      <button id="signinBtn" class="btn btn-primary">Giriş Yap</button>
-      <p id="loginMsg" class="muted"></p>
-      <p class="hint">
-        <strong>Not:</strong> Kullanıcı rolü (manager/picker/qc) Firebase Firestore'da
-        <code>users/{uid}.role</code> alanından okunur.
-      </p>
-    </div>
-  </main>
+  <nav class="app-nav hidden" id="mainNav">
+    <button class="nav-btn" data-view="manager-view">Yönetici Paneli</button>
+    <button class="nav-btn" data-view="picker-view">Toplayıcı Paneli</button>
+  </nav>
 
-  <!-- MAIN APP -->
-  <main id="ordersSection" class="view hidden">
-    <div class="layout">
-      <aside class="sidebar">
-        <h3>Menü</h3>
-        <button id="btnNewOrder" class="btn btn-primary full">➕ Yeni Sipariş</button>
-        <button id="btnExportCsv" class="btn btn-light full">📤 CSV Dışa Aktar (F9)</button>
-        <hr />
-        <div class="info-box">
-          <div><strong>Kullanıcı:</strong> <span id="userName"></span></div>
-          <div><strong>Rol:</strong> <span id="userRole"></span></div>
-        </div>
-        <p class="muted small">
-          Kısayollar: <br />
-          • F9: CSV dışa aktar<br />
-          • Barkod: Kamera + BarcodeDetector (varsa)
+  <main class="app-main">
+    <!-- LOGIN VIEW -->
+    <section id="login-view" class="view active">
+      <div class="card">
+        <h2>Giriş Yap</h2>
+        <form id="loginForm" class="form">
+          <label>
+            E-posta
+            <input type="email" id="loginEmail" required />
+          </label>
+
+          <label>
+            Şifre
+            <input type="password" id="loginPassword" required />
+          </label>
+
+          <button type="submit" class="btn-primary full">Giriş</button>
+        </form>
+        <p class="hint">
+          Kullanıcılar Firestore'da <strong>users</strong> koleksiyonunda tutulur.
+          Rol: <code>manager</code> veya <code>picker</code>.
         </p>
-      </aside>
+      </div>
+    </section>
 
-      <section class="main">
-        <h2>Siparişler</h2>
-        <div class="toolbar">
-          <input id="searchInput" class="input" placeholder="Ara: şube, ürün, kod..." />
-          <button id="btnRefresh" class="btn btn-light">Yenile</button>
+    <!-- MANAGER VIEW -->
+    <section id="manager-view" class="view hidden">
+      <div class="grid-2">
+        <!-- Yeni Sipariş Oluşturma -->
+        <div class="card">
+          <h2>Yeni Sipariş Oluştur</h2>
+          <form id="createOrderForm" class="form">
+            <label>
+              Şube Adı
+              <input type="text" id="branchName" required placeholder="Örn: Eskişehir Şube" />
+            </label>
+
+            <div id="orderItemsContainer"></div>
+
+            <button type="button" id="addItemBtn" class="btn-secondary small">
+              + Satır Ekle
+            </button>
+
+            <button type="submit" class="btn-primary full" style="margin-top: 12px;">
+              Siparişi Kaydet
+            </button>
+          </form>
         </div>
-        <div id="orderList" class="order-list">
-          <!-- sipariş kartları buraya gelecek -->
+
+        <!-- Sipariş Listesi -->
+        <div class="card">
+          <div class="card-header-row">
+            <h2>Siparişler</h2>
+            <select id="orderStatusFilter" class="input">
+              <option value="all">Tümü</option>
+              <option value="new">Yeni</option>
+              <option value="assigned">Atanmış</option>
+              <option value="picking">Toplanıyor</option>
+              <option value="completed">Tamamlandı</option>
+            </select>
+          </div>
+
+          <div id="ordersList" class="list"></div>
         </div>
-      </section>
-    </div>
+      </div>
+    </section>
+
+    <!-- PICKER VIEW -->
+    <section id="picker-view" class="view hidden">
+      <div class="card">
+        <h2>Toplanacak Siparişlerim</h2>
+        <div id="pickerOrdersList" class="list"></div>
+      </div>
+
+      <div class="card">
+        <h2>Sipariş Detayı</h2>
+        <div id="pickerOrderDetail" class="order-detail empty-state">
+          Sipariş seçiniz.
+        </div>
+      </div>
+    </section>
   </main>
 
-  <!-- YENİ SİPARİŞ MODALI -->
-  <dialog id="orderModal" class="modal">
-    <form method="dialog" class="card modal-card" onsubmit="return false;">
-      <h3>Yeni Sipariş</h3>
-      <label>Şube</label>
-      <input id="branchInput" class="input" placeholder="Ör: Konyaaltı" />
-      <label>Ürün Adı</label>
-      <input id="productInput" class="input" placeholder="Ör: Ay Çekirdeği 1kg" />
-      <label>Miktar</label>
-      <input id="qtyInput" class="input" type="number" min="1" value="1" />
-      <div class="modal-actions">
-        <button id="saveOrderBtn" class="btn btn-primary">Kaydet</button>
-        <button id="cancelOrderBtn" class="btn btn-light" type="button">İptal</button>
-      </div>
-    </form>
-  </dialog>
+  <footer class="app-footer">
+    <small>Depo PWA · Murat Demir için özel yapı ✌️</small>
+  </footer>
 
-  <!-- Firebase SDK (Compat KEEP edilmiştir — AMA modül çakışmasın diye ESM modüllerden ayrı durur) -->
-  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
-
-  <!-- Firebase ESM + App (module olarak yüklenir) -->
-  <script type="module" src="firebase.js"></script>
+  <!-- Uygulama scriptleri -->
   <script type="module" src="app.js"></script>
-
-
-  <!-- PWA Service Worker -->
-  <script>
-    if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("sw.js").catch(() => {});
-    }
-  </script>
 </body>
 </html>
