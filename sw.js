@@ -1,20 +1,17 @@
-const CACHE_NAME = "depo-cache-v1";
+const CACHE_NAME = "depo-pwa-v1";
 const ASSETS = [
   "./",
-  "index.html",
-  "style.css",
-  "app.js",
-  "firebase.js",
-  "manifest.json"
+  "./index.html",
+  "./style.css",
+  "./app.js",
+  "./firebase.js",
+  "./manifest.webmanifest"
 ];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(ASSETS).catch(() => {});
-    })
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS))
   );
-  self.skipWaiting();
 });
 
 self.addEventListener("activate", (event) => {
@@ -27,19 +24,14 @@ self.addEventListener("activate", (event) => {
       )
     )
   );
-  self.clients.claim();
 });
 
 self.addEventListener("fetch", (event) => {
-  const req = event.request;
-  if (req.method !== "GET") return;
   event.respondWith(
-    caches.match(req).then(
+    caches.match(event.request).then(
       (cached) =>
         cached ||
-        fetch(req).catch(() =>
-          caches.match("index.html").then((r) => r || Response.error())
-        )
+        fetch(event.request).catch(() => cached) // offline fallback
     )
   );
 });
