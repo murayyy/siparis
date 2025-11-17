@@ -40,27 +40,36 @@ const pickerOrderDetailEl = document.getElementById("pickerOrderDetail");
 const navButtons = document.querySelectorAll(".nav-btn");
 
 // ============= GLOBAL STATE =============
-let currentUser = null; // auth user
-let currentUserDoc = null; // Firestore users dokümanı {displayName, role, ...}
-let pickerUsers = []; // {id, displayName, email}
+let currentUser = null;            // Firebase Auth user
+let currentUserDoc = null;         // Firestore users dokümanı {displayName, role, ...}
+let pickerUsers = [];              // {id, displayName, email}
 let activePickerOrder = null;
-let unsubscribeOrders = null;
+let productList = [];              // Ürün kataloğu
+let unsubscribeOrders = null;      // Şimdilik kullanılmıyor ama ileride onSnapshot için hazır
 let unsubscribePickerOrders = null;
 
 // ============= VIEW HELPERS =============
 function showView(viewId) {
-  [loginView, managerView, pickerView].forEach((v) => v.classList.add("hidden"));
-  document.getElementById(viewId)?.classList.remove("hidden");
-  document.getElementById(viewId)?.classList.add("active");
+  [loginView, managerView, pickerView].forEach((v) => {
+    if (!v) return;
+    v.classList.add("hidden");
+    v.classList.remove("active");
+  });
+
+  const target = document.getElementById(viewId);
+  if (target) {
+    target.classList.remove("hidden");
+    target.classList.add("active");
+  }
 }
 
 function setAuthUI(loggedIn) {
   if (loggedIn) {
-    logoutBtn.classList.remove("hidden");
-    mainNav.classList.remove("hidden");
+    logoutBtn?.classList.remove("hidden");
+    mainNav?.classList.remove("hidden");
   } else {
-    logoutBtn.classList.add("hidden");
-    mainNav.classList.add("hidden");
+    logoutBtn?.classList.add("hidden");
+    mainNav?.classList.add("hidden");
   }
 }
 
@@ -118,10 +127,19 @@ onAuthStateChanged(auth, async (user) => {
     currentUserDoc.role
   }`;
 
+  // Pickercıları yükle
   await loadPickerUsers();
 
+  // Ürün kataloğunu yükle
+  await loadProductList();
+
+  // Manager / Picker ekranını aç
   if (currentUserDoc.role === "manager") {
     showView("manager-view");
+    // İlk satır yoksa, ürün listesi yüklendikten sonra ekle
+    if (orderItemsContainer && orderItemsContainer.childElementCount === 0) {
+      orderItemsContainer.appendChild(createOrderItemRow());
+    }
     attachManagerListeners();
   } else if (currentUserDoc.role === "picker") {
     showView("picker-view");
@@ -136,32 +154,76 @@ onAuthStateChanged(auth, async (user) => {
 // ============= USERS / PICKERS =============
 async function loadPickerUsers() {
   try {
-    const q = query(
-      collection(db, "users"),
-      where("role", "==", "picker"),
-      orderBy("displayName")
+    const qSnap = await getDocs(
+      query(
+        collection(db, "users"),
+        where("role", "==", "picker"),
+        orderBy("displayName")
+      )
     );
-    const snap = await getDocs(q);
-    pickerUsers = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    pickerUsers = qSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
   } catch (err) {
     console.error("Picker users yüklenemedi:", err);
   }
 }
 
-// ============= MANAGER: ORDER ITEMS UI =============
+// ============= PRODUCT LIST (ÜRÜN KATALOĞU) =============
+async function loadProductList() {
+  try {
+    const snap = await getDocs(collection(db, "products"));
+    productList = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+
+    console.log("Ürün listesi yüklendi:", productList.length, "ürün");
+
+    // Eğer manager ise ve henüz satır eklenmemişse, burada bir satır ekleyelim
+    if (
+      currentUserDoc &&
+      currentUserDoc.role === "manager" &&
+      orderItemsContainer &&
+      orderItemsContainer.childElementCount === 0
+    ) {
+      orderItemsContainer.appendChild(createOrderItemRow());
+    }
+  } catch (err) {
+    console.error("Ürün listesi yüklenemedi:", err);
+  }
+}
+
+// ============= MANAGER: ORDER ITEMS UI (ÜRÜN DROPDOWN) =============
 function createOrderItemRow() {
   const row = document.createElement("div");
   row.className = "order-item-row";
 
+  // Ürün dropdown seçenekleri
+  let productOptions = `<option value="">Ürün seçin...</option>`;
+  productList.forEach((p) => {
+    const code = p.code ? ` (${p.code})` : "";
+    productOptions += `<option value="${p.id}">${p.name || "İsimsiz"}${code}</option>`;
+  });
+
   row.innerHTML = `
-    <input type="text" class="item-name" placeholder="Ürün adı" required />
+    <select class="item-product">
+      ${productOptions}
+    </select>
     <input type="text" class="item-qty" placeholder="Miktar" required />
-    <input type="text" class="item-aisle" placeholder="Raf / Reyon" />
+    <input type="text" class="item-aisle" placeholder="Raf / Reyon" readonly />
     <button type="button" class="remove-item-btn">Sil</button>
   `;
 
-  const removeBtn = row.querySelector(".remove-item-btn");
-  removeBtn.addEventListener("click", () => {
+  const productSelect = row.querySelector(".item-product");
+  const aisleInput = row.querySelector(".item-aisle");
+
+  // Ürün seçildiğinde raf/reyon otomatik dolsun
+  productSelect.addEventListener("change", () => {
+    const product = productList.find((p) => p.id === productSelect.value);
+    if (product) {
+      aisleInput.value = product.aisle || "";
+    } else {
+      aisleInput.value = "";
+    }
+  });
+
+  row.querySelector(".remove-item-btn").addEventListener("click", () => {
     row.remove();
   });
 
@@ -171,11 +233,6 @@ function createOrderItemRow() {
 addItemBtn?.addEventListener("click", () => {
   orderItemsContainer.appendChild(createOrderItemRow());
 });
-
-// İlk satırı otomatik ekle
-if (orderItemsContainer && orderItemsContainer.childElementCount === 0) {
-  orderItemsContainer.appendChild(createOrderItemRow());
-}
 
 // ============= MANAGER: SİPARİŞ OLUŞTURMA =============
 createOrderForm?.addEventListener("submit", async (e) => {
@@ -198,14 +255,24 @@ createOrderForm?.addEventListener("submit", async (e) => {
 
   const items = [];
   for (const row of rows) {
-    const name = row.querySelector(".item-name").value.trim();
-    const qty = row.querySelector(".item-qty").value.trim();
-    const aisle = row.querySelector(".item-aisle").value.trim();
+    const productSelect = row.querySelector(".item-product");
+    const qtyInput = row.querySelector(".item-qty");
+    const aisleInput = row.querySelector(".item-aisle");
 
-    if (!name || !qty) continue;
+    const productId = productSelect?.value;
+    const qty = qtyInput?.value.trim();
+    const aisle = aisleInput?.value.trim() || "";
+
+    if (!productId || !qty) continue;
+
+    const product = productList.find((p) => p.id === productId);
+    if (!product) continue;
 
     items.push({
-      name,
+      productId,
+      name: product.name || "",
+      code: product.code || "",
+      unit: product.unit || "",
       qty,
       aisle,
       picked: false,
@@ -243,63 +310,44 @@ createOrderForm?.addEventListener("submit", async (e) => {
 
 // ============= MANAGER: SİPARİŞ LİSTESİ =============
 function attachManagerListeners() {
-  // Eski listener'lar varsa kapat
   detachListeners();
-
-  const baseQuery = query(
-    collection(db, "orders"),
-    orderBy("createdAt", "desc")
-  );
-
-  unsubscribeOrders = listenOrders(baseQuery, renderManagerOrders);
-
-  orderStatusFilter?.addEventListener("change", onManagerFilterChange);
+  // Sayfa ilk açıldığında mevcut filtreyle yükle
+  onManagerFilterChange();
 }
+
+orderStatusFilter?.addEventListener("change", () => {
+  onManagerFilterChange();
+});
 
 function onManagerFilterChange() {
-  const val = orderStatusFilter.value;
-  let qBase = query(
-    collection(db, "orders"),
-    orderBy("createdAt", "desc")
-  );
+  const status = orderStatusFilter?.value || "all";
+  loadManagerOrders(status);
+}
 
-  if (val !== "all") {
-    qBase = query(
-      collection(db, "orders"),
-      where("status", "==", val),
-      orderBy("createdAt", "desc")
-    );
+async function loadManagerOrders(status = "all") {
+  try {
+    let qRef;
+
+    if (status === "all") {
+      qRef = query(collection(db, "orders"), orderBy("createdAt", "desc"));
+    } else {
+      qRef = query(
+        collection(db, "orders"),
+        where("status", "==", status),
+        orderBy("createdAt", "desc")
+      );
+    }
+
+    const snap = await getDocs(qRef);
+    const orders = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    renderManagerOrders(orders);
+  } catch (err) {
+    console.error("Sipariş listesi yüklenemedi:", err);
   }
-
-  if (unsubscribeOrders) unsubscribeOrders();
-  unsubscribeOrders = listenOrders(qBase, renderManagerOrders);
-}
-
-// Order snapshot dinle
-function listenOrders(q, callback) {
-  return firebase.firestore.onSnapshot
-    ? null
-    : (() => {
-        // Firestore v9'da onSnapshot import etmedik, bu nedenle
-        // burada sadece getDocs ile "polling" gibi çalışacağız istersen.
-        // Ama Murat için gerçek zamanlı gerekliyse istersen onSnapshot'lı
-        // versiyonu ayrıca yazarız.
-        console.warn(
-          "Gerçek zamanlı onSnapshot eklenmedi. Mevcut sürüm getDocs ile manuel yenileme kullanıyor."
-        );
-        // basit bir kez yükle
-        loadOnce(q, callback);
-        return () => {};
-      })();
-}
-
-// Basit: getDocs ile bir defa çek
-async function loadOnce(q, callback) {
-  const snap = await getDocs(q);
-  callback(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
 }
 
 async function renderManagerOrders(orders) {
+  if (!ordersListEl) return;
   ordersListEl.innerHTML = "";
 
   if (!orders || !orders.length) {
@@ -322,7 +370,8 @@ async function renderManagerOrders(orders) {
       ? createdAt.toLocaleString("tr-TR")
       : "Tarih yok";
 
-    const statusClass = `status-${order.status || "new"}`;
+    const status = order.status || "new";
+    const statusClass = `status-${status}`;
     const pickerName = order.pickerName || "Atanmamış";
 
     card.innerHTML = `
@@ -335,7 +384,7 @@ async function renderManagerOrders(orders) {
         </div>
         <div>
           <div class="order-badge ${statusClass}">
-            ${order.status || "new"}
+            ${status}
           </div>
         </div>
       </div>
@@ -347,11 +396,9 @@ async function renderManagerOrders(orders) {
       </div>
       <div class="order-items-preview">
         ${order.items
-          .map((it) => `${it.name} (${it.qty})`)
+          .map((it) => `${it.name} (${it.qty} ${it.unit || ""})`)
           .slice(0, 3)
-          .join(", ")}${
-      order.items.length > 3 ? "..." : ""
-    }
+          .join(", ")}${order.items.length > 3 ? "..." : ""}
       </div>
     `;
 
@@ -392,8 +439,15 @@ async function renderManagerOrders(orders) {
           pickerId,
           pickerName: picker?.displayName || picker?.email || "",
           status:
-            order.status === "completed" ? "completed" : order.status === "picking" ? "picking" : "assigned",
+            order.status === "completed"
+              ? "completed"
+              : order.status === "picking"
+              ? "picking"
+              : "assigned",
         });
+
+        // Listeyi yeniden yükleyelim
+        onManagerFilterChange();
       } catch (err) {
         console.error("Atama hatası:", err);
         alert("Toplayıcı atanırken hata oluştu.");
@@ -404,7 +458,6 @@ async function renderManagerOrders(orders) {
     actions.appendChild(assignBtn);
 
     card.appendChild(actions);
-
     ordersListEl.appendChild(card);
   }
 }
@@ -412,24 +465,28 @@ async function renderManagerOrders(orders) {
 // ============= PICKER: SİPARİŞLERİM =============
 function attachPickerListeners() {
   detachListeners();
-
   loadPickerOrdersOnce();
 }
 
 async function loadPickerOrdersOnce() {
   if (!currentUser) return;
 
-  const q = query(
-    collection(db, "orders"),
-    where("pickerId", "==", currentUser.uid)
-  );
+  try {
+    const qRef = query(
+      collection(db, "orders"),
+      where("pickerId", "==", currentUser.uid)
+    );
 
-  const snap = await getDocs(q);
-  const orders = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-  renderPickerOrders(orders);
+    const snap = await getDocs(qRef);
+    const orders = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    renderPickerOrders(orders);
+  } catch (err) {
+    console.error("Picker siparişleri yüklenemedi:", err);
+  }
 }
 
 function renderPickerOrders(orders) {
+  if (!pickerOrdersListEl) return;
   pickerOrdersListEl.innerHTML = "";
 
   if (!orders || !orders.length) {
@@ -437,6 +494,8 @@ function renderPickerOrders(orders) {
     empty.className = "empty-state";
     empty.textContent = "Size atanmış sipariş yok.";
     pickerOrdersListEl.appendChild(empty);
+    pickerOrderDetailEl.className = "order-detail empty-state";
+    pickerOrderDetailEl.textContent = "Sipariş seçiniz.";
     return;
   }
 
@@ -444,7 +503,8 @@ function renderPickerOrders(orders) {
     const card = document.createElement("div");
     card.className = "order-card";
 
-    const statusClass = `status-${order.status || "assigned"}`;
+    const status = order.status || "assigned";
+    const statusClass = `status-${status}`;
     const createdAt =
       order.createdAt && order.createdAt.toDate
         ? order.createdAt.toDate()
@@ -462,7 +522,7 @@ function renderPickerOrders(orders) {
           </div>
         </div>
         <div class="order-badge ${statusClass}">
-          ${order.status || "assigned"}
+          ${status}
         </div>
       </div>
       <div class="order-meta">
@@ -476,6 +536,12 @@ function renderPickerOrders(orders) {
     });
 
     pickerOrdersListEl.appendChild(card);
+  }
+
+  // Varsayılan olarak ilk siparişi aç
+  if (!activePickerOrder && orders.length) {
+    activePickerOrder = orders[0];
+    renderPickerOrderDetail();
   }
 }
 
@@ -516,7 +582,7 @@ function renderPickerOrderDetail() {
               <tr>
                 <td>${idx + 1}</td>
                 <td>${it.name}</td>
-                <td>${it.qty}</td>
+                <td>${it.qty} ${it.unit || ""}</td>
                 <td>${it.aisle || "-"}</td>
                 <td>
                   <input type="checkbox" data-index="${idx}" class="item-picked" ${checked} />
@@ -616,8 +682,6 @@ navButtons.forEach((btn) => {
 
 // ============= EVENT CLEANUP =============
 function detachListeners() {
-  // Şimdi sadece snapshot/polling yok, ama ileride onSnapshot eklersen
-  // burada unsubscribe edersin.
   if (unsubscribeOrders) {
     unsubscribeOrders();
     unsubscribeOrders = null;
