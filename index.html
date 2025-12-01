@@ -54,10 +54,7 @@
         const { useState, useEffect, useCallback } = React;
 
         // --- GEMINI API CONFIGURATION ---
-        const API_KEY = ""; // Buraya kendi Gemini API anahtarını gir
-        const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models/';
-        const GEMINI_MODEL_FLASH = 'gemini-2.5-flash-preview-09-2025';
-        const GEMINI_MODEL_TTS = 'gemini-2.5-flash-preview-tts';
+        // Stok Tahmini ve Sipariş Önerisi const handleStockSuggestion = async (item) => { setSuggestionItem(item); setSuggestionResult({ prediction: '', sources: [], purchaseQty: 0, leadTimeDays: 7 }); // Reset setSuggestionModalOpen(true); setSuggestionLoading(true); const daysUntilMin = Math.round((item.quantity - item.minLevel) / item.dailyAvgSale); const leadTime = 7; // Varsayılan tedarik süresi (gün) const targetStock = item.minLevel + (item.dailyAvgSale * (leadTime + 10)); // Min stok + bir miktar güvenlik stoğu const suggestedPurchase = Math.max(0, Math.ceil(targetStock - item.quantity));
 
         // --- ICON SET (Lucide Style) ---
         const Icons = {
