@@ -1,127 +1,517 @@
 <!DOCTYPE html>
 <html lang="tr">
 <head>
-  <meta charset="UTF-8" />
-  <title>Depo Sipariş PWA</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ProDepo - Depo Yönetim Sistemi</title>
+    
+    <!-- React ve ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <!-- Babel (JSX Derleyicisi) -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Tailwind CSS (Stil) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 
-  <link rel="stylesheet" href="style.css" />
-
-  <!-- PWA manifest -->
-  <link rel="manifest" href="manifest.webmanifest" />
-  <meta name="theme-color" content="#111827" />
-
-  <!-- Icons (optional) -->
-  <link rel="icon" type="image/png" href="icon-192.png" />
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f1f5f9; }
+        .fade-in { animation: fadeIn 0.3s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        
+        /* Özel Scrollbar */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    </style>
 </head>
 <body>
-  <header class="app-header">
-    <div class="app-title">
-      <span class="logo-box">📦</span>
-      <div>
-        <h1>Depo Sipariş Yönetimi</h1>
-        <p class="subtitle">Şube siparişleri · Toplama · Kontrol</p>
-      </div>
-    </div>
-    <div class="app-user">
-      <span id="userInfo"></span>
-      <button id="logoutBtn" class="btn-outline hidden">Çıkış</button>
-    </div>
-  </header>
+    <div id="root"></div>
 
-  <nav class="app-nav hidden" id="mainNav">
-    <button class="nav-btn" data-view="manager-view">Yönetici Paneli</button>
-    <button class="nav-btn" data-view="picker-view">Toplayıcı Paneli</button>
-  </nav>
+    <script type="text/babel">
+        const { useState, useEffect, useMemo } = React;
 
-  <main class="app-main">
-    <!-- LOGIN VIEW -->
-    <section id="login-view" class="view active">
-      <div class="card">
-        <h2>Giriş Yap</h2>
-        <form id="loginForm" class="form">
-          <label>
-            E-posta
-            <input type="email" id="loginEmail" required />
-          </label>
+        // --- İKONLAR (Inline SVG) ---
+        const Icons = {
+            Box: () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>,
+            Home: () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>,
+            List: () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>,
+            ArrowUp: () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></svg>,
+            ArrowDown: () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><polyline points="19 12 12 19 5 12"></polyline></svg>,
+            History: () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16.24 7.76a6 6 0 0 1 0 8.49m-8.48-.01a6 6 0 0 1 0-8.49m11.31-4.25a10 10 0 0 0-15.15 0m15.15 15.15a10 10 0 0 0-15.15 0"></path></svg>,
+            Plus: () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>,
+            Trash: () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>,
+            Alert: () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>,
+            Search: () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+        };
 
-          <label>
-            Şifre
-            <input type="password" id="loginPassword" required />
-          </label>
+        // --- YARDIMCI FONKSİYONLAR ---
+        const formatCurrency = (amount) => {
+            return new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY' }).format(amount);
+        };
 
-          <button type="submit" class="btn-primary full">Giriş</button>
-        </form>
-        <p class="hint">
-          Kullanıcılar Firestore'da <strong>users</strong> koleksiyonunda tutulur.
-          Rol: <code>manager</code> veya <code>picker</code>.
-        </p>
-      </div>
-    </section>
+        const generateId = () => Math.random().toString(36).substr(2, 9);
 
-    <!-- MANAGER VIEW -->
-    <section id="manager-view" class="view hidden">
-      <div class="grid-2">
-        <!-- Yeni Sipariş Oluşturma -->
-        <div class="card">
-          <h2>Yeni Sipariş Oluştur</h2>
-          <form id="createOrderForm" class="form">
-            <label>
-              Şube Adı
-              <input type="text" id="branchName" required placeholder="Örn: Eskişehir Şube" />
-            </label>
+        // --- SAMPLE DATA ---
+        const initialInventory = [
+            { id: '1', sku: 'LAP-001', name: 'Gaming Laptop X1', category: 'Elektronik', quantity: 15, minLevel: 5, price: 25000 },
+            { id: '2', sku: 'MOU-055', name: 'Kablosuz Mouse', category: 'Aksesuar', quantity: 4, minLevel: 10, price: 450 },
+            { id: '3', sku: 'KBD-102', name: 'Mekanik Klavye', category: 'Aksesuar', quantity: 22, minLevel: 8, price: 1200 },
+        ];
 
-            <div id="orderItemsContainer"></div>
+        // --- COMPONENTS ---
 
-            <button type="button" id="addItemBtn" class="btn-secondary small">
-              + Satır Ekle
-            </button>
+        // 1. Modal Component
+        const Modal = ({ isOpen, onClose, title, children }) => {
+            if (!isOpen) return null;
+            return (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-lg shadow-xl w-full max-w-md overflow-hidden fade-in">
+                        <div className="flex justify-between items-center p-4 border-b">
+                            <h3 className="text-lg font-semibold text-gray-800">{title}</h3>
+                            <button onClick={onClose} className="text-gray-500 hover:text-gray-700">&times;</button>
+                        </div>
+                        <div className="p-4">{children}</div>
+                    </div>
+                </div>
+            );
+        };
 
-            <button type="submit" class="btn-primary full" style="margin-top: 12px;">
-              Siparişi Kaydet
-            </button>
-          </form>
-        </div>
+        // 2. Stat Card
+        const StatCard = ({ title, value, icon, color }) => (
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex items-center">
+                <div className={`p-3 rounded-full ${color} mr-4`}>
+                    {icon}
+                </div>
+                <div>
+                    <p className="text-sm text-gray-500 font-medium">{title}</p>
+                    <h4 className="text-2xl font-bold text-gray-800">{value}</h4>
+                </div>
+            </div>
+        );
 
-        <!-- Sipariş Listesi -->
-        <div class="card">
-          <div class="card-header-row">
-            <h2>Siparişler</h2>
-            <select id="orderStatusFilter" class="input">
-              <option value="all">Tümü</option>
-              <option value="new">Yeni</option>
-              <option value="assigned">Atanmış</option>
-              <option value="picking">Toplanıyor</option>
-              <option value="completed">Tamamlandı</option>
-            </select>
-          </div>
+        // --- MAIN APP COMPONENT ---
+        const App = () => {
+            const [view, setView] = useState('dashboard'); // dashboard, inventory, transactions
+            const [inventory, setInventory] = useState(() => {
+                const saved = localStorage.getItem('prodepo_inventory');
+                return saved ? JSON.parse(saved) : initialInventory;
+            });
+            const [transactions, setTransactions] = useState(() => {
+                const saved = localStorage.getItem('prodepo_transactions');
+                return saved ? JSON.parse(saved) : [];
+            });
 
-          <div id="ordersList" class="list"></div>
-        </div>
-      </div>
-    </section>
+            // Form States
+            const [isAddModalOpen, setAddModalOpen] = useState(false);
+            const [isTransModalOpen, setTransModalOpen] = useState(false);
+            const [selectedItem, setSelectedItem] = useState(null);
+            const [searchTerm, setSearchTerm] = useState("");
+            
+            const [newItem, setNewItem] = useState({ sku: '', name: '', category: '', quantity: 0, minLevel: 5, price: 0 });
+            const [transData, setTransData] = useState({ type: 'in', quantity: 1, note: '' });
 
-    <!-- PICKER VIEW -->
-    <section id="picker-view" class="view hidden">
-      <div class="card">
-        <h2>Toplanacak Siparişlerim</h2>
-        <div id="pickerOrdersList" class="list"></div>
-      </div>
+            // Persistence
+            useEffect(() => {
+                localStorage.setItem('prodepo_inventory', JSON.stringify(inventory));
+                localStorage.setItem('prodepo_transactions', JSON.stringify(transactions));
+            }, [inventory, transactions]);
 
-      <div class="card">
-        <h2>Sipariş Detayı</h2>
-        <div id="pickerOrderDetail" class="order-detail empty-state">
-          Sipariş seçiniz.
-        </div>
-      </div>
-    </section>
-  </main>
+            // Derived Data
+            const totalValue = inventory.reduce((acc, item) => acc + (item.price * item.quantity), 0);
+            const lowStockItems = inventory.filter(item => item.quantity <= item.minLevel);
+            const totalItems = inventory.length;
 
-  <footer class="app-footer">
-    <small>Depo PWA · Murat Demir için özel yapı ✌️</small>
-  </footer>
+            // Handlers
+            const handleAddItem = (e) => {
+                e.preventDefault();
+                const item = { ...newItem, id: generateId(), quantity: Number(newItem.quantity), price: Number(newItem.price), minLevel: Number(newItem.minLevel) };
+                setInventory([...inventory, item]);
+                setNewItem({ sku: '', name: '', category: '', quantity: 0, minLevel: 5, price: 0 });
+                setAddModalOpen(false);
+                
+                // Add Initial Log
+                addTransaction(item.id, item.name, item.quantity, 'in', 'Yeni ürün girişi');
+            };
 
-  <!-- Uygulama scriptleri -->
-  <script type="module" src="app.js"></script>
+            const handleDeleteItem = (id) => {
+                if(confirm('Bu ürünü silmek istediğinize emin misiniz?')) {
+                    setInventory(inventory.filter(i => i.id !== id));
+                }
+            };
+
+            const openTransactionModal = (item) => {
+                setSelectedItem(item);
+                setTransData({ type: 'in', quantity: 1, note: '' });
+                setTransModalOpen(true);
+            };
+
+            const handleTransaction = (e) => {
+                e.preventDefault();
+                if (!selectedItem) return;
+
+                const qty = Number(transData.quantity);
+                const isOut = transData.type === 'out';
+                
+                if (isOut && selectedItem.quantity < qty) {
+                    alert('Yetersiz stok!');
+                    return;
+                }
+
+                const updatedInventory = inventory.map(item => {
+                    if (item.id === selectedItem.id) {
+                        return {
+                            ...item,
+                            quantity: isOut ? item.quantity - qty : item.quantity + qty
+                        };
+                    }
+                    return item;
+                });
+
+                setInventory(updatedInventory);
+                addTransaction(selectedItem.id, selectedItem.name, qty, transData.type, transData.note || 'İşlem notu yok');
+                setTransModalOpen(false);
+            };
+
+            const addTransaction = (itemId, itemName, qty, type, note) => {
+                const newTrans = {
+                    id: generateId(),
+                    itemId,
+                    itemName,
+                    type, // 'in' or 'out'
+                    quantity: qty,
+                    date: new Date().toISOString(),
+                    note
+                };
+                setTransactions([newTrans, ...transactions]);
+            };
+
+            // Views
+            const renderDashboard = () => (
+                <div className="space-y-6 fade-in">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <StatCard 
+                            title="Toplam Stok Değeri" 
+                            value={formatCurrency(totalValue)} 
+                            icon={<Icons.Box className="text-blue-600" />} 
+                            color="bg-blue-100" 
+                        />
+                        <StatCard 
+                            title="Toplam Ürün Çeşidi" 
+                            value={totalItems} 
+                            icon={<Icons.List className="text-emerald-600" />} 
+                            color="bg-emerald-100" 
+                        />
+                        <StatCard 
+                            title="Kritik Stok Uyarısı" 
+                            value={lowStockItems.length} 
+                            icon={<Icons.Alert className="text-red-600" />} 
+                            color="bg-red-100" 
+                        />
+                    </div>
+
+                    {lowStockItems.length > 0 && (
+                        <div className="bg-red-50 border border-red-200 rounded-xl p-6">
+                            <h3 className="text-red-800 font-bold flex items-center mb-4">
+                                <Icons.Alert className="mr-2" /> Kritik Stok Seviyesindeki Ürünler
+                            </h3>
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left">
+                                    <thead>
+                                        <tr className="text-red-700 border-b border-red-200">
+                                            <th className="pb-2">Ürün Adı</th>
+                                            <th className="pb-2">SKU</th>
+                                            <th className="pb-2">Mevcut</th>
+                                            <th className="pb-2">Min. Seviye</th>
+                                            <th className="pb-2">Aksiyon</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {lowStockItems.map(item => (
+                                            <tr key={item.id} className="text-red-900">
+                                                <td className="py-2">{item.name}</td>
+                                                <td className="py-2 font-mono text-sm">{item.sku}</td>
+                                                <td className="py-2 font-bold">{item.quantity}</td>
+                                                <td className="py-2">{item.minLevel}</td>
+                                                <td className="py-2">
+                                                    <button 
+                                                        onClick={() => openTransactionModal(item)}
+                                                        className="bg-red-100 hover:bg-red-200 text-red-800 px-3 py-1 rounded text-sm transition"
+                                                    >
+                                                        Stok Ekle
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+
+            const renderInventory = () => (
+                <div className="space-y-4 fade-in">
+                    <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+                        <div className="relative w-full md:w-96">
+                            <span className="absolute left-3 top-3 text-gray-400">
+                                <Icons.Search />
+                            </span>
+                            <input 
+                                type="text" 
+                                placeholder="Ürün adı, SKU veya kategori ara..." 
+                                className="w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                            />
+                        </div>
+                        <button 
+                            onClick={() => setAddModalOpen(true)}
+                            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center transition shadow-lg shadow-blue-500/30"
+                        >
+                            <span className="mr-2"><Icons.Plus size={18} /></span> Yeni Ürün
+                        </button>
+                    </div>
+
+                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left">
+                                <thead className="bg-slate-50 text-slate-600 font-medium">
+                                    <tr>
+                                        <th className="p-4">SKU</th>
+                                        <th className="p-4">Ürün Adı</th>
+                                        <th className="p-4">Kategori</th>
+                                        <th className="p-4">Fiyat</th>
+                                        <th className="p-4">Stok</th>
+                                        <th className="p-4 text-center">Durum</th>
+                                        <th className="p-4 text-right">İşlemler</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100">
+                                    {inventory.filter(item => 
+                                        item.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                                        item.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                                        item.category.toLowerCase().includes(searchTerm.toLowerCase())
+                                    ).map(item => (
+                                        <tr key={item.id} className="hover:bg-slate-50 transition">
+                                            <td className="p-4 font-mono text-sm text-slate-500">{item.sku}</td>
+                                            <td className="p-4 font-medium text-slate-800">{item.name}</td>
+                                            <td className="p-4 text-slate-600"><span className="bg-slate-100 px-2 py-1 rounded text-xs">{item.category}</span></td>
+                                            <td className="p-4 text-slate-600">{formatCurrency(item.price)}</td>
+                                            <td className="p-4 font-bold text-slate-700">{item.quantity}</td>
+                                            <td className="p-4 text-center">
+                                                {item.quantity <= item.minLevel ? 
+                                                    <span className="bg-red-100 text-red-700 px-2 py-1 rounded-full text-xs font-semibold">Kritik</span> : 
+                                                    <span className="bg-green-100 text-green-700 px-2 py-1 rounded-full text-xs font-semibold">İyi</span>
+                                                }
+                                            </td>
+                                            <td className="p-4 text-right space-x-2">
+                                                <button 
+                                                    onClick={() => openTransactionModal(item)}
+                                                    className="text-blue-600 hover:text-blue-800 p-1 bg-blue-50 rounded hover:bg-blue-100 transition" 
+                                                    title="Stok Hareketi"
+                                                >
+                                                    <Icons.Box size={18} />
+                                                </button>
+                                                <button 
+                                                    onClick={() => handleDeleteItem(item.id)}
+                                                    className="text-red-500 hover:text-red-700 p-1 bg-red-50 rounded hover:bg-red-100 transition"
+                                                    title="Sil"
+                                                >
+                                                    <Icons.Trash size={18} />
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                            {inventory.length === 0 && <div className="p-8 text-center text-gray-500">Henüz ürün eklenmemiş.</div>}
+                        </div>
+                    </div>
+                </div>
+            );
+
+            const renderTransactions = () => (
+                <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden fade-in">
+                    <div className="p-4 border-b border-slate-100 bg-slate-50">
+                        <h3 className="font-semibold text-slate-700">Son Hareketler</h3>
+                    </div>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left">
+                            <thead className="bg-slate-50 text-slate-600 font-medium">
+                                <tr>
+                                    <th className="p-4">Tarih</th>
+                                    <th className="p-4">İşlem Türü</th>
+                                    <th className="p-4">Ürün</th>
+                                    <th className="p-4">Miktar</th>
+                                    <th className="p-4">Not</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                                {transactions.map(t => (
+                                    <tr key={t.id} className="hover:bg-slate-50">
+                                        <td className="p-4 text-sm text-slate-500">{new Date(t.date).toLocaleString('tr-TR')}</td>
+                                        <td className="p-4">
+                                            {t.type === 'in' ? 
+                                                <span className="flex items-center text-green-600 bg-green-50 px-2 py-1 rounded w-max text-xs font-bold"><Icons.ArrowDown className="mr-1 w-3 h-3"/> GİRİŞ</span> : 
+                                                <span className="flex items-center text-orange-600 bg-orange-50 px-2 py-1 rounded w-max text-xs font-bold"><Icons.ArrowUp className="mr-1 w-3 h-3"/> ÇIKIŞ</span>
+                                            }
+                                        </td>
+                                        <td className="p-4 font-medium text-slate-700">{t.itemName}</td>
+                                        <td className="p-4 font-mono font-bold">{t.quantity}</td>
+                                        <td className="p-4 text-slate-500 text-sm italic">{t.note}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                        {transactions.length === 0 && <div className="p-8 text-center text-gray-500">Henüz işlem kaydı yok.</div>}
+                    </div>
+                </div>
+            );
+
+            return (
+                <div className="flex h-screen overflow-hidden bg-slate-50">
+                    {/* Sidebar */}
+                    <aside className="w-64 bg-slate-900 text-white flex-col hidden md:flex shadow-xl z-20">
+                        <div className="p-6 border-b border-slate-800">
+                            <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+                                <span className="text-blue-500"><Icons.Box /></span> ProDepo
+                            </h1>
+                            <p className="text-xs text-slate-400 mt-1">Otomasyon Sistemi v1.0</p>
+                        </div>
+                        <nav className="flex-1 p-4 space-y-2">
+                            <button onClick={() => setView('dashboard')} className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition ${view === 'dashboard' ? 'bg-blue-600 text-white' : 'text-slate-300 hover:bg-slate-800'}`}>
+                                <Icons.Home /> <span>Gösterge Paneli</span>
+                            </button>
+                            <button onClick={() => setView('inventory')} className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition ${view === 'inventory' ? 'bg-blue-600 text-white' : 'text-slate-300 hover:bg-slate-800'}`}>
+                                <Icons.List /> <span>Stok Listesi</span>
+                            </button>
+                            <button onClick={() => setView('transactions')} className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition ${view === 'transactions' ? 'bg-blue-600 text-white' : 'text-slate-300 hover:bg-slate-800'}`}>
+                                <Icons.History /> <span>Hareket Geçmişi</span>
+                            </button>
+                        </nav>
+                        <div className="p-4 border-t border-slate-800 text-center text-xs text-slate-500">
+                            &copy; 2024 Depo Otomasyonu
+                        </div>
+                    </aside>
+
+                    {/* Mobile Header */}
+                    <div className="flex-1 flex flex-col h-screen overflow-hidden">
+                        <header className="md:hidden bg-slate-900 text-white p-4 flex justify-between items-center shadow-md">
+                            <span className="font-bold flex gap-2"><Icons.Box /> ProDepo</span>
+                            <div className="flex space-x-4">
+                                <button onClick={() => setView('dashboard')} className={view === 'dashboard' ? 'text-blue-400' : 'text-gray-400'}><Icons.Home /></button>
+                                <button onClick={() => setView('inventory')} className={view === 'inventory' ? 'text-blue-400' : 'text-gray-400'}><Icons.List /></button>
+                                <button onClick={() => setView('transactions')} className={view === 'transactions' ? 'text-blue-400' : 'text-gray-400'}><Icons.History /></button>
+                            </div>
+                        </header>
+
+                        {/* Main Content */}
+                        <main className="flex-1 overflow-y-auto p-4 md:p-8 bg-slate-50">
+                            <div className="max-w-6xl mx-auto">
+                                <div className="mb-6 flex justify-between items-end">
+                                    <div>
+                                        <h2 className="text-2xl font-bold text-slate-800 capitalize">
+                                            {view === 'dashboard' ? 'Gösterge Paneli' : 
+                                             view === 'inventory' ? 'Stok Yönetimi' : 'Hareket Geçmişi'}
+                                        </h2>
+                                        <p className="text-slate-500 text-sm">Depo durumunu anlık takip edin.</p>
+                                    </div>
+                                    <div className="text-sm text-slate-400 hidden md:block">
+                                        {new Date().toLocaleDateString('tr-TR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                                    </div>
+                                </div>
+                                {view === 'dashboard' && renderDashboard()}
+                                {view === 'inventory' && renderInventory()}
+                                {view === 'transactions' && renderTransactions()}
+                            </div>
+                        </main>
+                    </div>
+
+                    {/* Modals */}
+                    
+                    {/* Ürün Ekleme Modalı */}
+                    <Modal isOpen={isAddModalOpen} onClose={() => setAddModalOpen(false)} title="Yeni Ürün Ekle">
+                        <form onSubmit={handleAddItem} className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700">Ürün Adı</label>
+                                <input required type="text" className="mt-1 block w-full border rounded-md p-2" value={newItem.name} onChange={e => setNewItem({...newItem, name: e.target.value})} />
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700">SKU (Kod)</label>
+                                    <input required type="text" className="mt-1 block w-full border rounded-md p-2" value={newItem.sku} onChange={e => setNewItem({...newItem, sku: e.target.value})} />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700">Kategori</label>
+                                    <input required type="text" className="mt-1 block w-full border rounded-md p-2" value={newItem.category} onChange={e => setNewItem({...newItem, category: e.target.value})} />
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700">Başlangıç Stoğu</label>
+                                    <input required type="number" min="0" className="mt-1 block w-full border rounded-md p-2" value={newItem.quantity} onChange={e => setNewItem({...newItem, quantity: e.target.value})} />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700">Min. Kritik Seviye</label>
+                                    <input required type="number" min="1" className="mt-1 block w-full border rounded-md p-2" value={newItem.minLevel} onChange={e => setNewItem({...newItem, minLevel: e.target.value})} />
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700">Birim Fiyat (TL)</label>
+                                <input required type="number" min="0" step="0.01" className="mt-1 block w-full border rounded-md p-2" value={newItem.price} onChange={e => setNewItem({...newItem, price: e.target.value})} />
+                            </div>
+                            <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded transition">
+                                Kaydet ve Ekle
+                            </button>
+                        </form>
+                    </Modal>
+
+                    {/* Stok Hareketi Modalı */}
+                    <Modal isOpen={isTransModalOpen} onClose={() => setTransModalOpen(false)} title="Stok Hareketi İşle">
+                        <form onSubmit={handleTransaction} className="space-y-4">
+                            <div className="p-3 bg-slate-50 rounded mb-4">
+                                <p className="text-sm text-gray-500">Seçilen Ürün:</p>
+                                <p className="font-bold text-gray-800">{selectedItem?.name}</p>
+                                <p className="text-xs text-gray-500">Mevcut Stok: {selectedItem?.quantity}</p>
+                            </div>
+                            
+                            <div className="flex space-x-4 mb-4">
+                                <button type="button" onClick={() => setTransData({...transData, type: 'in'})} className={`flex-1 py-2 rounded text-center font-semibold border ${transData.type === 'in' ? 'bg-green-100 border-green-500 text-green-700' : 'border-gray-200 text-gray-600'}`}>
+                                    Giriş (Mal Kabul)
+                                </button>
+                                <button type="button" onClick={() => setTransData({...transData, type: 'out'})} className={`flex-1 py-2 rounded text-center font-semibold border ${transData.type === 'out' ? 'bg-orange-100 border-orange-500 text-orange-700' : 'border-gray-200 text-gray-600'}`}>
+                                    Çıkış (Sevk)
+                                </button>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700">Miktar</label>
+                                <input required type="number" min="1" className="mt-1 block w-full border rounded-md p-2 text-lg font-bold" value={transData.quantity} onChange={e => setTransData({...transData, quantity: e.target.value})} />
+                            </div>
+                            
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700">İşlem Notu / Açıklama</label>
+                                <input type="text" className="mt-1 block w-full border rounded-md p-2" placeholder="Örn: Fatura No 12345" value={transData.note} onChange={e => setTransData({...transData, note: e.target.value})} />
+                            </div>
+
+                            <button type="submit" className={`w-full font-bold py-2 px-4 rounded transition text-white ${transData.type === 'in' ? 'bg-green-600 hover:bg-green-700' : 'bg-orange-600 hover:bg-orange-700'}`}>
+                                İşlemi Onayla
+                            </button>
+                        </form>
+                    </Modal>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
 </body>
 </html>
