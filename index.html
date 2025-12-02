@@ -4,12 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sesli Envanter Takip Uygulaması</title>
+
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
+
     <style>
-        /* Inter font for modern look */
         body { font-family: 'Inter', sans-serif; }
-        /* Özel stil: Okunuyor butonu için animasyon */
+
+        /* Okunuyor butonu animasyonu */
         .speaking {
             animation: pulse-ring 1s cubic-bezier(0.68, -0.55, 0.27, 1.55) infinite;
         }
@@ -32,14 +34,32 @@
         <div class="bg-white p-6 rounded-xl shadow-lg mb-8">
             <h2 class="text-2xl font-semibold mb-4 text-gray-700">Yeni Ürün Ekle</h2>
             <form id="add-item-form" class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <input type="text" id="name" placeholder="Ürün Adı (Örn: Mavi Gömlek)" required
-                       class="p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 col-span-1 md:col-span-1">
-                <input type="number" id="quantity" placeholder="Stok Adedi (Örn: 50)" required min="1"
-                       class="p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
-                <textarea id="description" placeholder="Açıklama (Örn: %100 pamuk, yazlık model)" rows="1" required
-                          class="p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 md:col-span-2"></textarea>
-                <button type="submit"
-                        class="col-span-1 md:col-span-1 bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg transition duration-200 shadow-md">
+                <input
+                    type="text"
+                    id="name"
+                    placeholder="Ürün Adı (Örn: Mavi Gömlek)"
+                    required
+                    class="p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 col-span-1 md:col-span-1"
+                />
+                <input
+                    type="number"
+                    id="quantity"
+                    placeholder="Stok Adedi (Örn: 50)"
+                    required
+                    min="1"
+                    class="p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                />
+                <textarea
+                    id="description"
+                    placeholder="Açıklama (Örn: %100 pamuk, yazlık model)"
+                    rows="1"
+                    required
+                    class="p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 md:col-span-2"
+                ></textarea>
+                <button
+                    type="submit"
+                    class="col-span-1 md:col-span-1 bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg transition duration-200 shadow-md"
+                >
                     Envantere Ekle
                 </button>
             </form>
@@ -47,7 +67,9 @@
 
         <!-- Envanter Listesi -->
         <div class="bg-white p-6 rounded-xl shadow-lg">
-            <h2 class="text-2xl font-semibold mb-4 text-gray-700">Mevcut Envanter (<span id="item-count">0</span> Ürün)</h2>
+            <h2 class="text-2xl font-semibold mb-4 text-gray-700">
+                Mevcut Envanter (<span id="item-count">0</span> Ürün)
+            </h2>
             <div id="inventory-list" class="space-y-4">
                 <!-- Envanter öğeleri buraya eklenecek -->
             </div>
@@ -57,315 +79,466 @@
         </div>
 
         <!-- Genel Hata/Mesaj Kutusu -->
-        <div id="message-box" class="fixed bottom-4 right-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-xl shadow-xl hidden" role="alert">
+        <div
+            id="message-box"
+            class="fixed bottom-4 right-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-xl shadow-xl hidden"
+            role="alert"
+        >
             <span id="message-text" class="block sm:inline"></span>
-            <span class="absolute top-0 bottom-0 right-0 px-4 py-3 cursor-pointer" onclick="document.getElementById('message-box').classList.add('hidden')">
-                <svg class="fill-current h-6 w-6 text-red-500" role="button" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><title>Kapat</title><path d="M14.348 14.849a1.002 1.002 0 01-1.414 0L10 11.414l-2.934 2.935a1.002 1.002 0 11-1.414-1.414l2.934-2.935-2.934-2.935a1.002 1.002 0 011.414-1.414l2.934 2.935 2.934-2.935a1.002 1.002 0 011.414 1.414l-2.934 2.935 2.934 2.935a1.002 1.002 0 010 1.414z"/></svg>
+            <span
+                class="absolute top-0 bottom-0 right-0 px-4 py-3 cursor-pointer"
+                onclick="document.getElementById('message-box').classList.add('hidden')"
+            >
+                <svg
+                    class="fill-current h-6 w-6 text-red-500"
+                    role="button"
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 20 20"
+                >
+                    <title>Kapat</title>
+                    <path
+                        d="M14.348 14.849a1.002 1.002 0 01-1.414 0L10 11.414l-2.934 2.935a1.002 1.002 0 11-1.414-1.414l2.934-2.935-2.934-2.935a1.002 1.002 0 011.414-1.414l2.934 2.935 2.934-2.935a1.002 1.002 0 011.414 1.414l-2.934 2.935 2.934 2.935a1.002 1.002 0 010 1.414z"
+                    />
+                </svg>
             </span>
         </div>
-
     </div>
 
     <script type="module">
-        // Firestore için gerekli global değişkenler
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+        // --------------------------------------------------------------------
+        // 0) Ortam (Canvas / Host) Değişkenleri
+        // --------------------------------------------------------------------
+        const appId =
+            typeof window.__app_id !== "undefined" ? window.__app_id : "default-app-id";
+        const firebaseConfig =
+            typeof window.__firebase_config !== "undefined"
+                ? JSON.parse(window.__firebase_config)
+                : null;
 
-        // Firebase ve Firestore modüllerini içe aktar
+        // --------------------------------------------------------------------
+        // 1) Firebase & Firestore Import
+        // --------------------------------------------------------------------
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import {
+            getAuth,
+            signInAnonymously,
+            signInWithCustomToken,
+            onAuthStateChanged,
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import {
+            getFirestore,
+            collection,
+            onSnapshot,
+            addDoc,
+            deleteDoc,
+            doc,
+            setLogLevel,
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-
-        // Uygulama başlatma değişkenleri
-        let app, db, auth, userId = null;
+        // --------------------------------------------------------------------
+        // 2) Uygulama Durum Değişkenleri
+        // --------------------------------------------------------------------
+        let app, db, auth;
+        let userId = null;
         let isAuthReady = false;
         const INVENTORY_COLLECTION = "inventory_items";
 
-        // DOM Elementleri
-        const form = document.getElementById('add-item-form');
-        const inventoryList = document.getElementById('inventory-list');
-        const emptyMessage = document.getElementById('empty-message');
-        const itemCount = document.getElementById('item-count');
+        // DOM referansları
+        const form = document.getElementById("add-item-form");
+        const inventoryList = document.getElementById("inventory-list");
+        const emptyMessage = document.getElementById("empty-message");
+        const itemCount = document.getElementById("item-count");
 
-        // Mesaj kutusu işlevi
+        // --------------------------------------------------------------------
+        // 3) Mesaj Kutusu Yardımcı Fonksiyonu
+        // --------------------------------------------------------------------
         function showMessage(text, isError = false) {
-            const box = document.getElementById('message-box');
-            const messageText = document.getElementById('message-text');
+            const box = document.getElementById("message-box");
+            const messageText = document.getElementById("message-text");
 
             messageText.textContent = text;
-            box.classList.remove('hidden', 'bg-red-100', 'bg-green-100', 'border-red-400', 'border-green-400', 'text-red-700', 'text-green-700');
+            box.classList.remove(
+                "hidden",
+                "bg-red-100",
+                "bg-green-100",
+                "border-red-400",
+                "border-green-400",
+                "text-red-700",
+                "text-green-700"
+            );
 
             if (isError) {
-                box.classList.add('bg-red-100', 'border-red-400', 'text-red-700');
+                box.classList.add("bg-red-100", "border-red-400", "text-red-700");
             } else {
-                box.classList.add('bg-green-100', 'border-green-400', 'text-green-700');
+                box.classList.add("bg-green-100", "border-green-400", "text-green-700");
             }
 
-            // 5 saniye sonra otomatik gizle
-            setTimeout(() => box.classList.add('hidden'), 5000);
+            setTimeout(() => box.classList.add("hidden"), 5000);
         }
 
-        // 1. Firebase Başlatma ve Kimlik Doğrulama
+        // --------------------------------------------------------------------
+        // 4) Firebase Başlatma ve Kimlik Doğrulama
+        // --------------------------------------------------------------------
         async function initializeFirebase() {
             if (!firebaseConfig) {
-                showMessage("Hata: Firebase yapılandırması eksik. Uygulama başlatılamadı.", true);
+                showMessage(
+                    "Hata: Firebase yapılandırması eksik. Uygulama başlatılamadı.",
+                    true
+                );
                 return;
             }
 
             try {
-                // Hata ayıklama loglarını aç
-                setLogLevel('Debug');
+                // Firestore log seviyesi
+                setLogLevel("debug");
+
                 app = initializeApp(firebaseConfig);
                 db = getFirestore(app);
-                auth = getAuth(app); // Auth objesini başlat
+                auth = getAuth(app);
 
-                // Kimlik doğrulama işlemi (tek seferlik giriş denemesi)
+                // Auth denemesi
                 try {
-                    const userIdElement = document.getElementById('current-user-id');
+                    const token = window.__initial_auth_token;
+                    const userIdElement = document.getElementById("current-user-id");
                     if (userIdElement) {
-                        userIdElement.textContent = 'Oturum Açılıyor...';
+                        userIdElement.textContent = "Oturum Açılıyor...";
                     }
 
-                    if (typeof __initial_auth_token !== 'undefined') {
-                        await signInWithCustomToken(auth, __initial_auth_token);
+                    if (typeof token === "string" && token.length > 0) {
+                        await signInWithCustomToken(auth, token);
                     } else {
                         await signInAnonymously(auth);
                     }
-                    // Başarılı olursa onAuthStateChanged tetiklenecektir.
-
                 } catch (authError) {
                     console.error("Oturum Açma Hatası:", authError);
-                    showMessage("Oturum açılırken bir hata oluştu. Envanter yüklenemeyebilir.", true);
+                    showMessage(
+                        "Oturum açılırken bir hata oluştu. Envanter yüklenemeyebilir.",
+                        true
+                    );
                 }
 
-
-                // Kimlik doğrulama durumu değiştiğinde tetiklenir
+                // Auth durumu dinleme
                 onAuthStateChanged(auth, (user) => {
-                    const userIdElement = document.getElementById('current-user-id');
-                    
+                    const userIdElement = document.getElementById("current-user-id");
+
                     if (user) {
                         userId = user.uid;
                         isAuthReady = true;
-                        // Kullanıcı kimliği doğrulandıktan sonra veritabanı dinlemesini başlat
-                        listenToInventory();
-                        showMessage(`Oturum açıldı. Kullanıcı ID: ${userId}`, false);
-                        
-                        // ID'yi ekranda göster
+
                         if (userIdElement) {
                             userIdElement.textContent = user.uid;
                         }
+
+                        listenToInventory();
+                        showMessage(`Oturum açıldı. Kullanıcı ID: ${userId}`, false);
                     } else {
-                        // Oturum açma denemesi başarısız olduysa veya kullanıcı çıkış yaptıysa
                         userId = null;
                         isAuthReady = false;
-                         if (userIdElement) {
-                            userIdElement.textContent = 'Anonim Giriş Yapılamadı/Bekleniyor...';
+                        if (userIdElement) {
+                            userIdElement.textContent =
+                                "Anonim Giriş Yapılamadı/Bekleniyor...";
                         }
                     }
                 });
-
             } catch (error) {
                 console.error("Firebase Başlatma Hatası:", error);
-                showMessage("Uygulama başlatılırken kritik bir hata oluştu.", true);
+                showMessage(
+                    "Uygulama başlatılırken kritik bir hata oluştu.",
+                    true
+                );
             }
         }
 
-        // 2. Envanteri Dinleme (Real-time)
+        // Kullanıcıya özel koleksiyon referansı
+        function getUserInventoryRef() {
+            if (!db || !userId) return null;
+            const basePath = `artifacts/${appId}/users/${userId}`;
+            return collection(db, `${basePath}/${INVENTORY_COLLECTION}`);
+        }
+
+        // --------------------------------------------------------------------
+        // 5) Envanteri Dinleme (Real-time Snapshot)
+        // --------------------------------------------------------------------
         function listenToInventory() {
             if (!isAuthReady || !userId) return;
 
-            // Özel koleksiyon yolu: /artifacts/{appId}/users/{userId}/inventory_items
-            const userInventoryRef = collection(db, `artifacts/${appId}/users/${userId}/${INVENTORY_COLLECTION}`);
+            const userInventoryRef = getUserInventoryRef();
+            if (!userInventoryRef) return;
 
-            onSnapshot(userInventoryRef, (snapshot) => {
-                const items = [];
-                snapshot.forEach(doc => {
-                    items.push({ id: doc.id, ...doc.data() });
-                });
+            onSnapshot(
+                userInventoryRef,
+                (snapshot) => {
+                    const items = [];
+                    snapshot.forEach((d) => items.push({ id: d.id, ...d.data() }));
 
-                // Verileri stok miktarına göre JavaScript'te sırala (Firestore'da orderBy kullanmaktan kaçınmak için)
-                items.sort((a, b) => b.quantity - a.quantity);
+                    // Stoka göre sırala (büyükten küçüğe)
+                    items.sort((a, b) => (b.quantity || 0) - (a.quantity || 0));
 
-                renderInventory(items);
-            }, (error) => {
-                console.error("Envanter Dinleme Hatası:", error);
-                showMessage("Envanter yüklenirken bir sorun oluştu.", true);
-            });
+                    renderInventory(items);
+                },
+                (error) => {
+                    console.error("Envanter Dinleme Hatası:", error);
+                    showMessage(
+                        "Envanter yüklenirken bir sorun oluştu.",
+                        true
+                    );
+                }
+            );
         }
 
-        // 3. Envanteri Ekrana Çizme (Render)
+        // --------------------------------------------------------------------
+        // 6) Envanteri DOM'a Render Etme
+        // --------------------------------------------------------------------
         function renderInventory(items) {
-            inventoryList.innerHTML = ''; // Listeyi temizle
+            inventoryList.innerHTML = "";
             itemCount.textContent = items.length;
 
             if (items.length === 0) {
-                emptyMessage.classList.remove('hidden');
-            } else {
-                emptyMessage.classList.add('hidden');
-                items.forEach(item => {
-                    // Stok seviyesine göre renk belirleme
-                    let stockClass = '';
-                    if (item.quantity <= 10) {
-                        stockClass = 'text-red-600 font-bold'; // Kritik seviye
-                    } else if (item.quantity <= 50) {
-                        stockClass = 'text-yellow-600'; // Orta seviye
-                    } else {
-                        stockClass = 'text-blue-600'; // Yüksek seviye
-                    }
-                    
-                    const itemElement = document.createElement('div');
-                    itemElement.className = "bg-gray-50 p-4 rounded-xl shadow-md flex flex-col sm:flex-row justify-between items-start sm:items-center transition duration-150 hover:bg-gray-100";
-                    itemElement.innerHTML = `
-                        <div class="flex-grow mb-3 sm:mb-0">
-                            <p class="text-lg font-bold text-gray-900">${item.name} <span class="text-sm font-normal text-gray-500">(${item.id.substring(0, 5)}...)</span></p>
-                            <p class="text-sm text-gray-600 truncate max-w-xs">${item.description}</p>
-                            <p class="text-xs ${stockClass} mt-1">Stok: ${item.quantity}</p>
-                        </div>
-                        <div class="flex space-x-2">
-                            <button data-id="${item.id}" data-text="${item.description}" class="speak-btn bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg flex items-center transition duration-200 text-sm">
-                                <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9c2.5 2.5 2.5 6.566 0 9.066m-2.83-12.728a9 9 0 0112.728 0m-2.828 9.9c2.5 2.5 2.5 6.566 0 9.066M13.414 7.586a2 2 0 10-2.828 2.828L15 14.121l-3.536 3.536a2 2 0 102.828 2.828L17.828 17l-3.535-3.535a2 2 0 10-2.828-2.828zM10 6.5a.5.5 0 00-1 0v7a.5.5 0 001 0v-7z"></path></svg>
-                                Açıklamayı Dinle
-                            </button>
-                            <button data-id="${item.id}" class="delete-btn bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-4 rounded-lg text-sm transition duration-200">
-                                Sil
-                            </button>
-                        </div>
-                    `;
-                    inventoryList.appendChild(itemElement);
-                });
-            }
-        }
-
-        // 4. Yeni Ürün Ekleme
-        form.addEventListener('submit', async (e) => {
-            e.preventDefault();
-
-            if (!isAuthReady || !userId) {
-                showMessage("Lütfen kimlik doğrulamanın tamamlanmasını bekleyin.", true);
+                emptyMessage.classList.remove("hidden");
                 return;
             }
 
-            const name = document.getElementById('name').value.trim();
-            const quantity = parseInt(document.getElementById('quantity').value, 10);
-            const description = document.getElementById('description').value.trim();
+            emptyMessage.classList.add("hidden");
+
+            items.forEach((item) => {
+                let stockClass = "";
+                if (item.quantity <= 10) {
+                    stockClass = "text-red-600 font-bold"; // Kritik
+                } else if (item.quantity <= 50) {
+                    stockClass = "text-yellow-600"; // Orta
+                } else {
+                    stockClass = "text-blue-600"; // İyi
+                }
+
+                const wrapper = document.createElement("div");
+                wrapper.className =
+                    "bg-gray-50 p-4 rounded-xl shadow-md flex flex-col sm:flex-row justify-between items-start sm:items-center transition duration-150 hover:bg-gray-100";
+
+                wrapper.innerHTML = `
+                    <div class="flex-grow mb-3 sm:mb-0">
+                        <p class="text-lg font-bold text-gray-900">
+                            ${item.name}
+                            <span class="text-sm font-normal text-gray-500">
+                                (${item.id?.substring(0, 5) || "---"}...)
+                            </span>
+                        </p>
+                        <p class="text-sm text-gray-600 truncate max-w-xs">
+                            ${item.description}
+                        </p>
+                        <p class="text-xs ${stockClass} mt-1">
+                            Stok: ${item.quantity}
+                        </p>
+                    </div>
+                    <div class="flex space-x-2">
+                        <button
+                            data-id="${item.id}"
+                            data-text="${item.description}"
+                            class="speak-btn bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg flex items-center transition duration-200 text-sm"
+                        >
+                            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                                xmlns="http://www.w3.org/2000/svg">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9c2.5 2.5 2.5 6.566 0 9.066M9 5v14m-4-4h3m9-4h3" />
+                            </svg>
+                            Açıklamayı Dinle
+                        </button>
+                        <button
+                            data-id="${item.id}"
+                            class="delete-btn bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-4 rounded-lg text-sm transition duration-200"
+                        >
+                            Sil
+                        </button>
+                    </div>
+                `;
+
+                inventoryList.appendChild(wrapper);
+            });
+        }
+
+        // --------------------------------------------------------------------
+        // 7) Yeni Ürün Ekleme
+        // --------------------------------------------------------------------
+        form.addEventListener("submit", async (e) => {
+            e.preventDefault();
+
+            if (!isAuthReady || !userId) {
+                showMessage(
+                    "Lütfen kimlik doğrulamanın tamamlanmasını bekleyin.",
+                    true
+                );
+                return;
+            }
+
+            const name = document.getElementById("name").value.trim();
+            const quantity = parseInt(
+                document.getElementById("quantity").value,
+                10
+            );
+            const description = document
+                .getElementById("description")
+                .value.trim();
 
             if (!name || isNaN(quantity) || quantity <= 0 || !description) {
-                showMessage("Lütfen tüm alanları geçerli şekilde doldurun.", true);
+                showMessage(
+                    "Lütfen tüm alanları geçerli şekilde doldurun.",
+                    true
+                );
                 return;
             }
 
             const newItem = {
-                name: name,
-                quantity: quantity,
-                description: description,
-                createdAt: Date.now()
+                name,
+                quantity,
+                description,
+                createdAt: Date.now(),
             };
 
             try {
-                const userInventoryRef = collection(db, `artifacts/${appId}/users/${userId}/${INVENTORY_COLLECTION}`);
+                const userInventoryRef = getUserInventoryRef();
+                if (!userInventoryRef) {
+                    showMessage(
+                        "Veritabanı bağlantısı kurulamadı.",
+                        true
+                    );
+                    return;
+                }
+
                 await addDoc(userInventoryRef, newItem);
-                showMessage(`${name} envantere başarıyla eklendi!`, false);
-                form.reset(); // Formu temizle
+                showMessage(
+                    `${name} envantere başarıyla eklendi!`,
+                    false
+                );
+                form.reset();
             } catch (error) {
                 console.error("Ürün Ekleme Hatası:", error);
-                showMessage("Ürün eklenirken bir hata oluştu.", true);
+                showMessage(
+                    "Ürün eklenirken bir hata oluştu.",
+                    true
+                );
             }
         });
 
-        // 5. Ürün Silme
-        inventoryList.addEventListener('click', async (e) => {
-            if (e.target.closest('.delete-btn')) {
-                const button = e.target.closest('.delete-btn');
-                const itemId = button.dataset.id;
+        // --------------------------------------------------------------------
+        // 8) Ürün Silme
+        // --------------------------------------------------------------------
+        inventoryList.addEventListener("click", async (e) => {
+            const deleteBtn = e.target.closest(".delete-btn");
+            if (!deleteBtn) return;
 
-                // Kullanıcıya özel belge yolu
-                const docRef = doc(db, `artifacts/${appId}/users/${userId}/${INVENTORY_COLLECTION}`, itemId);
+            const itemId = deleteBtn.dataset.id;
+            if (!itemId || !db || !userId) return;
 
-                try {
-                    await deleteDoc(docRef);
-                    showMessage(`Ürün başarıyla silindi.`, false);
-                } catch (error) {
-                    console.error("Ürün Silme Hatası:", error);
-                    showMessage("Ürün silinirken bir hata oluştu.", true);
-                }
+            // Emin misin pop-up'ını istersen buraya ekleyebilirsin:
+            // if (!confirm("Bu ürünü silmek istediğinize emin misiniz?")) return;
+
+            const basePath = `artifacts/${appId}/users/${userId}`;
+            const docRef = doc(
+                db,
+                `${basePath}/${INVENTORY_COLLECTION}`,
+                itemId
+            );
+
+            try {
+                await deleteDoc(docRef);
+                showMessage("Ürün başarıyla silindi.", false);
+            } catch (error) {
+                console.error("Ürün Silme Hatası:", error);
+                showMessage(
+                    "Ürün silinirken bir hata oluştu.",
+                    true
+                );
             }
         });
 
-
-        // 6. Sesli Okuma (Text-to-Speech) Fonksiyonu
-        // Tarayıcının yerel Speech Synthesis API'sini kullanır.
+        // --------------------------------------------------------------------
+        // 9) Sesli Okuma (Tarayıcı SpeechSynthesis API)
+        // --------------------------------------------------------------------
         const synth = window.speechSynthesis;
-        let isSpeaking = false;
         let currentButton = null;
 
         function speakText(text, button) {
             if (!synth) {
-                showMessage("Hata: Tarayıcınız sesli okuma (Text-to-Speech) özelliğini desteklemiyor.", true);
+                showMessage(
+                    "Hata: Tarayıcınız sesli okuma (Text-to-Speech) özelliğini desteklemiyor.",
+                    true
+                );
                 return;
             }
 
-            // Eğer şu anda konuşma yapılıyorsa durdur
-            if (synth.speaking) {
-                synth.cancel();
-                if (currentButton) {
-                    currentButton.classList.remove('speaking', 'bg-red-500', 'hover:bg-red-600');
-                    currentButton.classList.add('bg-blue-500', 'hover:bg-blue-600');
-                    currentButton.textContent = 'Açıklamayı Dinle';
-                }
+            // Eğer aynı butona tıklayıp konuşma devam ediyorsa → durdur
+            if (currentButton && button === currentButton && synth.speaking) {
+                try {
+                    synth.cancel();
+                } catch (e) {}
+                return;
             }
 
-            // Yeni konuşmayı başlat
-            const utterance = new SpeechSynthesisUtterance(text);
-            utterance.lang = 'tr-TR'; // Türkçe dilini ayarla
+            // Önce varsa eski konuşmayı iptal et
+            if (synth.speaking) {
+                try {
+                    synth.cancel();
+                } catch (e) {}
+            }
 
-            // Konuşma başladığında butonu güncelle
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = "tr-TR";
+
+            // Orijinal HTML'yi sadece ilk seferde kaydet
+            if (!button.dataset.originalHtml) {
+                button.dataset.originalHtml = button.innerHTML;
+            }
+
             utterance.onstart = () => {
-                isSpeaking = true;
                 currentButton = button;
-                button.classList.remove('bg-blue-500', 'hover:bg-blue-600');
-                button.classList.add('speaking', 'bg-red-500', 'hover:bg-red-600');
-                button.textContent = 'Durduruluyor...';
+                button.classList.add("speaking");
+                button.innerHTML = "🔊 Durduruluyor...";
             };
 
-            // Konuşma bittiğinde veya iptal edildiğinde butonu geri al
-            utterance.onend = utterance.onerror = () => {
-                isSpeaking = false;
+            const resetButton = () => {
                 if (currentButton) {
-                    currentButton.classList.remove('speaking', 'bg-red-500', 'hover:bg-red-600');
-                    currentButton.classList.add('bg-blue-500', 'hover:bg-blue-600');
-                    currentButton.textContent = 'Açıklamayı Dinle';
+                    currentButton.classList.remove("speaking");
+                    if (currentButton.dataset.originalHtml) {
+                        currentButton.innerHTML =
+                            currentButton.dataset.originalHtml;
+                    } else {
+                        currentButton.innerHTML = "Açıklamayı Dinle";
+                    }
                 }
                 currentButton = null;
             };
 
+            utterance.onend = resetButton;
+            utterance.onerror = resetButton;
+
             synth.speak(utterance);
         }
 
-        // Sesli Okuma Buton Olayı
-        inventoryList.addEventListener('click', (e) => {
-            const button = e.target.closest('.speak-btn');
-            if (button) {
-                const text = button.dataset.text;
-                // Eğer aynı buton tıklanırsa konuşmayı durdur, aksi takdirde yeni konuşmayı başlat
-                if (button === currentButton && synth.speaking) {
-                    synth.cancel();
-                } else {
-                    speakText(text, button);
-                }
+        // Sesli okuma butonuna tıklama
+        inventoryList.addEventListener("click", (e) => {
+            const btn = e.target.closest(".speak-btn");
+            if (!btn) return;
+            const text = btn.dataset.text || "";
+            if (!text) {
+                showMessage(
+                    "Bu ürün için açıklama bulunamadı.",
+                    true
+                );
+                return;
             }
+            speakText(text, btn);
         });
 
-        // Uygulama başlatma
+        // --------------------------------------------------------------------
+        // 10) Uygulama Başlatma + Kullanıcı ID Gösterimi
+        // --------------------------------------------------------------------
         window.onload = initializeFirebase;
 
-        // Kullanıcıya geçerli userId'yi gösterme (İşbirliği için önemli)
-        const userIdDisplay = document.createElement('p');
-        userIdDisplay.className = "text-center text-sm text-gray-400 mt-6";
-        userIdDisplay.innerHTML = `Mevcut Kullanıcı ID: <span id="current-user-id" class="font-mono text-xs">Bekleniyor...</span>`;
-        document.getElementById('app').appendChild(userIdDisplay);
-
+        const userIdDisplay = document.createElement("p");
+        userIdDisplay.className =
+            "text-center text-sm text-gray-400 mt-6";
+        userIdDisplay.innerHTML =
+            'Mevcut Kullanıcı ID: <span id="current-user-id" class="font-mono text-xs">Bekleniyor...</span>';
+        document.getElementById("app").appendChild(userIdDisplay);
     </script>
 </body>
 </html>
