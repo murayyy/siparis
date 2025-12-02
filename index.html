@@ -121,6 +121,26 @@
                 db = getFirestore(app);
                 auth = getAuth(app); // Auth objesini başlat
 
+                // Kimlik doğrulama işlemi (tek seferlik giriş denemesi)
+                try {
+                    const userIdElement = document.getElementById('current-user-id');
+                    if (userIdElement) {
+                        userIdElement.textContent = 'Oturum Açılıyor...';
+                    }
+
+                    if (typeof __initial_auth_token !== 'undefined') {
+                        await signInWithCustomToken(auth, __initial_auth_token);
+                    } else {
+                        await signInAnonymously(auth);
+                    }
+                    // Başarılı olursa onAuthStateChanged tetiklenecektir.
+
+                } catch (authError) {
+                    console.error("Oturum Açma Hatası:", authError);
+                    showMessage("Oturum açılırken bir hata oluştu. Envanter yüklenemeyebilir.", true);
+                }
+
+
                 // Kimlik doğrulama durumu değiştiğinde tetiklenir
                 onAuthStateChanged(auth, (user) => {
                     const userIdElement = document.getElementById('current-user-id');
@@ -137,20 +157,11 @@
                             userIdElement.textContent = user.uid;
                         }
                     } else {
-                        // Eğer token yoksa anonim giriş yap
-                        if (typeof __initial_auth_token !== 'undefined') {
-                            signInWithCustomToken(auth, __initial_auth_token)
-                                .catch(error => {
-                                    console.error("Özel Kimlik Doğrulama Hatası:", error);
-                                    signInAnonymously(auth); // Hata durumunda anonim giriş
-                                });
-                        } else {
-                            signInAnonymously(auth);
-                        }
-                        
-                        // Giriş yapılmadıysa/bekleniyorsa durumu güncelle
+                        // Oturum açma denemesi başarısız olduysa veya kullanıcı çıkış yaptıysa
+                        userId = null;
+                        isAuthReady = false;
                          if (userIdElement) {
-                            userIdElement.textContent = 'Anonim Giriş Yapılıyor...';
+                            userIdElement.textContent = 'Anonim Giriş Yapılamadı/Bekleniyor...';
                         }
                     }
                 });
