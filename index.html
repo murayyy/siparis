@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Depo Giriş | ProWMS</title>
+  <title>Depo Giriş</title>
 
-  <!-- Tailwind -->
+  <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     body {
@@ -15,14 +15,11 @@
   </style>
 </head>
 <body class="min-h-screen bg-slate-100 flex items-center justify-center p-4">
-  <div
-    class="w-full max-w-md bg-white rounded-2xl shadow-xl border border-slate-200 p-8"
-  >
-    <!-- Logo / Başlık -->
+
+  <div class="w-full max-w-md bg-white rounded-2xl shadow-xl border border-slate-200 p-8">
+    <!-- Üst başlık -->
     <div class="mb-6 text-center">
-      <div
-        class="mx-auto w-12 h-12 rounded-2xl bg-blue-600 flex items-center justify-center text-white font-extrabold text-xl shadow-lg shadow-blue-500/40"
-      >
+      <div class="mx-auto w-12 h-12 rounded-2xl bg-blue-600 flex items-center justify-center text-white font-extrabold text-xl shadow-lg shadow-blue-500/40">
         D
       </div>
       <h1 class="mt-3 text-2xl font-bold text-slate-900">Depo Giriş</h1>
@@ -31,13 +28,10 @@
       </p>
     </div>
 
-    <!-- Giriş Formu -->
+    <!-- Login Formu -->
     <form id="loginForm" class="space-y-4">
       <div>
-        <label
-          for="email"
-          class="block text-sm font-medium text-slate-700 mb-1"
-        >
+        <label for="email" class="block text-sm font-medium text-slate-700 mb-1">
           E-posta
         </label>
         <input
@@ -51,10 +45,7 @@
       </div>
 
       <div>
-        <label
-          for="password"
-          class="block text-sm font-medium text-slate-700 mb-1"
-        >
+        <label for="password" class="block text-sm font-medium text-slate-700 mb-1">
           Şifre
         </label>
         <input
@@ -67,7 +58,7 @@
         />
       </div>
 
-      <!-- Hata Mesajı -->
+      <!-- Hata mesajı -->
       <p id="loginError" class="text-xs text-red-600 min-h-[1.25rem]"></p>
 
       <button
@@ -78,32 +69,26 @@
       </button>
     </form>
 
-    <!-- Alt Bilgi -->
+    <!-- Alt bilgi -->
     <div class="mt-6 text-xs text-slate-500">
       <p class="mb-1">
         <strong>Not:</strong> Kullanıcı rolü
-        <code class="bg-slate-100 px-1 rounded text-[10px]">
-          manager / picker / qc
-        </code>
+        <code class="bg-slate-100 px-1 rounded text-[10px]">manager / picker / qc</code>
         Firestore’da
-        <code class="bg-slate-100 px-1 rounded text-[10px]">
-          users/{uid}.role
-        </code>
+        <code class="bg-slate-100 px-1 rounded text-[10px]">users/{uid}.role</code>
         alanından okunur.
       </p>
       <p class="mt-2 text-[11px] text-slate-400">
         Giriş sonrası rolünüze göre ilgili panele
-        (<code>manager.html</code>, <code>picker.html</code>,
-        <code>qc.html</code>) yönlendirilirsiniz.
+        (<code>manager.html</code>, <code>picker.html</code>, <code>qc.html</code>)
+        yönlendirilirsiniz.
       </p>
     </div>
   </div>
 
-  <!-- Firebase + Login Kodu (TEK DOSYA) -->
+  <!-- Firebase + Login Script -->
   <script type="module">
-    // ----------------------------------------------------
-    // 1) Firebase importları (CDN)
-    // ----------------------------------------------------
+    // 1) Firebase importları
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
     import {
       getAuth,
@@ -116,9 +101,7 @@
       getDoc,
     } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-    // ----------------------------------------------------
-    // 2) Firebase Config (BURAYI KENDİ PROJENE GÖRE DOLDUR)
-    // ----------------------------------------------------
+    // 2) KENDİ PROJENİN FIREBASE CONFIG'İNİ BURAYA YAZ
     const firebaseConfig = {
       apiKey: "BURAYA_API_KEY",
       authDomain: "projen.firebaseapp.com",
@@ -128,19 +111,15 @@
       appId: "1:XXXXXXXXXXXX:web:YYYYYYYYYYYYYY",
     };
 
-    // ----------------------------------------------------
-    // 3) Firebase başlatma
-    // ----------------------------------------------------
+    // 3) Firebase başlat
     const app = initializeApp(firebaseConfig);
-    const auth = getAuth(app);       // <--- ARTIK TANIMLI
+    const auth = getAuth(app);      // <--- auth burada tanımlı
     const db = getFirestore(app);
 
     const loginForm = document.getElementById("loginForm");
     const loginError = document.getElementById("loginError");
 
-    // ----------------------------------------------------
-    // 4) Firestore'dan rol okuma
-    // ----------------------------------------------------
+    // Firestore'dan rol oku
     async function getUserRole(uid) {
       const ref = doc(db, "users", uid);
       const snap = await getDoc(ref);
@@ -148,12 +127,11 @@
       if (!snap.exists()) {
         throw new Error("Kullanıcı Firestore'da bulunamadı (users/" + uid + ").");
       }
+
       return snap.data().role || "picker";
     }
 
-    // ----------------------------------------------------
-    // 5) Form submit → giriş yap
-    // ----------------------------------------------------
+    // Form submit → giriş
     loginForm.addEventListener("submit", async (e) => {
       e.preventDefault();
       loginError.textContent = "";
@@ -167,7 +145,7 @@
       }
 
       try {
-        // Firebase Auth ile giriş
+        // Email/şifre ile giriş
         await signInWithEmailAndPassword(auth, email, password);
 
         const user = auth.currentUser;
@@ -176,7 +154,7 @@
           return;
         }
 
-        // Rol oku
+        // Rol oku ve yönlendir
         const role = await getUserRole(user.uid);
 
         if (role === "manager") {
@@ -188,13 +166,12 @@
         }
       } catch (err) {
         console.error("Giriş hatası:", err);
-        loginError.textContent = "Giriş hatası: " + (err.message || err.code || "Bilinmeyen hata");
+        loginError.textContent =
+          "Giriş hatası: " + (err.message || err.code || "Bilinmeyen hata");
       }
     });
 
-    // ----------------------------------------------------
-    // 6) Zaten login ise direkt yönlendir
-    // ----------------------------------------------------
+    // Sayfa açıldığında zaten login ise direkt yönlendir
     onAuthStateChanged(auth, async (user) => {
       if (!user) return;
       try {
