@@ -287,7 +287,7 @@ async function loadStockMovements() {
     const typeLabel =
       d.type === "in" ? "Giriş" : d.type === "out" ? "Çıkış" : "Transfer";
 
-    const div = document.createElement("div"); // <-- DÜZELTİLEN SATIR
+    const div = document.createElement("div");
     div.className =
       "border border-slate-100 rounded-lg px-3 py-2 flex justify-between items-center";
     div.innerHTML = `
@@ -382,7 +382,6 @@ function createOrderItemRow(productsMap) {
     "col-span-2 rounded-lg border border-slate-300 px-2 py-1 text-xs";
   select.required = true;
 
-  // ürün seçenekleri
   select.innerHTML = `<option value="">Ürün seç</option>`;
   productsMap.forEach((p, id) => {
     const opt = document.createElement("option");
@@ -432,7 +431,6 @@ async function prepareOrderModal() {
   container.innerHTML = "";
   $("orderItemsEmpty").classList.remove("hidden");
 
-  // Ürün listesi
   const productsSnap = await getDocs(collection(db, "products"));
   const productsMap = new Map();
   productsSnap.forEach((docSnap) => {
@@ -509,7 +507,7 @@ async function saveOrder(evt) {
     branchName,
     documentNo: documentNo || null,
     note: note || null,
-    status: "open", // open, assigned, picking, completed
+    status: "open",
     createdAt: serverTimestamp(),
     createdBy: currentUser?.uid || null,
     createdByEmail: currentUser?.email || null,
@@ -564,9 +562,7 @@ async function loadOrders() {
         ${d.createdAt?.toDate ? d.createdAt.toDate().toLocaleString("tr-TR") : ""}
       </td>
       <td class="px-3 py-2 text-right space-x-1">
-        <button class="text-xs px-2 py-1 rounded bg-sky-100 text-sky-700 hover:bg-sky-200" data-detail="${
-          docSnap.id
-        }">Detay</button>
+        <button class="text-xs px-2 py-1 rounded bg-sky-100 text-sky-700 hover:bg-sky-200" data-detail="${docSnap.id}">Detay</button>
         ${
           currentUserProfile?.role === "manager" || currentUserProfile?.role === "admin"
             ? `<button class="text-xs px-2 py-1 rounded bg-emerald-100 text-emerald-700 hover:bg-emerald-200" data-assign="${docSnap.id}">
@@ -585,14 +581,12 @@ async function loadOrders() {
     empty.classList.add("hidden");
   }
 
-  // dashboard & rapor sayıları
   updateDashboardCounts();
   updateReportSummary();
 }
 
 // Toplayıcıya atama
 async function assignOrderToPicker(orderId) {
-  // sadece manager/admin için
   if (
     currentUserProfile?.role !== "manager" &&
     currentUserProfile?.role !== "admin"
@@ -601,7 +595,6 @@ async function assignOrderToPicker(orderId) {
     return;
   }
 
-  // picker listesi
   const usersSnap = await getDocs(
     query(collection(db, "users"), where("role", "==", "picker"))
   );
@@ -615,10 +608,10 @@ async function assignOrderToPicker(orderId) {
     pickers.push({ id: docSnap.id, ...docSnap.data() });
   });
 
-  const pickerEmailList = pickers.map((p, idx) => `${idx + 1}) ${p.fullName} - ${p.email}`).join("\n");
-  const input = prompt(
-    "Toplayıcı seç (numara ile):\n" + pickerEmailList
-  );
+  const pickerEmailList = pickers
+    .map((p, idx) => `${idx + 1}) ${p.fullName} - ${p.email}`)
+    .join("\n");
+  const input = prompt("Toplayıcı seç (numara ile):\n" + pickerEmailList);
   if (!input) return;
   const index = Number(input) - 1;
   if (index < 0 || index >= pickers.length) {
@@ -660,7 +653,6 @@ async function loadPickingOrders() {
   ) {
     qRef = collection(db, "orders");
   } else {
-    // şube veya diğer roller
     qRef = query(
       collection(db, "orders"),
       where("createdBy", "==", currentUser.uid)
@@ -689,9 +681,7 @@ async function loadPickingOrders() {
       <td class="px-3 py-2">${statusLabel}</td>
       <td class="px-3 py-2 text-xs">${d.assignedToEmail || "-"}</td>
       <td class="px-3 py-2 text-right">
-        <button class="text-xs px-2 py-1 rounded bg-sky-100 text-sky-700 hover:bg-sky-200" data-pick="${
-          docSnap.id
-        }">Topla</button>
+        <button class="text-xs px-2 py-1 rounded bg-sky-100 text-sky-700 hover:bg-sky-200" data-pick="${docSnap.id}">Topla</button>
       </td>
     `;
     tbody.appendChild(tr);
@@ -702,10 +692,6 @@ async function loadPickingOrders() {
   } else {
     empty.classList.add("hidden");
   }
-
-  tbody.querySelectorAll("button[data-pick]").forEach((btn) => {
-    btn.addEventListener("click", () => openPickingDetailModal(btn.getAttribute("data-pick"), true));
-  });
 }
 
 async function openPickingDetailModal(orderId, fromPicking) {
@@ -732,13 +718,9 @@ async function openPickingDetailModal(orderId, fromPicking) {
   const headerHtml = `
     <div class="border border-slate-200 rounded-lg p-3 text-xs">
       <p><span class="font-semibold">Şube:</span> ${orderData.branchName || "-"}</p>
-      <p><span class="font-semibold">Belge No:</span> ${
-        orderData.documentNo || "-"
-      }</p>
+      <p><span class="font-semibold">Belge No:</span> ${orderData.documentNo || "-"}</p>
       <p><span class="font-semibold">Durum:</span> ${orderData.status || "-"}</p>
-      <p><span class="font-semibold">Toplayıcı:</span> ${
-        orderData.assignedToEmail || "-"
-      }</p>
+      <p><span class="font-semibold">Toplayıcı:</span> ${orderData.assignedToEmail || "-"}</p>
     </div>
   `;
 
@@ -779,16 +761,18 @@ async function openPickingDetailModal(orderId, fromPicking) {
           </tr>
         </thead>
         <tbody>
-          ${rowsHtml || `<tr><td colspan="6" class="px-2 py-2 text-center text-slate-400">Kalem yok.</td></tr>`}
+          ${
+            rowsHtml ||
+            `<tr><td colspan="6" class="px-2 py-2 text-center text-slate-400">Kalem yok.</td></tr>`
+          }
         </tbody>
       </table>
     </div>
- `;
+  `;
 
   container.innerHTML = headerHtml + tableHtml;
   $("pickingDetailModal").classList.remove("hidden");
 
-  // fromPicking değilse (sadece detay), butonu pasif yap
   $("completePickingBtn").disabled = !fromPicking;
   $("completePickingBtn").classList.toggle("opacity-50", !fromPicking);
   $("completePickingBtn").classList.toggle("cursor-not-allowed", !fromPicking);
@@ -928,7 +912,6 @@ async function handleLogout() {
 onAuthStateChanged(auth, async (user) => {
   currentUser = user;
   if (!user) {
-    // logout
     $("authSection").classList.remove("hidden");
     $("appSection").classList.add("hidden");
     showAuthMessage("");
@@ -938,13 +921,11 @@ onAuthStateChanged(auth, async (user) => {
     return;
   }
 
-  // user logged in
   const userRef = doc(db, "users", user.uid);
   const snap = await getDoc(userRef);
   if (snap.exists()) {
     currentUserProfile = snap.data();
   } else {
-    // profil yoksa default
     currentUserProfile = { fullName: user.email, role: "branch", email: user.email };
     await setDoc(userRef, currentUserProfile);
   }
@@ -956,7 +937,6 @@ onAuthStateChanged(auth, async (user) => {
   $("appSection").classList.remove("hidden");
   showView("dashboardView");
 
-  // ilk yükleme
   await loadProducts();
   await loadStockMovements();
   await loadOrders();
@@ -1009,42 +989,9 @@ document.addEventListener("DOMContentLoaded", () => {
   $("closeOrderModalBtn").addEventListener("click", closeOrderModal);
   $("cancelOrderBtn").addEventListener("click", closeOrderModal);
   $("orderForm").addEventListener("submit", saveOrder);
-  // --- Şube Siparişleri tablosu: Detay & Toplayıcı Ata (event delegation) ---
+
+  // Şube Siparişleri tablosu: Detay & Toplayıcı Ata (event delegation)
   const ordersTableBody = $("ordersTableBody");
-  if (ordersTableBody) {
-    ordersTableBody.addEventListener("click", (e) => {
-      const detailBtn = e.target.closest("button[data-detail]");
-      if (detailBtn) {
-        const id = detailBtn.getAttribute("data-detail");
-        openPickingDetailModal(id, false); // sadece detay
-        return;
-      }
-
-      const assignBtn = e.target.closest("button[data-assign]");
-      if (assignBtn) {
-        const id = assignBtn.getAttribute("data-assign");
-        assignOrderToPicker(id); // toplayıcı ata
-        return;
-      }
-    });
-  }
-
-  // --- Toplama tablosu: Topla butonu (event delegation) ---
-  const pickingTableBody = $("pickingTableBody");
-  if (pickingTableBody) {
-    pickingTableBody.addEventListener("click", (e) => {
-      const pickBtn = e.target.closest("button[data-pick]");
-      if (pickBtn) {
-        const id = pickBtn.getAttribute("data-pick");
-        openPickingDetailModal(id, true); // toplama ekranı
-      }
-    });
-  }
-
-  // Picking detail modal
-  $("closePickingDetailModalBtn").addEventListener("click", closePickingDetailModal);
-  $("completePickingBtn").addEventListener("click", completePicking);
- const ordersTableBody = $("ordersTableBody");
   if (ordersTableBody) {
     ordersTableBody.addEventListener("click", (e) => {
       const detailBtn = e.target.closest("button[data-detail]");
@@ -1053,6 +1000,7 @@ document.addEventListener("DOMContentLoaded", () => {
         openPickingDetailModal(id, false);
         return;
       }
+
       const assignBtn = e.target.closest("button[data-assign]");
       if (assignBtn) {
         const id = assignBtn.getAttribute("data-assign");
@@ -1062,6 +1010,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
+  // Toplama tablosu: Topla butonu (event delegation)
   const pickingTableBody = $("pickingTableBody");
   if (pickingTableBody) {
     pickingTableBody.addEventListener("click", (e) => {
@@ -1072,8 +1021,8 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     });
   }
+
+  // Picking detail modal
+  $("closePickingDetailModalBtn").addEventListener("click", closePickingDetailModal);
+  $("completePickingBtn").addEventListener("click", completePicking);
 });
-
-
-
-
