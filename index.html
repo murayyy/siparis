@@ -1,544 +1,215 @@
 <!DOCTYPE html>
 <html lang="tr">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sesli Envanter Takip Uygulaması</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Depo Giriş | ProWMS</title>
 
-    <!-- Tailwind CSS CDN -->
-    <script src="https://cdn.tailwindcss.com"></script>
-
-    <style>
-        body { font-family: 'Inter', sans-serif; }
-
-        /* Okunuyor butonu animasyonu */
-        .speaking {
-            animation: pulse-ring 1s cubic-bezier(0.68, -0.55, 0.27, 1.55) infinite;
-        }
-        @keyframes pulse-ring {
-            0% { transform: scale(1); opacity: 0.8; }
-            50% { transform: scale(1.05); opacity: 1; }
-            100% { transform: scale(1); opacity: 0.8; }
-        }
-    </style>
+  <!-- Tailwind -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+        sans-serif;
+    }
+  </style>
 </head>
-<body class="bg-gray-50 min-h-screen p-4 sm:p-8">
-
-    <div id="app" class="max-w-4xl mx-auto">
-        <header class="text-center mb-8">
-            <h1 class="text-4xl font-extrabold text-blue-800">Depo Envanter Paneli</h1>
-            <p class="text-gray-600 mt-2">Stok durumunuzu görüntüleyin ve açıklamaları dinleyin.</p>
-        </header>
-
-        <!-- Yeni Ürün Ekleme Formu -->
-        <div class="bg-white p-6 rounded-xl shadow-lg mb-8">
-            <h2 class="text-2xl font-semibold mb-4 text-gray-700">Yeni Ürün Ekle</h2>
-            <form id="add-item-form" class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <input
-                    type="text"
-                    id="name"
-                    placeholder="Ürün Adı (Örn: Mavi Gömlek)"
-                    required
-                    class="p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 col-span-1 md:col-span-1"
-                />
-                <input
-                    type="number"
-                    id="quantity"
-                    placeholder="Stok Adedi (Örn: 50)"
-                    required
-                    min="1"
-                    class="p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
-                />
-                <textarea
-                    id="description"
-                    placeholder="Açıklama (Örn: %100 pamuk, yazlık model)"
-                    rows="1"
-                    required
-                    class="p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 md:col-span-2"
-                ></textarea>
-                <button
-                    type="submit"
-                    class="col-span-1 md:col-span-1 bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg transition duration-200 shadow-md"
-                >
-                    Envantere Ekle
-                </button>
-            </form>
-        </div>
-
-        <!-- Envanter Listesi -->
-        <div class="bg-white p-6 rounded-xl shadow-lg">
-            <h2 class="text-2xl font-semibold mb-4 text-gray-700">
-                Mevcut Envanter (<span id="item-count">0</span> Ürün)
-            </h2>
-            <div id="inventory-list" class="space-y-4">
-                <!-- Envanter öğeleri buraya eklenecek -->
-            </div>
-            <p id="empty-message" class="text-center text-gray-500 p-8">
-                Envanteriniz boş. Lütfen yukarıdaki formu kullanarak ürün ekleyin.
-            </p>
-        </div>
-
-        <!-- Genel Hata/Mesaj Kutusu -->
-        <div
-            id="message-box"
-            class="fixed bottom-4 right-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-xl shadow-xl hidden"
-            role="alert"
-        >
-            <span id="message-text" class="block sm:inline"></span>
-            <span
-                class="absolute top-0 bottom-0 right-0 px-4 py-3 cursor-pointer"
-                onclick="document.getElementById('message-box').classList.add('hidden')"
-            >
-                <svg
-                    class="fill-current h-6 w-6 text-red-500"
-                    role="button"
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 20 20"
-                >
-                    <title>Kapat</title>
-                    <path
-                        d="M14.348 14.849a1.002 1.002 0 01-1.414 0L10 11.414l-2.934 2.935a1.002 1.002 0 11-1.414-1.414l2.934-2.935-2.934-2.935a1.002 1.002 0 011.414-1.414l2.934 2.935 2.934-2.935a1.002 1.002 0 011.414 1.414l-2.934 2.935 2.934 2.935a1.002 1.002 0 010 1.414z"
-                    />
-                </svg>
-            </span>
-        </div>
+<body class="min-h-screen bg-slate-100 flex items-center justify-center p-4">
+  <div
+    class="w-full max-w-md bg-white rounded-2xl shadow-xl border border-slate-200 p-8"
+  >
+    <!-- Logo / Başlık -->
+    <div class="mb-6 text-center">
+      <div
+        class="mx-auto w-12 h-12 rounded-2xl bg-blue-600 flex items-center justify-center text-white font-extrabold text-xl shadow-lg shadow-blue-500/40"
+      >
+        D
+      </div>
+      <h1 class="mt-3 text-2xl font-bold text-slate-900">Depo Giriş</h1>
+      <p class="mt-1 text-sm text-slate-500">
+        E-posta ve şifreniz ile sisteme giriş yapın.
+      </p>
     </div>
 
-    <script type="module">
-        // --------------------------------------------------------------------
-        // 0) Ortam (Canvas / Host) Değişkenleri
-        // --------------------------------------------------------------------
-        const appId =
-            typeof window.__app_id !== "undefined" ? window.__app_id : "default-app-id";
-        const firebaseConfig =
-            typeof window.__firebase_config !== "undefined"
-                ? JSON.parse(window.__firebase_config)
-                : null;
+    <!-- Giriş Formu -->
+    <form id="loginForm" class="space-y-4">
+      <div>
+        <label
+          for="email"
+          class="block text-sm font-medium text-slate-700 mb-1"
+        >
+          E-posta
+        </label>
+        <input
+          type="email"
+          id="email"
+          required
+          autocomplete="username"
+          class="w-full px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+          placeholder="ornek@firma.com"
+        />
+      </div>
 
-        // --------------------------------------------------------------------
-        // 1) Firebase & Firestore Import
-        // --------------------------------------------------------------------
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import {
-            getAuth,
-            signInAnonymously,
-            signInWithCustomToken,
-            onAuthStateChanged,
-        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import {
-            getFirestore,
-            collection,
-            onSnapshot,
-            addDoc,
-            deleteDoc,
-            doc,
-            setLogLevel,
-        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+      <div>
+        <label
+          for="password"
+          class="block text-sm font-medium text-slate-700 mb-1"
+        >
+          Şifre
+        </label>
+        <input
+          type="password"
+          id="password"
+          required
+          autocomplete="current-password"
+          class="w-full px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+          placeholder="••••••••"
+        />
+      </div>
 
-        // --------------------------------------------------------------------
-        // 2) Uygulama Durum Değişkenleri
-        // --------------------------------------------------------------------
-        let app, db, auth;
-        let userId = null;
-        let isAuthReady = false;
-        const INVENTORY_COLLECTION = "inventory_items";
+      <!-- Hata Mesajı -->
+      <p id="loginError" class="text-xs text-red-600 min-h-[1.25rem]"></p>
 
-        // DOM referansları
-        const form = document.getElementById("add-item-form");
-        const inventoryList = document.getElementById("inventory-list");
-        const emptyMessage = document.getElementById("empty-message");
-        const itemCount = document.getElementById("item-count");
+      <button
+        type="submit"
+        class="w-full mt-1 inline-flex items-center justify-center px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg shadow-md shadow-blue-500/30 transition"
+      >
+        Giriş Yap
+      </button>
+    </form>
 
-        // --------------------------------------------------------------------
-        // 3) Mesaj Kutusu Yardımcı Fonksiyonu
-        // --------------------------------------------------------------------
-        function showMessage(text, isError = false) {
-            const box = document.getElementById("message-box");
-            const messageText = document.getElementById("message-text");
+    <!-- Alt Bilgi -->
+    <div class="mt-6 text-xs text-slate-500">
+      <p class="mb-1">
+        <strong>Not:</strong> Kullanıcı rolü
+        <code class="bg-slate-100 px-1 rounded text-[10px]">
+          manager / picker / qc
+        </code>
+        Firestore’da
+        <code class="bg-slate-100 px-1 rounded text-[10px]">
+          users/{uid}.role
+        </code>
+        alanından okunur.
+      </p>
+      <p class="mt-2 text-[11px] text-slate-400">
+        Giriş sonrası rolünüze göre ilgili panele
+        (<code>manager.html</code>, <code>picker.html</code>,
+        <code>qc.html</code>) yönlendirilirsiniz.
+      </p>
+    </div>
+  </div>
 
-            messageText.textContent = text;
-            box.classList.remove(
-                "hidden",
-                "bg-red-100",
-                "bg-green-100",
-                "border-red-400",
-                "border-green-400",
-                "text-red-700",
-                "text-green-700"
-            );
+  <!-- Firebase + Login Kodu (TEK DOSYA) -->
+  <script type="module">
+    // ----------------------------------------------------
+    // 1) Firebase importları (CDN)
+    // ----------------------------------------------------
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import {
+      getAuth,
+      signInWithEmailAndPassword,
+      onAuthStateChanged,
+    } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import {
+      getFirestore,
+      doc,
+      getDoc,
+    } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-            if (isError) {
-                box.classList.add("bg-red-100", "border-red-400", "text-red-700");
-            } else {
-                box.classList.add("bg-green-100", "border-green-400", "text-green-700");
-            }
+    // ----------------------------------------------------
+    // 2) Firebase Config (BURAYI KENDİ PROJENE GÖRE DOLDUR)
+    // ----------------------------------------------------
+    const firebaseConfig = {
+      apiKey: "BURAYA_API_KEY",
+      authDomain: "projen.firebaseapp.com",
+      projectId: "projen-id",
+      storageBucket: "projen.appspot.com",
+      messagingSenderId: "XXXXXXXXXXXX",
+      appId: "1:XXXXXXXXXXXX:web:YYYYYYYYYYYYYY",
+    };
 
-            setTimeout(() => box.classList.add("hidden"), 5000);
+    // ----------------------------------------------------
+    // 3) Firebase başlatma
+    // ----------------------------------------------------
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);       // <--- ARTIK TANIMLI
+    const db = getFirestore(app);
+
+    const loginForm = document.getElementById("loginForm");
+    const loginError = document.getElementById("loginError");
+
+    // ----------------------------------------------------
+    // 4) Firestore'dan rol okuma
+    // ----------------------------------------------------
+    async function getUserRole(uid) {
+      const ref = doc(db, "users", uid);
+      const snap = await getDoc(ref);
+
+      if (!snap.exists()) {
+        throw new Error("Kullanıcı Firestore'da bulunamadı (users/" + uid + ").");
+      }
+      return snap.data().role || "picker";
+    }
+
+    // ----------------------------------------------------
+    // 5) Form submit → giriş yap
+    // ----------------------------------------------------
+    loginForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      loginError.textContent = "";
+
+      const email = document.getElementById("email").value.trim();
+      const password = document.getElementById("password").value.trim();
+
+      if (!email || !password) {
+        loginError.textContent = "E-posta ve şifre zorunludur.";
+        return;
+      }
+
+      try {
+        // Firebase Auth ile giriş
+        await signInWithEmailAndPassword(auth, email, password);
+
+        const user = auth.currentUser;
+        if (!user) {
+          loginError.textContent = "Giriş başarısız: kullanıcı okunamadı.";
+          return;
         }
 
-        // --------------------------------------------------------------------
-        // 4) Firebase Başlatma ve Kimlik Doğrulama
-        // --------------------------------------------------------------------
-        async function initializeFirebase() {
-            if (!firebaseConfig) {
-                showMessage(
-                    "Hata: Firebase yapılandırması eksik. Uygulama başlatılamadı.",
-                    true
-                );
-                return;
-            }
+        // Rol oku
+        const role = await getUserRole(user.uid);
 
-            try {
-                // Firestore log seviyesi
-                setLogLevel("debug");
-
-                app = initializeApp(firebaseConfig);
-                db = getFirestore(app);
-                auth = getAuth(app);
-
-                // Auth denemesi
-                try {
-                    const token = window.__initial_auth_token;
-                    const userIdElement = document.getElementById("current-user-id");
-                    if (userIdElement) {
-                        userIdElement.textContent = "Oturum Açılıyor...";
-                    }
-
-                    if (typeof token === "string" && token.length > 0) {
-                        await signInWithCustomToken(auth, token);
-                    } else {
-                        await signInAnonymously(auth);
-                    }
-                } catch (authError) {
-                    console.error("Oturum Açma Hatası:", authError);
-                    showMessage(
-                        "Oturum açılırken bir hata oluştu. Envanter yüklenemeyebilir.",
-                        true
-                    );
-                }
-
-                // Auth durumu dinleme
-                onAuthStateChanged(auth, (user) => {
-                    const userIdElement = document.getElementById("current-user-id");
-
-                    if (user) {
-                        userId = user.uid;
-                        isAuthReady = true;
-
-                        if (userIdElement) {
-                            userIdElement.textContent = user.uid;
-                        }
-
-                        listenToInventory();
-                        showMessage(`Oturum açıldı. Kullanıcı ID: ${userId}`, false);
-                    } else {
-                        userId = null;
-                        isAuthReady = false;
-                        if (userIdElement) {
-                            userIdElement.textContent =
-                                "Anonim Giriş Yapılamadı/Bekleniyor...";
-                        }
-                    }
-                });
-            } catch (error) {
-                console.error("Firebase Başlatma Hatası:", error);
-                showMessage(
-                    "Uygulama başlatılırken kritik bir hata oluştu.",
-                    true
-                );
-            }
+        if (role === "manager") {
+          window.location.href = "manager.html";
+        } else if (role === "qc") {
+          window.location.href = "qc.html";
+        } else {
+          window.location.href = "picker.html";
         }
+      } catch (err) {
+        console.error("Giriş hatası:", err);
+        loginError.textContent = "Giriş hatası: " + (err.message || err.code || "Bilinmeyen hata");
+      }
+    });
 
-        // Kullanıcıya özel koleksiyon referansı
-        function getUserInventoryRef() {
-            if (!db || !userId) return null;
-            const basePath = `artifacts/${appId}/users/${userId}`;
-            return collection(db, `${basePath}/${INVENTORY_COLLECTION}`);
+    // ----------------------------------------------------
+    // 6) Zaten login ise direkt yönlendir
+    // ----------------------------------------------------
+    onAuthStateChanged(auth, async (user) => {
+      if (!user) return;
+      try {
+        const role = await getUserRole(user.uid);
+        if (role === "manager") {
+          window.location.href = "manager.html";
+        } else if (role === "qc") {
+          window.location.href = "qc.html";
+        } else {
+          window.location.href = "picker.html";
         }
-
-        // --------------------------------------------------------------------
-        // 5) Envanteri Dinleme (Real-time Snapshot)
-        // --------------------------------------------------------------------
-        function listenToInventory() {
-            if (!isAuthReady || !userId) return;
-
-            const userInventoryRef = getUserInventoryRef();
-            if (!userInventoryRef) return;
-
-            onSnapshot(
-                userInventoryRef,
-                (snapshot) => {
-                    const items = [];
-                    snapshot.forEach((d) => items.push({ id: d.id, ...d.data() }));
-
-                    // Stoka göre sırala (büyükten küçüğe)
-                    items.sort((a, b) => (b.quantity || 0) - (a.quantity || 0));
-
-                    renderInventory(items);
-                },
-                (error) => {
-                    console.error("Envanter Dinleme Hatası:", error);
-                    showMessage(
-                        "Envanter yüklenirken bir sorun oluştu.",
-                        true
-                    );
-                }
-            );
-        }
-
-        // --------------------------------------------------------------------
-        // 6) Envanteri DOM'a Render Etme
-        // --------------------------------------------------------------------
-        function renderInventory(items) {
-            inventoryList.innerHTML = "";
-            itemCount.textContent = items.length;
-
-            if (items.length === 0) {
-                emptyMessage.classList.remove("hidden");
-                return;
-            }
-
-            emptyMessage.classList.add("hidden");
-
-            items.forEach((item) => {
-                let stockClass = "";
-                if (item.quantity <= 10) {
-                    stockClass = "text-red-600 font-bold"; // Kritik
-                } else if (item.quantity <= 50) {
-                    stockClass = "text-yellow-600"; // Orta
-                } else {
-                    stockClass = "text-blue-600"; // İyi
-                }
-
-                const wrapper = document.createElement("div");
-                wrapper.className =
-                    "bg-gray-50 p-4 rounded-xl shadow-md flex flex-col sm:flex-row justify-between items-start sm:items-center transition duration-150 hover:bg-gray-100";
-
-                wrapper.innerHTML = `
-                    <div class="flex-grow mb-3 sm:mb-0">
-                        <p class="text-lg font-bold text-gray-900">
-                            ${item.name}
-                            <span class="text-sm font-normal text-gray-500">
-                                (${item.id?.substring(0, 5) || "---"}...)
-                            </span>
-                        </p>
-                        <p class="text-sm text-gray-600 truncate max-w-xs">
-                            ${item.description}
-                        </p>
-                        <p class="text-xs ${stockClass} mt-1">
-                            Stok: ${item.quantity}
-                        </p>
-                    </div>
-                    <div class="flex space-x-2">
-                        <button
-                            data-id="${item.id}"
-                            data-text="${item.description}"
-                            class="speak-btn bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg flex items-center transition duration-200 text-sm"
-                        >
-                            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"
-                                xmlns="http://www.w3.org/2000/svg">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9c2.5 2.5 2.5 6.566 0 9.066M9 5v14m-4-4h3m9-4h3" />
-                            </svg>
-                            Açıklamayı Dinle
-                        </button>
-                        <button
-                            data-id="${item.id}"
-                            class="delete-btn bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-4 rounded-lg text-sm transition duration-200"
-                        >
-                            Sil
-                        </button>
-                    </div>
-                `;
-
-                inventoryList.appendChild(wrapper);
-            });
-        }
-
-        // --------------------------------------------------------------------
-        // 7) Yeni Ürün Ekleme
-        // --------------------------------------------------------------------
-        form.addEventListener("submit", async (e) => {
-            e.preventDefault();
-
-            if (!isAuthReady || !userId) {
-                showMessage(
-                    "Lütfen kimlik doğrulamanın tamamlanmasını bekleyin.",
-                    true
-                );
-                return;
-            }
-
-            const name = document.getElementById("name").value.trim();
-            const quantity = parseInt(
-                document.getElementById("quantity").value,
-                10
-            );
-            const description = document
-                .getElementById("description")
-                .value.trim();
-
-            if (!name || isNaN(quantity) || quantity <= 0 || !description) {
-                showMessage(
-                    "Lütfen tüm alanları geçerli şekilde doldurun.",
-                    true
-                );
-                return;
-            }
-
-            const newItem = {
-                name,
-                quantity,
-                description,
-                createdAt: Date.now(),
-            };
-
-            try {
-                const userInventoryRef = getUserInventoryRef();
-                if (!userInventoryRef) {
-                    showMessage(
-                        "Veritabanı bağlantısı kurulamadı.",
-                        true
-                    );
-                    return;
-                }
-
-                await addDoc(userInventoryRef, newItem);
-                showMessage(
-                    `${name} envantere başarıyla eklendi!`,
-                    false
-                );
-                form.reset();
-            } catch (error) {
-                console.error("Ürün Ekleme Hatası:", error);
-                showMessage(
-                    "Ürün eklenirken bir hata oluştu.",
-                    true
-                );
-            }
-        });
-
-        // --------------------------------------------------------------------
-        // 8) Ürün Silme
-        // --------------------------------------------------------------------
-        inventoryList.addEventListener("click", async (e) => {
-            const deleteBtn = e.target.closest(".delete-btn");
-            if (!deleteBtn) return;
-
-            const itemId = deleteBtn.dataset.id;
-            if (!itemId || !db || !userId) return;
-
-            // Emin misin pop-up'ını istersen buraya ekleyebilirsin:
-            // if (!confirm("Bu ürünü silmek istediğinize emin misiniz?")) return;
-
-            const basePath = `artifacts/${appId}/users/${userId}`;
-            const docRef = doc(
-                db,
-                `${basePath}/${INVENTORY_COLLECTION}`,
-                itemId
-            );
-
-            try {
-                await deleteDoc(docRef);
-                showMessage("Ürün başarıyla silindi.", false);
-            } catch (error) {
-                console.error("Ürün Silme Hatası:", error);
-                showMessage(
-                    "Ürün silinirken bir hata oluştu.",
-                    true
-                );
-            }
-        });
-
-        // --------------------------------------------------------------------
-        // 9) Sesli Okuma (Tarayıcı SpeechSynthesis API)
-        // --------------------------------------------------------------------
-        const synth = window.speechSynthesis;
-        let currentButton = null;
-
-        function speakText(text, button) {
-            if (!synth) {
-                showMessage(
-                    "Hata: Tarayıcınız sesli okuma (Text-to-Speech) özelliğini desteklemiyor.",
-                    true
-                );
-                return;
-            }
-
-            // Eğer aynı butona tıklayıp konuşma devam ediyorsa → durdur
-            if (currentButton && button === currentButton && synth.speaking) {
-                try {
-                    synth.cancel();
-                } catch (e) {}
-                return;
-            }
-
-            // Önce varsa eski konuşmayı iptal et
-            if (synth.speaking) {
-                try {
-                    synth.cancel();
-                } catch (e) {}
-            }
-
-            const utterance = new SpeechSynthesisUtterance(text);
-            utterance.lang = "tr-TR";
-
-            // Orijinal HTML'yi sadece ilk seferde kaydet
-            if (!button.dataset.originalHtml) {
-                button.dataset.originalHtml = button.innerHTML;
-            }
-
-            utterance.onstart = () => {
-                currentButton = button;
-                button.classList.add("speaking");
-                button.innerHTML = "🔊 Durduruluyor...";
-            };
-
-            const resetButton = () => {
-                if (currentButton) {
-                    currentButton.classList.remove("speaking");
-                    if (currentButton.dataset.originalHtml) {
-                        currentButton.innerHTML =
-                            currentButton.dataset.originalHtml;
-                    } else {
-                        currentButton.innerHTML = "Açıklamayı Dinle";
-                    }
-                }
-                currentButton = null;
-            };
-
-            utterance.onend = resetButton;
-            utterance.onerror = resetButton;
-
-            synth.speak(utterance);
-        }
-
-        // Sesli okuma butonuna tıklama
-        inventoryList.addEventListener("click", (e) => {
-            const btn = e.target.closest(".speak-btn");
-            if (!btn) return;
-            const text = btn.dataset.text || "";
-            if (!text) {
-                showMessage(
-                    "Bu ürün için açıklama bulunamadı.",
-                    true
-                );
-                return;
-            }
-            speakText(text, btn);
-        });
-
-        // --------------------------------------------------------------------
-        // 10) Uygulama Başlatma + Kullanıcı ID Gösterimi
-        // --------------------------------------------------------------------
-        window.onload = initializeFirebase;
-
-        const userIdDisplay = document.createElement("p");
-        userIdDisplay.className =
-            "text-center text-sm text-gray-400 mt-6";
-        userIdDisplay.innerHTML =
-            'Mevcut Kullanıcı ID: <span id="current-user-id" class="font-mono text-xs">Bekleniyor...</span>';
-        document.getElementById("app").appendChild(userIdDisplay);
-    </script>
+      } catch (err) {
+        console.error("Oturum rol kontrolü hatası:", err);
+      }
+    });
+  </script>
 </body>
 </html>
