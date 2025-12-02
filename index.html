@@ -3,1101 +3,358 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ProWMS Enterprise | Akıllı Depo Yönetimi</title>
-    
-    <!-- React ve ReactDOM -->
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    
-    <!-- Babel -->
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    
-    <!-- Tailwind CSS -->
+    <title>Sesli Envanter Takip Uygulaması</title>
+    <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
-    
-    <!-- Google Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    fontFamily: { sans: ['Inter', 'sans-serif'] },
-                    colors: {
-                        primary: { 50: '#eff6ff', 100: '#dbeafe', 500: '#3b82f6', 600: '#2563eb', 700: '#1d4ed8', 800: '#1e40af', 900: '#1e3a8a' },
-                        emerald: { 600: '#059669', 700: '#047857' },
-                        slate: { 850: '#151f32' } // Özel koyu tema
-                    }
-                }
-            }
-        }
-    </script>
-
     <style>
-        body { background-color: #f3f4f6; }
-        .fade-in { animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
-        .slide-in { animation: slideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes slideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
-        
-        /* Özel Scrollbar */
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        /* Inter font for modern look */
+        body { font-family: 'Inter', sans-serif; }
+        /* Özel stil: Okunuyor butonu için animasyon */
+        .speaking {
+            animation: pulse-ring 1s cubic-bezier(0.68, -0.55, 0.27, 1.55) infinite;
+        }
+        @keyframes pulse-ring {
+            0% { transform: scale(1); opacity: 0.8; }
+            50% { transform: scale(1.05); opacity: 1; }
+            100% { transform: scale(1); opacity: 0.8; }
+        }
     </style>
 </head>
-<body>
-    <div id="root"></div>
+<body class="bg-gray-50 min-h-screen p-4 sm:p-8">
 
-    <script type="text/babel">
-        const { useState, useEffect, useCallback } = React;
+    <div id="app" class="max-w-4xl mx-auto">
+        <header class="text-center mb-8">
+            <h1 class="text-4xl font-extrabold text-blue-800">Depo Envanter Paneli</h1>
+            <p class="text-gray-600 mt-2">Stok durumunuzu görüntüleyin ve açıklamaları dinleyin.</p>
+        </header>
 
-        // --- GEMINI API CONFIGURATION ---
-        // Stok Tahmini ve Sipariş Önerisi const handleStockSuggestion = async (item) => { setSuggestionItem(item); setSuggestionResult({ prediction: '', sources: [], purchaseQty: 0, leadTimeDays: 7 }); // Reset setSuggestionModalOpen(true); setSuggestionLoading(true); const daysUntilMin = Math.round((item.quantity - item.minLevel) / item.dailyAvgSale); const leadTime = 7; // Varsayılan tedarik süresi (gün) const targetStock = item.minLevel + (item.dailyAvgSale * (leadTime + 10)); // Min stok + bir miktar güvenlik stoğu const suggestedPurchase = Math.max(0, Math.ceil(targetStock - item.quantity));
+        <!-- Yeni Ürün Ekleme Formu -->
+        <div class="bg-white p-6 rounded-xl shadow-lg mb-8">
+            <h2 class="text-2xl font-semibold mb-4 text-gray-700">Yeni Ürün Ekle</h2>
+            <form id="add-item-form" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <input type="text" id="name" placeholder="Ürün Adı (Örn: Mavi Gömlek)" required
+                       class="p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 col-span-1 md:col-span-1">
+                <input type="number" id="quantity" placeholder="Stok Adedi (Örn: 50)" required min="1"
+                       class="p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
+                <textarea id="description" placeholder="Açıklama (Örn: %100 pamuk, yazlık model)" rows="1" required
+                          class="p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 md:col-span-2"></textarea>
+                <button type="submit"
+                        class="col-span-1 md:col-span-1 bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg transition duration-200 shadow-md">
+                    Envantere Ekle
+                </button>
+            </form>
+        </div>
 
-        // --- ICON SET (Lucide Style) ---
-        const Icons = {
-            Box: (p) => <svg {...p} xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>,
-            Home: (p) => <svg {...p} xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>,
-            List: (p) => <svg {...p} xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>,
-            Clipboard: (p) => <svg {...p} xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>,
-            CheckCircle: (p) => <svg {...p} xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>,
-            Truck: (p) => <svg {...p} xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>,
-            Plus: (p) => <svg {...p} xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>,
-            Trash: (p) => <svg {...p} xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>,
-            Search: (p) => <svg {...p} xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>,
-            Scan: (p) => <svg {...p} xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><rect x="7" y="7" width="10" height="10"/></svg>,
-            Edit: (p) => <svg {...p} xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>,
-            Bell: (p) => <svg {...p} xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>,
-            ArrowDown: (p) => <svg {...p} xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><polyline points="19 12 12 19 5 12"></polyline></svg>,
-            Sparkles: (p) => <svg {...p} xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12.5 13.5l-3 3 1.5 1.5 3-3-1.5-1.5z"/><path d="M14 6l-1 1 1 1 1-1-1-1zM20 13l-1 1 1 1 1-1-1-1zM6 18l-1 1 1 1 1-1-1-1zM22 2l-1 1-1-1 1-1 1 1zM2 12l1 1 1-1-1-1-1 1zM18 18l-1 1 1 1 1-1-1-1z"/></svg>,
-            Volume2: (p) => <svg {...p} xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
-        };
+        <!-- Envanter Listesi -->
+        <div class="bg-white p-6 rounded-xl shadow-lg">
+            <h2 class="text-2xl font-semibold mb-4 text-gray-700">Mevcut Envanter (<span id="item-count">0</span> Ürün)</h2>
+            <div id="inventory-list" class="space-y-4">
+                <!-- Envanter öğeleri buraya eklenecek -->
+            </div>
+            <p id="empty-message" class="text-center text-gray-500 p-8">
+                Envanteriniz boş. Lütfen yukarıdaki formu kullanarak ürün ekleyin.
+            </p>
+        </div>
 
-        // --- UTILITY FUNCTIONS ---
-        const formatCurrency = (amount) => new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY' }).format(amount);
-        const generateId = () => Math.random().toString(36).slice(2, 11).toUpperCase();
+        <!-- Genel Hata/Mesaj Kutusu -->
+        <div id="message-box" class="fixed bottom-4 right-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-xl shadow-xl hidden" role="alert">
+            <span id="message-text" class="block sm:inline"></span>
+            <span class="absolute top-0 bottom-0 right-0 px-4 py-3 cursor-pointer" onclick="document.getElementById('message-box').classList.add('hidden')">
+                <svg class="fill-current h-6 w-6 text-red-500" role="button" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><title>Kapat</title><path d="M14.348 14.849a1.002 1.002 0 01-1.414 0L10 11.414l-2.934 2.935a1.002 1.002 0 11-1.414-1.414l2.934-2.935-2.934-2.935a1.002 1.002 0 011.414-1.414l2.934 2.935 2.934-2.935a1.002 1.002 0 011.414 1.414l-2.934 2.935 2.934 2.935a1.002 1.002 0 010 1.414z"/></svg>
+            </span>
+        </div>
 
-        // localStorage güvenli okuma
-        const safeLoad = (key, fallback) => {
-            try {
-                const raw = localStorage.getItem(key);
-                if (!raw) return fallback;
-                const parsed = JSON.parse(raw);
-                return parsed ?? fallback;
-            } catch (e) {
-                console.warn('localStorage parse error for', key, e);
-                return fallback;
+    </div>
+
+    <script type="module">
+        // Firestore için gerekli global değişkenler
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+
+        // Firebase ve Firestore modüllerini içe aktar
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+
+        // Uygulama başlatma değişkenleri
+        let app, db, auth, userId = null;
+        let isAuthReady = false;
+        const INVENTORY_COLLECTION = "inventory_items";
+
+        // DOM Elementleri
+        const form = document.getElementById('add-item-form');
+        const inventoryList = document.getElementById('inventory-list');
+        const emptyMessage = document.getElementById('empty-message');
+        const itemCount = document.getElementById('item-count');
+
+        // Mesaj kutusu işlevi
+        function showMessage(text, isError = false) {
+            const box = document.getElementById('message-box');
+            const messageText = document.getElementById('message-text');
+
+            messageText.textContent = text;
+            box.classList.remove('hidden', 'bg-red-100', 'bg-green-100', 'border-red-400', 'border-green-400', 'text-red-700', 'text-green-700');
+
+            if (isError) {
+                box.classList.add('bg-red-100', 'border-red-400', 'text-red-700');
+            } else {
+                box.classList.add('bg-green-100', 'border-green-400', 'text-green-700');
             }
-        };
 
-        // --- MOCK DATA ---
-        const initialInventory = [
-            { id: '1', sku: 'LAP-001', name: 'Gaming Laptop X1', category: 'Elektronik', location: 'A-01-02', quantity: 15, minLevel: 5, price: 25000, dailyAvgSale: 2.5 },
-            { id: '2', sku: 'MOU-055', name: 'Kablosuz Mouse', category: 'Aksesuar', location: 'B-05-01', quantity: 50, minLevel: 10, price: 450, dailyAvgSale: 4.1 },
-            { id: '3', sku: 'KBD-102', name: 'Mekanik Klavye', category: 'Aksesuar', location: 'B-05-02', quantity: 22, minLevel: 8, price: 1200, dailyAvgSale: 1.8 },
-            { id: '4', sku: 'MON-024', name: '24\" IPS Monitör', category: 'Elektronik', location: 'A-02-01', quantity: 8, minLevel: 3, price: 3500, dailyAvgSale: 0.9 },
-            { id: '5', sku: 'PRT-088', name: 'Laser Yazıcı Pro', category: 'Ofis', location: 'C-01-01', quantity: 3, minLevel: 5, price: 8500, dailyAvgSale: 0.3 },
-        ];
+            // 5 saniye sonra otomatik gizle
+            setTimeout(() => box.classList.add('hidden'), 5000);
+        }
 
-        // Custom Hook for Gemini API Calls with Backoff
-        const useGeminiApi = () => {
-            const callApi = useCallback(async (model, payload, retries = 3) => {
-                if (!API_KEY) {
-                    throw new Error("Gemini API anahtarı (API_KEY) tanımlı değil.");
-                }
+        // 1. Firebase Başlatma ve Kimlik Doğrulama
+        async function initializeFirebase() {
+            if (!firebaseConfig) {
+                showMessage("Hata: Firebase yapılandırması eksik. Uygulama başlatılamadı.", true);
+                return;
+            }
 
-                const apiUrl = `${GEMINI_API_BASE}${model}:generateContent?key=${API_KEY}`;
-                const headers = { 'Content-Type': 'application/json' };
-                
-                for (let i = 0; i < retries; i++) {
-                    try {
-                        const response = await fetch(apiUrl, {
-                            method: 'POST',
-                            headers: headers,
-                            body: JSON.stringify(payload)
-                        });
+            try {
+                // Hata ayıklama loglarını aç
+                setLogLevel('Debug');
+                app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app); // Auth objesini başlat
 
-                        if (response.ok) {
-                            const text = await response.text();
-                            try {
-                                return JSON.parse(text);
-                            } catch (e) {
-                                console.error("API JSON parse error:", e, text);
-                                throw new Error("API geçersiz JSON döndürdü.");
-                            }
-                        } else if (response.status === 429 && i < retries - 1) {
-                            const delay = Math.pow(2, i) * 1000 + Math.random() * 1000;
-                            console.warn(`429 Too Many Requests. ${delay / 1000}s sonra tekrar denenecek...`);
-                            await new Promise(resolve => setTimeout(resolve, delay));
-                        } else {
-                            const errorText = await response.text().catch(() => "");
-                            console.error(`API Error (${response.status}):`, errorText);
-                            throw new Error(`API çağrısı başarısız oldu. HTTP ${response.status}`);
-                        }
-                    } catch (error) {
-                        console.error("Fetch error:", error);
-                        if (i === retries - 1) throw error; 
-                        const delay = Math.pow(2, i) * 1000 + Math.random() * 1000;
-                        console.warn(`Fetch hatası. ${delay / 1000}s sonra tekrar denenecek...`);
-                        await new Promise(resolve => setTimeout(resolve, delay));
-                    }
-                }
-                throw new Error("API çağrısı birden fazla denemeden sonra da başarısız oldu.");
-            }, []);
-
-            return { callApi };
-        };
-
-        // Toast Notification System
-        const ToastContainer = ({ toasts, removeToast }) => (
-            <div className="fixed top-5 right-5 z-[60] flex flex-col gap-3 pointer-events-none">
-                {toasts.map(toast => (
-                    <div key={toast.id} className={`pointer-events-auto flex items-center p-4 rounded-lg shadow-lg text-white min-w-[300px] slide-in ${toast.type === 'error' ? 'bg-red-600' : toast.type === 'success' ? 'bg-emerald-600' : 'bg-primary-600'}`}>
-                        <div className="flex-1 text-sm font-medium">{toast.message}</div>
-                        <button onClick={() => removeToast(toast.id)} className="ml-3 opacity-80 hover:opacity-100">&times;</button>
-                    </div>
-                ))}
-            </div>
-        );
-
-        const Modal = ({ isOpen, onClose, title, children, maxWidth = "max-w-2xl" }) => {
-            if (!isOpen) return null;
-            return (
-                <div className="fixed inset-0 bg-slate-900/70 flex items-center justify-center z-50 p-4 backdrop-blur-sm transition-all" onClick={onClose}>
-                    <div onClick={(e) => e.stopPropagation()} className={`bg-white rounded-xl shadow-2xl w-full ${maxWidth} overflow-hidden fade-in flex flex-col max-h-[90vh]`}>
-                        <div className="flex justify-between items-center px-6 py-4 border-b border-slate-100 bg-white">
-                            <h3 className="text-lg font-bold text-slate-800">{title}</h3>
-                            <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-400 hover:text-red-500 transition text-lg">&times;</button>
-                        </div>
-                        <div className="p-6 overflow-y-auto bg-slate-50/50">{children}</div>
-                    </div>
-                </div>
-            );
-        };
-
-        const StatCard = ({ title, value, subtext, icon, color }) => (
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex items-start hover:shadow-md transition-shadow duration-300">
-                <div className={`p-3 rounded-lg ${color} mr-4`}>{icon}</div>
-                <div>
-                    <p className="text-xs text-slate-500 font-bold uppercase tracking-wider mb-1">{title}</p>
-                    <h4 className="text-2xl font-bold text-slate-800">{value}</h4>
-                    {subtext && <p className="text-xs text-slate-400 mt-1">{subtext}</p>}
-                </div>
-            </div>
-        );
-
-        // Simple Bar Chart Component (CSS Based)
-        const SimpleChart = ({ data }) => {
-            const max = Math.max(...data.map(d => d.value));
-            return (
-                <div className="flex items-end justify-between h-32 gap-2 mt-4 px-2">
-                    {data.map((d, i) => (
-                        <div key={i} className="flex flex-col items-center w-full group">
-                            <div className="relative w-full mx-1">
-                                <div className="absolute bottom-0 left-0 right-0 bg-primary-100 rounded-t-sm h-full opacity-30"></div>
-                                <div 
-                                    className="bg-primary-500 rounded-t-sm transition-all duration-500 hover:bg-primary-600 relative z-10 mx-auto w-4/5" 
-                                    style={{ height: `${(d.value / max) * 100}%` }}
-                                >
-                                    <div className="opacity-0 group-hover:opacity-100 absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-xs px-2 py-1 rounded pointer-events-none transition-opacity">
-                                        {d.value}
-                                    </div>
-                                </div>
-                            </div>
-                            <span className="text-[10px] text-slate-400 mt-2 font-medium">{d.label}</span>
-                        </div>
-                    ))}
-                </div>
-            );
-        };
-        
-        // --- MAIN APP ---
-        const App = () => {
-            const { callApi } = useGeminiApi();
-            
-            const [view, setView] = useState('dashboard');
-            const [inventory, setInventory] = useState(() => safeLoad('wms_inventory', initialInventory));
-            const [orders, setOrders] = useState(() => safeLoad('wms_orders', []));
-            const [transactions, setTransactions] = useState(() => safeLoad('wms_transactions', []));
-            const [toasts, setToasts] = useState([]);
-
-            // Modal States
-            const [isOrderModalOpen, setOrderModalOpen] = useState(false);
-            const [isStockInModalOpen, setStockInModalOpen] = useState(false);
-            const [isEditModalOpen, setEditModalOpen] = useState(false);
-            const [isSuggestionModalOpen, setSuggestionModalOpen] = useState(false);
-            
-            // Form Data States
-            const [newOrder, setNewOrder] = useState({ customer: '', items: [] }); 
-            const [stockInData, setStockInData] = useState({ itemId: '', qty: 0, note: 'Manuel Giriş' });
-            const [editItemData, setEditItemData] = useState(null);
-            
-            // AI Data States
-            const [suggestionItem, setSuggestionItem] = useState(null);
-            const [suggestionResult, setSuggestionResult] = useState({ prediction: '', sources: [], purchaseQty: 0, leadTimeDays: 7 });
-            const [suggestionLoading, setSuggestionLoading] = useState(false);
-            const [audioPlaying, setAudioPlaying] = useState(false);
-
-            // Search/Filter
-            const [orderSearchItem, setOrderSearchItem] = useState('');
-            const [inventorySearch, setInventorySearch] = useState('');
-            
-            // Aktif sipariş ID (toplama / kontrol)
-            const [activeOrderId, setActiveOrderId] = useState(null);
-
-            useEffect(() => {
-                try {
-                    localStorage.setItem('wms_inventory', JSON.stringify(inventory));
-                    localStorage.setItem('wms_orders', JSON.stringify(orders));
-                    localStorage.setItem('wms_transactions', JSON.stringify(transactions));
-                } catch (e) {
-                    console.warn('localStorage yazma hatası:', e);
-                }
-            }, [inventory, orders, transactions]);
-
-            const addToast = (type, message) => {
-                const id = Date.now();
-                setToasts(prev => [...prev, { id, type, message }]);
-                setTimeout(() => removeToast(id), 4000);
-            };
-
-            const removeToast = (id) => setToasts(prev => prev.filter(t => t.id !== id));
-
-            // --- GEMINI ACTIONS ---
-
-            const handleStockSuggestion = async (item) => {
-                setSuggestionItem(item);
-                setSuggestionResult({ prediction: '', sources: [], purchaseQty: 0, leadTimeDays: 7 });
-                setSuggestionModalOpen(true);
-                setSuggestionLoading(true);
-
-                const daysUntilMin = Math.max(0, Math.round((item.quantity - item.minLevel) / (item.dailyAvgSale || 1)));
-                const leadTime = 7;
-                const targetStock = item.minLevel + (item.dailyAvgSale * (leadTime + 10));
-                const suggestedPurchase = Math.max(0, Math.ceil(targetStock - item.quantity));
-                
-                const systemPrompt = "Sen, bir Depo Yöneticisine hızlı ve doğru tedarik kararları vermesinde yardımcı olan uzman bir Yapay Zeka Analistisin. Kısa ve net yaz. Son cümlede kaç adet sipariş önerdiğini net belirt.";
-                const userQuery = `Stok durumu: Ürün: ${item.name}, SKU: ${item.sku}, Mevcut: ${item.quantity} adet, Minimum: ${item.minLevel} adet. Günlük ortalama tüketim: ${item.dailyAvgSale} adet. Kritik stoğa yaklaşık ${daysUntilMin} gün kaldı. Bu verilere göre, ${item.name} için en uygun sipariş miktarını ve kısa tedarik stratejisini Türkçe yaz.`;
-
-                try {
-                    const payload = {
-                        contents: [
-                            {
-                                role: "user",
-                                parts: [{ text: userQuery }]
-                            }
-                        ],
-                        system_instruction: {
-                            role: "system",
-                            parts: [{ text: systemPrompt }]
-                        },
-                        generationConfig: { temperature: 0.2 }
-                    };
+                // Kimlik doğrulama durumu değiştiğinde tetiklenir
+                onAuthStateChanged(auth, (user) => {
+                    const userIdElement = document.getElementById('current-user-id');
                     
-                    const result = await callApi(GEMINI_MODEL_FLASH, payload);
-                    const text = result?.candidates?.[0]?.content?.parts?.[0]?.text || "Tahmin servisi yanıt veremedi.";
-                    
-                    let sources = [];
-                    const groundingMetadata = result?.candidates?.[0]?.groundingMetadata;
-                    if (groundingMetadata && groundingMetadata.groundingAttributions) {
-                        sources = groundingMetadata.groundingAttributions
-                            .map(attribution => ({
-                                uri: attribution.web?.uri,
-                                title: attribution.web?.title,
-                            }))
-                            .filter(source => source.uri && source.title);
-                    }
-
-                    setSuggestionResult({
-                        prediction: text, 
-                        sources, 
-                        purchaseQty: suggestedPurchase, 
-                        leadTimeDays: leadTime
-                    });
-
-                } catch (error) {
-                    console.error(error);
-                    addToast('error', 'Stok önerisi alınamadı: ' + error.message);
-                    setSuggestionResult(prev => ({ ...prev, prediction: 'Hata: Tahmin servisine ulaşılamadı.' }));
-                } finally {
-                    setSuggestionLoading(false);
-                }
-            };
-            
-            // Sipariş Özeti Seslendirme (TTS)
-            const handleTtsPlayback = async (order) => {
-                if (audioPlaying) return; 
-
-                const orderDetails = order.items.map(i => `${i.qty} adet ${i.name}`).join(', ');
-                const textToSpeak = `Sipariş numarası: ${order.id}. Müşteri: ${order.customer}. Toplanacak ürünler: ${orderDetails}. Bu bir öncelikli sevk emridir. Toplama ve kontrol işlemlerini hızla tamamlayınız.`;
-
-                setAudioPlaying(true);
-                addToast('info', 'Sesli özet oluşturuluyor...');
-
-                const payload = {
-                    contents: [{ role: "user", parts: [{ text: textToSpeak }] }],
-                    generationConfig: {
-                        responseModalities: ["AUDIO"],
-                        speechConfig: {
-                            voiceConfig: {
-                                prebuiltVoiceConfig: { voiceName: "Kore" }
-                            }
+                    if (user) {
+                        userId = user.uid;
+                        isAuthReady = true;
+                        // Kullanıcı kimliği doğrulandıktan sonra veritabanı dinlemesini başlat
+                        listenToInventory();
+                        showMessage(`Oturum açıldı. Kullanıcı ID: ${userId}`, false);
+                        
+                        // ID'yi ekranda göster
+                        if (userIdElement) {
+                            userIdElement.textContent = user.uid;
                         }
-                    }
-                };
-
-                try {
-                    const result = await callApi(GEMINI_MODEL_TTS, payload);
-                    const part = result?.candidates?.[0]?.content?.parts?.[0];
-                    const audioData = part?.inlineData?.data;
-                    const mimeType = part?.inlineData?.mimeType || "audio/wav";
-
-                    if (audioData) {
-                        const audioUrl = `data:${mimeType};base64,${audioData}`;
-                        const audio = new Audio(audioUrl);
-                        audio.play();
-                        audio.onended = () => {
-                            setAudioPlaying(false);
-                        };
-                        addToast('success', 'Sesli özet oynatılıyor.');
                     } else {
-                        throw new Error('Geçersiz ses verisi.');
+                        // Eğer token yoksa anonim giriş yap
+                        if (typeof __initial_auth_token !== 'undefined') {
+                            signInWithCustomToken(auth, __initial_auth_token)
+                                .catch(error => {
+                                    console.error("Özel Kimlik Doğrulama Hatası:", error);
+                                    signInAnonymously(auth); // Hata durumunda anonim giriş
+                                });
+                        } else {
+                            signInAnonymously(auth);
+                        }
+                        
+                        // Giriş yapılmadıysa/bekleniyorsa durumu güncelle
+                         if (userIdElement) {
+                            userIdElement.textContent = 'Anonim Giriş Yapılıyor...';
+                        }
                     }
-                } catch (error) {
-                    console.error("TTS Error:", error);
-                    addToast('error', 'Sesli özet oluşturulurken bir hata oluştu: ' + error.message);
-                    setAudioPlaying(false);
-                }
-            };
-            
-            // --- ACTIONS ---
-
-            const createOrder = () => {
-                if (!newOrder.customer || newOrder.items.length === 0) {
-                    return addToast('error', "Müşteri adı ve en az bir ürün giriniz.");
-                }
-                
-                const order = {
-                    id: 'SIP-' + generateId(),
-                    customer: newOrder.customer,
-                    items: newOrder.items.map(i => ({ ...i, picked: 0, checked: 0 })), 
-                    status: 'hazirlaniyor',
-                    date: new Date().toISOString()
-                };
-                
-                setOrders(prev => [order, ...prev]);
-                setOrderModalOpen(false);
-                setNewOrder({ customer: '', items: [] });
-                addToast('success', 'Sipariş başarıyla oluşturuldu.');
-            };
-
-            const handleStockIn = () => {
-                if(!stockInData.itemId || stockInData.qty <= 0) return addToast('error', 'Geçersiz ürün veya miktar.');
-                
-                const item = inventory.find(i => i.id === stockInData.itemId);
-                if (!item) return addToast('error', 'Ürün bulunamadı.');
-
-                const updatedInventory = inventory.map(i => i.id === stockInData.itemId ? {...i, quantity: i.quantity + Number(stockInData.qty)} : i);
-                
-                setInventory(updatedInventory);
-                setTransactions(prev => [{
-                    id: generateId(),
-                    type: 'in',
-                    date: new Date().toISOString(),
-                    quantity: Number(stockInData.qty),
-                    itemName: item.name,
-                    note: stockInData.note
-                }, ...prev]);
-
-                setStockInModalOpen(false);
-                setStockInData({ itemId: '', qty: 0, note: 'Manuel Giriş' });
-                addToast('success', `${stockInData.qty} adet ${item.name} stoğa eklendi.`);
-            };
-
-            const handleUpdateItem = () => {
-                if (!editItemData) return;
-                setInventory(prev => prev.map(i => i.id === editItemData.id ? editItemData : i));
-                setEditModalOpen(false);
-                addToast('success', 'Ürün bilgileri güncellendi.');
-            };
-
-            const handleDeleteItem = (id) => {
-                if(window.confirm("Bu ürünü silmek istediğinize emin misiniz?")) { 
-                    setInventory(prev => prev.filter(i => i.id !== id));
-                    addToast('success', 'Ürün silindi.');
-                }
-            };
-
-            const addToOrderCart = (item) => {
-                const existing = newOrder.items.find(i => i.itemId === item.id);
-                if (existing) {
-                    if (existing.qty >= item.quantity) return addToast('error', "Stok yetersiz!");
-                    setNewOrder({
-                        ...newOrder,
-                        items: newOrder.items.map(i => i.itemId === item.id ? { ...i, qty: i.qty + 1 } : i)
-                    });
-                } else {
-                    setNewOrder({
-                        ...newOrder,
-                        items: [...newOrder.items, { itemId: item.id, name: item.name, sku: item.sku, qty: 1, location: item.location }]
-                    });
-                }
-            };
-
-            const handlePicking = (orderId, itemId, action) => {
-                setOrders(prev => prev.map(o => {
-                    if (o.id === orderId) {
-                        const newItems = o.items.map(i => {
-                            if (i.itemId === itemId) {
-                                const delta = action === 'add' ? 1 : -1;
-                                const newPicked = Math.min(Math.max(0, (i.picked || 0) + delta), i.qty);
-                                return { ...i, picked: newPicked };
-                            }
-                            return i;
-                        });
-                        const allPicked = newItems.every(i => (i.picked || 0) === i.qty);
-                        return { ...o, items: newItems, status: allPicked ? 'kontrolde' : 'toplaniyor' };
-                    }
-                    return o;
-                }));
-            };
-
-            const handleChecking = (orderId, itemId) => {
-                setOrders(prev => prev.map(o => {
-                    if (o.id === orderId) {
-                        const newItems = o.items.map(i => {
-                            if (i.itemId === itemId) {
-                                const newChecked = Math.min((i.checked || 0) + 1, i.qty);
-                                return { ...i, checked: newChecked };
-                            }
-                            return i;
-                        });
-                        return { ...o, items: newItems };
-                    }
-                    return o;
-                }));
-            };
-
-            const finalizeOrder = (orderId) => {
-                const order = orders.find(o => o.id === orderId);
-                if (!order) {
-                    return addToast('error', 'Sipariş bulunamadı.');
-                }
-
-                if (order.items.some(i => (i.checked || 0) !== i.qty)) {
-                    return addToast('error', "Tüm ürünler kontrol edilmedi!");
-                }
-
-                const newInventory = inventory.map(invItem => {
-                    const orderItem = order.items.find(i => i.itemId === invItem.id);
-                    if (orderItem) {
-                        const currentDailyAvg = invItem.dailyAvgSale || 1;
-                        const newDailyAvg = ((currentDailyAvg * 6) + (orderItem.qty / 7)) / 7; 
-                        return { 
-                            ...invItem, 
-                            quantity: invItem.quantity - orderItem.qty,
-                            dailyAvgSale: parseFloat(newDailyAvg.toFixed(2)) 
-                        };
-                    }
-                    return invItem;
                 });
 
-                setInventory(newInventory);
-                setOrders(prev => prev.map(o => o.id === order.id ? { ...o, status: 'sevk_edildi' } : o));
-                setTransactions(prev => [{
-                    id: generateId(),
-                    type: 'out',
-                    date: new Date().toISOString(),
-                    quantity: order.items.reduce((a,b) => a + b.qty, 0),
-                    itemName: `Sipariş Sevk: ${order.id}`,
-                    note: `${order.customer} - Tamamlandı`
-                }, ...prev]);
+            } catch (error) {
+                console.error("Firebase Başlatma Hatası:", error);
+                showMessage("Uygulama başlatılırken kritik bir hata oluştu.", true);
+            }
+        }
 
-                setActiveOrderId(null);
-                setView('orders');
-                addToast('success', 'Sipariş sevk edildi ve stoktan düşüldü.');
-            };
+        // 2. Envanteri Dinleme (Real-time)
+        function listenToInventory() {
+            if (!isAuthReady || !userId) return;
 
-            // --- DASHBOARD DATA ---
-            const chartData = [
-                { label: 'Pzt', value: 12 }, { label: 'Sal', value: 19 }, { label: 'Çar', value: 3 },
-                { label: 'Per', value: 5 }, { label: 'Cum', value: 22 }, { label: 'Cts', value: 30 }, { label: 'Paz', value: 15 }
-            ];
+            // Özel koleksiyon yolu: /artifacts/{appId}/users/{userId}/inventory_items
+            const userInventoryRef = collection(db, `artifacts/${appId}/users/${userId}/${INVENTORY_COLLECTION}`);
 
-            const Dashboard = () => (
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-6 fade-in pb-10">
-                    <StatCard 
-                        title="Bekleyen İş Emri" 
-                        value={orders.filter(o => o.status === 'hazirlaniyor').length} 
-                        subtext="Operasyon bekleyen siparişler"
-                        icon={<Icons.Clipboard className="text-orange-600" />} 
-                        color="bg-orange-100" 
-                    />
-                    <StatCard 
-                        title="Aktif Toplama" 
-                        value={orders.filter(o => o.status === 'toplaniyor').length} 
-                        subtext="Personel üzerinde"
-                        icon={<Icons.List className="text-primary-600" />} 
-                        color="bg-primary-100" 
-                    />
-                    <StatCard 
-                        title="Kontrol Aşamasında" 
-                        value={orders.filter(o => o.status === 'kontrolde').length} 
-                        subtext="Paketleme ve barkod kontrol"
-                        icon={<Icons.CheckCircle className="text-purple-600" />} 
-                        color="bg-purple-100" 
-                    />
-                    <StatCard 
-                        title="Toplam Stok Kalemi" 
-                        value={inventory.length} 
-                        subtext={inventory.reduce((acc, i) => acc + i.quantity, 0) + " adet fiziksel ürün"}
-                        icon={<Icons.Box className="text-emerald-600" />} 
-                        color="bg-emerald-100" 
-                    />
+            onSnapshot(userInventoryRef, (snapshot) => {
+                const items = [];
+                snapshot.forEach(doc => {
+                    items.push({ id: doc.id, ...doc.data() });
+                });
+
+                // Verileri stok miktarına göre JavaScript'te sırala (Firestore'da orderBy kullanmaktan kaçınmak için)
+                items.sort((a, b) => b.quantity - a.quantity);
+
+                renderInventory(items);
+            }, (error) => {
+                console.error("Envanter Dinleme Hatası:", error);
+                showMessage("Envanter yüklenirken bir sorun oluştu.", true);
+            });
+        }
+
+        // 3. Envanteri Ekrana Çizme (Render)
+        function renderInventory(items) {
+            inventoryList.innerHTML = ''; // Listeyi temizle
+            itemCount.textContent = items.length;
+
+            if (items.length === 0) {
+                emptyMessage.classList.remove('hidden');
+            } else {
+                emptyMessage.classList.add('hidden');
+                items.forEach(item => {
+                    // Stok seviyesine göre renk belirleme
+                    let stockClass = '';
+                    if (item.quantity <= 10) {
+                        stockClass = 'text-red-600 font-bold'; // Kritik seviye
+                    } else if (item.quantity <= 50) {
+                        stockClass = 'text-yellow-600'; // Orta seviye
+                    } else {
+                        stockClass = 'text-blue-600'; // Yüksek seviye
+                    }
                     
-                    <div className="col-span-1 md:col-span-2 bg-white rounded-xl shadow-sm p-6 border border-slate-100">
-                        <div className="flex justify-between items-center mb-4">
-                            <h3 className="font-bold text-slate-800">Haftalık Sipariş Özeti</h3>
-                            <select className="bg-slate-50 border border-slate-200 text-xs rounded px-2 py-1 outline-none">
-                                <option>Bu Hafta</option>
-                                <option>Geçen Hafta</option>
-                            </select>
+                    const itemElement = document.createElement('div');
+                    itemElement.className = "bg-gray-50 p-4 rounded-xl shadow-md flex flex-col sm:flex-row justify-between items-start sm:items-center transition duration-150 hover:bg-gray-100";
+                    itemElement.innerHTML = `
+                        <div class="flex-grow mb-3 sm:mb-0">
+                            <p class="text-lg font-bold text-gray-900">${item.name} <span class="text-sm font-normal text-gray-500">(${item.id.substring(0, 5)}...)</span></p>
+                            <p class="text-sm text-gray-600 truncate max-w-xs">${item.description}</p>
+                            <p class="text-xs ${stockClass} mt-1">Stok: ${item.quantity}</p>
                         </div>
-                        <SimpleChart data={chartData} />
-                    </div>
-
-                    <div className="col-span-1 md:col-span-2 bg-white rounded-xl shadow-sm p-6 border border-slate-100">
-                        <h3 className="font-bold text-slate-800 mb-4">Son İşlem Hareketleri</h3>
-                        <div className="overflow-y-auto max-h-60 pr-2">
-                            <ul className="space-y-3">
-                                {transactions.length === 0 && <li className="text-sm text-slate-400 text-center py-4">Henüz hareket kaydı yok.</li>}
-                                {transactions.slice(0, 8).map(t => (
-                                    <li key={t.id} className="flex justify-between items-center text-sm border-b border-slate-50 pb-2 last:border-0 hover:bg-slate-50 p-2 rounded transition">
-                                        <div className="flex flex-col">
-                                            <span className="font-medium text-slate-700">{t.itemName}</span>
-                                            <span className="text-xs text-slate-400">
-                                                {new Date(t.date).toLocaleDateString('tr-TR')}{" "}
-                                                {new Date(t.date).toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit'})}
-                                            </span>
-                                        </div>
-                                        <div className={`font-bold px-2 py-1 rounded text-xs ${t.type === 'in' ? 'text-emerald-700 bg-emerald-50' : 'text-orange-700 bg-orange-50'}`}>
-                                            {t.type === 'in' ? 'GİRİŞ' : 'ÇIKIŞ'} {t.quantity}
-                                        </div>
-                                    </li>
-                                ))}
-                            </ul>
+                        <div class="flex space-x-2">
+                            <button data-id="${item.id}" data-text="${item.description}" class="speak-btn bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg flex items-center transition duration-200 text-sm">
+                                <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9c2.5 2.5 2.5 6.566 0 9.066m-2.83-12.728a9 9 0 0112.728 0m-2.828 9.9c2.5 2.5 2.5 6.566 0 9.066M13.414 7.586a2 2 0 10-2.828 2.828L15 14.121l-3.536 3.536a2 2 0 102.828 2.828L17.828 17l-3.535-3.535a2 2 0 10-2.828-2.828zM10 6.5a.5.5 0 00-1 0v7a.5.5 0 001 0v-7z"></path></svg>
+                                Açıklamayı Dinle
+                            </button>
+                            <button data-id="${item.id}" class="delete-btn bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-4 rounded-lg text-sm transition duration-200">
+                                Sil
+                            </button>
                         </div>
-                    </div>
-                </div>
-            );
+                    `;
+                    inventoryList.appendChild(itemElement);
+                });
+            }
+        }
 
-            const InventoryList = () => (
-                <div className="space-y-4 fade-in pb-10">
-                    <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
-                        <div className="relative w-full sm:w-96">
-                            <Icons.Search className="absolute left-3 top-3 text-slate-400 w-5 h-5" />
-                            <input 
-                                type="text" 
-                                placeholder="Ürün adı, SKU veya lokasyon ara..." 
-                                className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent shadow-sm"
-                                value={inventorySearch}
-                                onChange={(e) => setInventorySearch(e.target.value)}
-                            />
-                        </div>
-                        <button onClick={() => setStockInModalOpen(true)} className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-lg flex items-center shadow-lg shadow-emerald-600/20 font-medium transition-all">
-                            <Icons.ArrowDown className="mr-2 w-5 h-5" /> Stok Girişi (Mal Kabul)
-                        </button>
-                    </div>
+        // 4. Yeni Ürün Ekleme
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
 
-                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                        <table className="w-full text-left">
-                            <thead className="bg-slate-50 text-slate-600 text-xs uppercase tracking-wider font-semibold border-b border-slate-200">
-                                <tr>
-                                    <th className="p-4">Lokasyon</th>
-                                    <th className="p-4">SKU / Adı</th>
-                                    <th className="p-4 text-right">Birim Fiyat</th>
-                                    <th className="p-4 text-center">Mevcut Stok</th>
-                                    <th className="p-4 text-center">Günlük Ort. Satış</th>
-                                    <th className="p-4 text-center">Durum</th>
-                                    <th className="p-4 text-right">İşlemler</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100">
-                                {inventory
-                                    .filter(item => {
-                                        const q = inventorySearch.toLowerCase();
-                                        return (
-                                            item.name.toLowerCase().includes(q) ||
-                                            item.sku.toLowerCase().includes(q) ||
-                                            item.location.toLowerCase().includes(q)
-                                        );
-                                    })
-                                    .map(item => (
-                                    <tr key={item.id} className="hover:bg-slate-50 transition-colors group">
-                                        <td className="p-4">
-                                            <span className="font-mono text-xs font-bold text-primary-700 bg-primary-50 px-2 py-1 rounded border border-primary-100">{item.location}</span>
-                                        </td>
-                                        <td className="p-4">
-                                            <div className="font-medium text-slate-800">{item.name}</div>
-                                            <div className="text-xs text-slate-500 font-mono">{item.sku}</div>
-                                        </td>
-                                        <td className="p-4 text-right text-slate-600">{formatCurrency(item.price)}</td>
-                                        <td className="p-4 text-center font-bold text-slate-700 text-lg">{item.quantity}</td>
-                                        <td className="p-4 text-center text-sm text-slate-500">
-                                            {(item.dailyAvgSale ?? 0).toFixed(1)} adet
-                                        </td>
-                                        <td className="p-4 text-center">
-                                            {item.quantity <= item.minLevel ? 
-                                                <span className="text-red-600 text-[10px] font-extrabold px-2 py-1 bg-red-50 rounded-full border border-red-100 animate-pulse">KRİTİK</span> : 
-                                                <span className="text-emerald-600 text-[10px] font-extrabold px-2 py-1 bg-emerald-50 rounded-full border border-emerald-100">NORMAL</span>}
-                                        </td>
-                                        <td className="p-4 text-right flex justify-end gap-2">
-                                            <button 
-                                                onClick={() => handleStockSuggestion(item)} 
-                                                className="p-2 text-primary-600 bg-primary-50 hover:bg-primary-100 rounded-full shadow-sm border border-primary-200 transition text-xs font-medium flex items-center"
-                                                title="Akıllı Sipariş Önerisi Al"
-                                            >
-                                                <Icons.Sparkles className="w-4 h-4"/>
-                                            </button>
-                                            <button onClick={() => { setEditItemData(item); setEditModalOpen(true); }} className="p-2 text-slate-400 hover:text-primary-600 hover:bg-white rounded-full shadow-sm border border-transparent hover:border-slate-200 transition"><Icons.Edit className="w-4 h-4"/></button>
-                                            <button onClick={() => handleDeleteItem(item.id)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-white rounded-full shadow-sm border border-transparent hover:border-slate-200 transition"><Icons.Trash className="w-4 h-4"/></button>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                        {inventory.length === 0 && <div className="p-10 text-center text-slate-400">Kayıt bulunamadı.</div>}
-                    </div>
-                </div>
-            );
+            if (!isAuthReady || !userId) {
+                showMessage("Lütfen kimlik doğrulamanın tamamlanmasını bekleyin.", true);
+                return;
+            }
 
-            const OrderManagement = () => (
-                <div className="space-y-6 fade-in pb-10">
-                    <div className="flex justify-between items-center">
-                        <div>
-                            <h2 className="text-xl font-bold text-slate-800">Sipariş Yönetimi</h2>
-                            <p className="text-sm text-slate-500">Giden siparişleri yönetin, toplayın ve sevk edin.</p>
-                        </div>
-                        <button onClick={() => setOrderModalOpen(true)} className="bg-primary-600 hover:bg-primary-700 text-white px-5 py-2.5 rounded-lg flex items-center shadow-lg shadow-primary-600/30 transition-all font-medium">
-                            <Icons.Plus className="mr-2 w-5 h-5" /> Yeni Sipariş Oluştur
-                        </button>
-                    </div>
+            const name = document.getElementById('name').value.trim();
+            const quantity = parseInt(document.getElementById('quantity').value, 10);
+            const description = document.getElementById('description').value.trim();
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {[...orders].sort((a,b) => new Date(b.date) - new Date(a.date)).map(order => (
-                            <div key={order.id} className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 relative overflow-hidden group hover:shadow-md transition-all duration-300">
-                                <div className={`absolute top-0 right-0 px-3 py-1 text-[10px] font-bold uppercase rounded-bl-xl tracking-wider
-                                    ${order.status === 'hazirlaniyor' ? 'bg-slate-100 text-slate-600' : 
-                                      order.status === 'toplaniyor' ? 'bg-primary-50 text-primary-600' :
-                                      order.status === 'kontrolde' ? 'bg-purple-50 text-purple-600' : 'bg-emerald-50 text-emerald-600'}`}>
-                                    {order.status.replace('_', ' ')}
-                                </div>
-                                <h3 className="font-bold text-lg mb-1 text-slate-800">{order.customer}</h3>
-                                <p className="text-xs text-slate-400 mb-5 font-mono">{order.id} • {new Date(order.date).toLocaleDateString('tr-TR')}</p>
-                                
-                                <div className="space-y-3 mb-6">
-                                    {order.items.slice(0, 3).map((item, idx) => (
-                                        <div key={idx} className="flex justify-between text-sm text-slate-600 border-b border-dashed border-slate-100 pb-2 last:border-0 last:pb-0">
-                                            <span className="truncate pr-2">{item.name}</span>
-                                            <span className="font-mono font-medium text-slate-800 bg-slate-50 px-1 rounded">x{item.qty}</span>
-                                        </div>
-                                    ))}
-                                    {order.items.length > 3 && <p className="text-xs text-primary-600 font-medium italic">+ {order.items.length - 3} ürün daha</p>}
-                                </div>
+            if (!name || isNaN(quantity) || quantity <= 0 || !description) {
+                showMessage("Lütfen tüm alanları geçerli şekilde doldurun.", true);
+                return;
+            }
 
-                                <div className="mt-auto flex gap-2">
-                                    <button 
-                                        onClick={() => handleTtsPlayback(order)} 
-                                        disabled={audioPlaying}
-                                        className={`w-1/3 p-2 rounded-lg text-sm font-bold shadow-md transition-all flex justify-center items-center ${audioPlaying ? 'bg-red-200 text-red-700 cursor-not-allowed' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'}`}
-                                        title="Sipariş Özeti Seslendir"
-                                    >
-                                        <Icons.Volume2 className={`w-4 h-4 ${audioPlaying ? 'animate-pulse' : ''}`}/>
-                                    </button>
-
-                                    {order.status === 'hazirlaniyor' && (
-                                        <button onClick={() => { setActiveOrderId(order.id); setView('picking'); }} className="w-2/3 bg-white border border-primary-200 text-primary-700 py-2.5 rounded-lg text-sm font-bold hover:bg-primary-50 transition flex justify-center items-center">
-                                            <Icons.List className="w-4 h-4 mr-2"/> Toplamaya Başla
-                                        </button>
-                                    )}
-                                    {order.status === 'toplaniyor' && (
-                                        <button onClick={() => { setActiveOrderId(order.id); setView('picking'); }} className="w-2/3 bg-primary-600 text-white py-2.5 rounded-lg text-sm font-bold hover:bg-primary-700 shadow-md shadow-primary-500/30 transition flex justify-center items-center">
-                                            <Icons.List className="w-4 h-4 mr-2"/> Toplamaya Devam Et
-                                        </button>
-                                    )}
-                                    {order.status === 'kontrolde' && (
-                                        <button onClick={() => { setActiveOrderId(order.id); setView('checking'); }} className="w-2/3 bg-purple-600 text-white py-2.5 rounded-lg text-sm font-bold hover:bg-purple-700 shadow-md shadow-purple-500/30 transition flex justify-center items-center">
-                                            <Icons.Scan className="w-4 h-4 mr-2"/> Kontrol Et
-                                        </button>
-                                    )}
-                                    {order.status === 'sevk_edildi' && (
-                                        <div className="w-2/3 bg-emerald-50 text-emerald-700 py-2.5 rounded-lg text-sm font-bold text-center border border-emerald-100 flex justify-center items-center">
-                                            <Icons.CheckCircle className="w-4 h-4 mr-2"/> Tamamlandı
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            );
-
-            const PickingProcess = () => {
-                const order = orders.find(o => o.id === activeOrderId);
-                if (!order) return <div className="p-6 text-slate-500">Aktif sipariş seçilmedi.</div>;
-
-                const totalPicked = order.items.reduce((a,b)=>a+(b.picked||0),0);
-                const totalQty = order.items.reduce((a,b)=>a+b.qty,0);
-                const progress = totalQty === 0 ? 0 : Math.round((totalPicked / totalQty) * 100);
-
-                return (
-                    <div className="max-w-4xl mx-auto fade-in pb-10">
-                        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 mb-6">
-                            <div className="flex justify-between items-center mb-6">
-                                <div>
-                                    <h2 className="text-2xl font-bold text-slate-800">Sipariş Toplama</h2>
-                                    <p className="text-slate-500 flex items-center gap-2 mt-1"><span className="bg-slate-100 px-2 py-0.5 rounded text-xs font-mono">{order.id}</span> {order.customer}</p>
-                                </div>
-                                <div className="text-right">
-                                    <div className="text-4xl font-black text-primary-600 tracking-tight">%{progress}</div>
-                                </div>
-                            </div>
-                            <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
-                                <div className="bg-primary-600 h-3 rounded-full transition-all duration-700 ease-out shadow-[0_0_10px_rgba(37,99,235,0.5)]" style={{ width: `${progress}%` }}></div>
-                            </div>
-                            
-                            <div className="mt-4">
-                                <button 
-                                    onClick={() => handleTtsPlayback(order)} 
-                                    disabled={audioPlaying}
-                                    className={`w-full py-2 rounded-lg text-sm font-bold shadow-md transition-all flex justify-center items-center gap-2 ${audioPlaying ? 'bg-red-100 text-red-600 cursor-not-allowed opacity-70' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'}`}
-                                >
-                                    <Icons.Volume2 className={`w-4 h-4 ${audioPlaying ? 'animate-pulse' : ''}`}/> 
-                                    {audioPlaying ? 'Sesli Özet Yükleniyor...' : 'Sipariş Detaylarını Seslendir (✨)'}
-                                </button>
-                            </div>
-                        </div>
-
-                        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                            {order.items.map((item, idx) => (
-                                <div key={idx} className={`p-5 border-b border-slate-100 flex items-center justify-between transition-colors ${item.picked >= item.qty ? 'bg-emerald-50/50' : 'hover:bg-slate-50'}`}>
-                                    <div className="flex items-center gap-5">
-                                        <div className={`w-14 h-14 rounded-xl flex items-center justify-center font-bold text-xl border-2 shadow-sm ${item.picked >= item.qty ? 'bg-emerald-100 border-emerald-200 text-emerald-700' : 'bg-white border-slate-200 text-slate-400'}`}>
-                                            {item.location?.split('-')[1] || 'A1'}
-                                        </div>
-                                        <div>
-                                            <div className="text-[10px] font-bold text-primary-700 bg-primary-50 px-2 py-0.5 rounded w-max mb-1 border border-primary-100">RAF: {item.location}</div>
-                                            <h4 className={`font-bold text-lg ${item.picked >= item.qty ? 'text-emerald-900 line-through opacity-70' : 'text-slate-800'}`}>{item.name}</h4>
-                                            <p className="text-sm text-slate-400 font-mono">{item.sku}</p>
-                                        </div>
-                                    </div>
-                                    <div className="flex items-center gap-6">
-                                        <div className="text-center hidden sm:block">
-                                            <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Hedef</div>
-                                            <div className="font-bold text-xl text-slate-700">{item.qty}</div>
-                                        </div>
-                                        <div className="flex items-center bg-white border border-slate-200 rounded-lg p-1 shadow-sm">
-                                            <button onClick={() => handlePicking(order.id, item.itemId, 'remove')} disabled={(item.picked || 0) === 0} className="w-10 h-10 flex items-center justify-center rounded hover:bg-red-50 text-slate-400 hover:text-red-600 disabled:opacity-30 transition font-bold text-lg">-</button>
-                                            <span className={`w-14 text-center font-bold text-xl ${item.picked === item.qty ? 'text-emerald-600' : 'text-slate-800'}`}>{item.picked || 0}</span>
-                                            <button onClick={() => handlePicking(order.id, item.itemId, 'add')} disabled={(item.picked || 0) >= item.qty} className="w-10 h-10 flex items-center justify-center bg-primary-600 rounded text-white hover:bg-primary-700 disabled:bg-slate-200 disabled:cursor-not-allowed shadow-md shadow-primary-500/30 transition font-bold text-lg">+</button>
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                        
-                        <div className="mt-6 flex justify-between items-center">
-                            <button onClick={() => setView('orders')} className="text-slate-500 hover:text-slate-800 font-medium px-4 py-2 rounded hover:bg-slate-100 transition">Listeye Dön</button>
-                            {progress === 100 && (
-                                <button onClick={() => setView('orders')} className="bg-emerald-600 text-white px-8 py-3 rounded-xl font-bold shadow-lg shadow-emerald-600/30 hover:bg-emerald-700 transition transform hover:-translate-y-1 animate-pulse">
-                                    Kontrol Masasına Gönder &rarr;
-                                </button>
-                            )}
-                        </div>
-                    </div>
-                );
+            const newItem = {
+                name: name,
+                quantity: quantity,
+                description: description,
+                createdAt: Date.now()
             };
 
-            const CheckingProcess = () => {
-                const order = orders.find(o => o.id === activeOrderId);
-                if (!order) return <div className="p-6 text-slate-500">Aktif sipariş seçilmedi.</div>;
+            try {
+                const userInventoryRef = collection(db, `artifacts/${appId}/users/${userId}/${INVENTORY_COLLECTION}`);
+                await addDoc(userInventoryRef, newItem);
+                showMessage(`${name} envantere başarıyla eklendi!`, false);
+                form.reset(); // Formu temizle
+            } catch (error) {
+                console.error("Ürün Ekleme Hatası:", error);
+                showMessage("Ürün eklenirken bir hata oluştu.", true);
+            }
+        });
 
-                const isReadyToShip = order.items.every(i => (i.checked || 0) === i.qty);
+        // 5. Ürün Silme
+        inventoryList.addEventListener('click', async (e) => {
+            if (e.target.closest('.delete-btn')) {
+                const button = e.target.closest('.delete-btn');
+                const itemId = button.dataset.id;
 
-                return (
-                    <div className="max-w-5xl mx-auto fade-in pb-10">
-                        <div className="bg-slate-850 text-white p-8 rounded-2xl shadow-xl mb-8 flex justify-between items-center overflow-hidden relative">
-                            <div className="absolute top-0 right-0 w-64 h-64 bg-white opacity-5 rounded-full -mr-10 -mt-10 blur-3xl"></div>
-                            <div className="relative z-10">
-                                <h2 className="text-2xl font-bold flex items-center gap-3"><div className="p-2 bg-white/10 rounded-lg"><Icons.Scan /></div> Kalite Kontrol & Paketleme</h2>
-                                <p className="text-slate-400 mt-2 text-sm max-w-md">Ürün barkodlarını okutarak veya manuel onaylayarak siparişi doğrulayın. Tüm ürünler tamamlanmadan sevk işlemi yapılamaz.</p>
-                            </div>
-                            <div className="text-right relative z-10 hidden sm:block">
-                                <p className="text-xs text-slate-400 uppercase tracking-widest mb-1">Sipariş No</p>
-                                <p className="font-mono font-bold text-3xl tracking-tight text-white">{order.id}</p>
-                            </div>
-                        </div>
+                // Kullanıcıya özel belge yolu
+                const docRef = doc(db, `artifacts/${appId}/users/${userId}/${INVENTORY_COLLECTION}`, itemId);
 
-                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                            <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
-                                <div className="p-5 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
-                                    <h3 className="font-bold text-slate-700">Kontrol Listesi</h3>
-                                    <span className="text-xs font-bold bg-slate-200 text-slate-600 px-2 py-1 rounded-full">{order.items.length} Kalem</span>
-                                </div>
-                                <div className="divide-y divide-slate-100 overflow-y-auto max-h-[500px]">
-                                    {order.items.map(item => (
-                                        <div key={item.itemId} className="p-5 flex justify-between items-center group hover:bg-slate-50 transition">
-                                            <div>
-                                                <p className={`font-bold text-lg ${item.checked >= item.qty ? 'text-emerald-700' : 'text-slate-800'}`}>{item.name}</p>
-                                                <p className="text-xs text-slate-500 font-mono mt-1 flex items-center gap-2">
-                                                    SKU: {item.sku}
-                                                    {item.checked >= item.qty && <span className="text-emerald-600 flex items-center"><Icons.CheckCircle className="w-3 h-3 mr-1"/> OK</span>}
-                                                </p>
-                                            </div>
-                                            <div className="flex items-center gap-4">
-                                                <div className="text-right mr-2">
-                                                    <span className={`text-2xl font-bold font-mono ${item.checked === item.qty ? 'text-emerald-600' : 'text-slate-400'}`}>{item.checked || 0}</span>
-                                                    <span className="text-slate-300 mx-1">/</span>
-                                                    <span className="text-lg font-bold text-slate-700">{item.qty}</span>
-                                                </div>
-                                                <button 
-                                                    onClick={() => handleChecking(order.id, item.itemId)}
-                                                    disabled={(item.checked || 0) >= item.qty}
-                                                    className={`w-12 h-12 rounded-xl flex items-center justify-center transition shadow-sm
-                                                        ${(item.checked || 0) >= item.qty ? 'bg-emerald-100 text-emerald-600 cursor-default' : 'bg-white border border-slate-200 hover:bg-purple-50 hover:border-purple-200 text-slate-400 hover:text-purple-600 hover:shadow-md hover:scale-105 active:scale-95'}`}
-                                                >
-                                                    {(item.checked || 0) >= item.qty ? <Icons.CheckCircle className="w-6 h-6"/> : <Icons.Scan className="w-6 h-6" />}
-                                                </button>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                            
-                            <div className="flex flex-col gap-6">
-                                <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-8 flex flex-col justify-center items-center text-center h-full relative overflow-hidden">
-                                    {isReadyToShip && (
-                                        <div className="absolute inset-0 bg-emerald-50/50 z-0"></div>
-                                    )}
-                                    
-                                    <div className={`relative z-10 w-24 h-24 rounded-full flex items-center justify-center mb-6 transition-all duration-500 ${isReadyToShip ? 'bg-emerald-100 text-emerald-600 scale-110 shadow-lg shadow-emerald-200' : 'bg-slate-100 text-slate-300'}`}>
-                                        <Icons.Truck className="w-10 h-10" />
-                                    </div>
-                                    
-                                    <h3 className="relative z-10 text-xl font-bold text-slate-800">
-                                        {isReadyToShip ? 'Sevkiyata Hazır' : 'Kontrol Bekleniyor'}
-                                    </h3>
-                                    <p className="relative z-10 text-slate-500 text-sm mt-2 mb-8 px-4">
-                                        {isReadyToShip 
-                                            ? 'Tüm ürünler doğrulandı. İşlemi tamamlamak için butona tıklayın.' 
-                                            : 'Lütfen listedeki tüm ürünlerin miktar kontrollerini tamamlayın.'}
-                                    </p>
-                                    
-                                    <button 
-                                        onClick={() => finalizeOrder(order.id)}
-                                        disabled={!isReadyToShip}
-                                        className={`relative z-10 w-full py-4 rounded-xl font-bold text-lg shadow-xl transition-all transform duration-300
-                                            ${isReadyToShip ? 'bg-emerald-600 text-white hover:bg-emerald-700 hover:scale-105 shadow-emerald-600/30' : 'bg-slate-200 text-slate-400 cursor-not-allowed grayscale'}`}
-                                    >
-                                        Sevk Et ve Bitir
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                );
+                try {
+                    await deleteDoc(docRef);
+                    showMessage(`Ürün başarıyla silindi.`, false);
+                } catch (error) {
+                    console.error("Ürün Silme Hatası:", error);
+                    showMessage("Ürün silinirken bir hata oluştu.", true);
+                }
+            }
+        });
+
+
+        // 6. Sesli Okuma (Text-to-Speech) Fonksiyonu
+        // Tarayıcının yerel Speech Synthesis API'sini kullanır.
+        const synth = window.speechSynthesis;
+        let isSpeaking = false;
+        let currentButton = null;
+
+        function speakText(text, button) {
+            if (!synth) {
+                showMessage("Hata: Tarayıcınız sesli okuma (Text-to-Speech) özelliğini desteklemiyor.", true);
+                return;
+            }
+
+            // Eğer şu anda konuşma yapılıyorsa durdur
+            if (synth.speaking) {
+                synth.cancel();
+                if (currentButton) {
+                    currentButton.classList.remove('speaking', 'bg-red-500', 'hover:bg-red-600');
+                    currentButton.classList.add('bg-blue-500', 'hover:bg-blue-600');
+                    currentButton.textContent = 'Açıklamayı Dinle';
+                }
+            }
+
+            // Yeni konuşmayı başlat
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'tr-TR'; // Türkçe dilini ayarla
+
+            // Konuşma başladığında butonu güncelle
+            utterance.onstart = () => {
+                isSpeaking = true;
+                currentButton = button;
+                button.classList.remove('bg-blue-500', 'hover:bg-blue-600');
+                button.classList.add('speaking', 'bg-red-500', 'hover:bg-red-600');
+                button.textContent = 'Durduruluyor...';
             };
 
-            return (
-                <div className="flex h-screen overflow-hidden bg-slate-100 font-sans text-slate-900 selection:bg-primary-100 selection:text-primary-900">
-                    <ToastContainer toasts={toasts} removeToast={removeToast} />
+            // Konuşma bittiğinde veya iptal edildiğinde butonu geri al
+            utterance.onend = utterance.onerror = () => {
+                isSpeaking = false;
+                if (currentButton) {
+                    currentButton.classList.remove('speaking', 'bg-red-500', 'hover:bg-red-600');
+                    currentButton.classList.add('bg-blue-500', 'hover:bg-blue-600');
+                    currentButton.textContent = 'Açıklamayı Dinle';
+                }
+                currentButton = null;
+            };
 
-                    <aside className="w-20 lg:w-72 bg-slate-850 text-white flex flex-col flex-shrink-0 transition-all duration-300 z-30 shadow-2xl">
-                        <div className="h-20 flex items-center justify-center lg:justify-start lg:px-8 border-b border-slate-700/50 bg-slate-900/50">
-                            <div className="bg-primary-600 p-2 rounded-lg shadow-lg shadow-primary-900/50">
-                                <Icons.Box className="text-white w-6 h-6" />
-                            </div>
-                            <div className="ml-3 hidden lg:block">
-                                <h1 className="font-bold text-lg tracking-tight">ProWMS</h1>
-                                <p className="text-[10px] text-slate-400 uppercase tracking-widest">Enterprise</p>
-                            </div>
-                        </div>
-                        
-                        <nav className="flex-1 py-8 space-y-2 px-3">
-                            <button onClick={() => setView('dashboard')} className={`w-full flex items-center p-3.5 rounded-xl transition-all duration-200 group ${view === 'dashboard' ? 'bg-primary-600 text-white shadow-lg shadow-primary-900/50' : 'text-slate-400 hover:bg:white/5 hover:text-white'}`}>
-                                <Icons.Home className={`w-6 h-6 ${view === 'dashboard' ? 'text-white' : 'text-slate-400 group-hover:text-white'}`} /> 
-                                <span className="ml-4 font-medium hidden lg:block">Kontrol Paneli</span>
-                            </button>
-                            
-                            <div className="pt-6 pb-2 px-4 text-xs font-bold text-slate-500 uppercase tracking-wider hidden lg:block">Yönetim</div>
-                            
-                            <button onClick={() => setView('inventory')} className={`w-full flex items-center p-3.5 rounded-xl transition-all duration-200 group ${view === 'inventory' ? 'bg-primary-600 text-white shadow-lg shadow-primary-900/50' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}>
-                                <Icons.Box className={`w-6 h-6 ${view === 'inventory' ? 'text-white' : 'text-slate-400 group-hover:text-white'}`} /> 
-                                <span className="ml-4 font-medium hidden lg:block">Envanter</span>
-                            </button>
-                            
-                            <button onClick={() => setView('orders')} className={`w-full flex items-center p-3.5 rounded-xl transition-all duration-200 group ${['orders', 'picking', 'checking'].includes(view) ? 'bg-primary-600 text-white shadow-lg shadow-primary-900/50' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}>
-                                <Icons.Clipboard className={`w-6 h-6 ${['orders', 'picking', 'checking'].includes(view) ? 'text-white' : 'text-slate-400 group-hover:text-white'}`} /> 
-                                <span className="ml-4 font-medium hidden lg:block">Sipariş & Sevk</span>
-                            </button>
-                        </nav>
-                        
-                        <div className="p-6 border-t border-slate-700/50 bg-slate-900/30">
-                            <div className="flex items-center">
-                                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary-400 to-purple-500 shadow-inner border-2 border-slate-700"></div>
-                                <div className="ml-3 hidden lg:block">
-                                    <p className="text-sm font-bold text-white">Admin User</p>
-                                    <p className="text-xs text-slate-400">Depo Müdürü</p>
-                                </div>
-                            </div>
-                        </div>
-                    </aside>
+            synth.speak(utterance);
+        }
 
-                    <div className="flex-1 flex flex-col h-screen overflow-hidden relative bg-slate-50">
-                        <header className="h-20 bg-white/80 backdrop-blur-md border-b border-slate-200 flex items-center justify-between px-8 z-20 sticky top-0">
-                            <div>
-                                <h2 className="text-2xl font-bold text-slate-800 capitalize tracking-tight">
-                                    {view === 'dashboard' ? 'Genel Bakış' : 
-                                     view === 'inventory' ? 'Stok Envanteri' : 
-                                     view === 'picking' ? 'Aktif Toplama' :
-                                     view === 'checking' ? 'Kalite Kontrol' : 'Siparişler'}
-                                </h2>
-                            </div>
-                            <div className="flex items-center gap-4">
-                                <button className="p-2 rounded-full hover:bg-slate-100 text-slate-400 transition relative">
-                                    <Icons.Bell className="w-6 h-6"/>
-                                    <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border border-white"></span>
-                                </button>
-                                <div className="h-8 w-px bg-slate-200 mx-2"></div>
-                                <span className="text-sm font-medium text-slate-500">
-                                    {new Date().toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' })}
-                                </span>
-                            </div>
-                        </header>
+        // Sesli Okuma Buton Olayı
+        inventoryList.addEventListener('click', (e) => {
+            const button = e.target.closest('.speak-btn');
+            if (button) {
+                const text = button.dataset.text;
+                // Eğer aynı buton tıklanırsa konuşmayı durdur, aksi takdirde yeni konuşmayı başlat
+                if (button === currentButton && synth.speaking) {
+                    synth.cancel();
+                } else {
+                    speakText(text, button);
+                }
+            }
+        });
 
-                        <main className="flex-1 overflow-y-auto p-8 relative">
-                            {view === 'dashboard' && <Dashboard />}
-                            {view === 'inventory' && <InventoryList />}
-                            {view === 'orders' && <OrderManagement />}
-                            {view === 'picking' && <PickingProcess />}
-                            {view === 'checking' && <CheckingProcess />}
-                        </main>
-                    </div>
+        // Uygulama başlatma
+        window.onload = initializeFirebase;
 
-                    {/* MODALS */}
-                    <Modal isOpen={isOrderModalOpen} onClose={() => setOrderModalOpen(false)} title="Yeni Satış Siparişi Oluştur">
-                        <div className="space-y-6">
-                            <div>
-                                <label className="block text-sm font-semibold text-slate-700 mb-1">Müşteri / Firma Adı</label>
-                                <input 
-                                    type="text" 
-                                    className="w-full border border-slate-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition shadow-sm" 
-                                    placeholder="Örn: Trendyol Pazaryeri"
-                                    value={newOrder.customer}
-                                    onChange={e => setNewOrder({...newOrder, customer: e.target.value})}
-                                />
-                            </div>
+        // Kullanıcıya geçerli userId'yi gösterme (İşbirliği için önemli)
+        const userIdDisplay = document.createElement('p');
+        userIdDisplay.className = "text-center text-sm text-gray-400 mt-6";
+        userIdDisplay.innerHTML = `Mevcut Kullanıcı ID: <span id="current-user-id" class="font-mono text-xs">Bekleniyor...</span>`;
+        document.getElementById('app').appendChild(userIdDisplay);
 
-                            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                                <label className="block text-sm font-semibold text-slate-700 mb-2">Ürün Seçimi</label>
-                                <div className="relative mb-4">
-                                    <Icons.Search className="absolute left-3 top-3 text-slate-400 w-5 h-5" />
-                                    <input 
-                                        type="text" 
-                                        placeholder="Eklemek için ürün arayın..." 
-                                        className="w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:border-primary-500"
-                                        value={orderSearchItem}
-                                        onChange={e => setOrderSearchItem(e.target.value)}
-                                    />
-                                </div>
-                                <div className="max-h-48 overflow-y-auto space-y-2 mb-4 pr-1">
-                                    {inventory
-                                        .filter(i => {
-                                            const q = orderSearchItem.toLowerCase();
-                                            return (
-                                                i.name.toLowerCase().includes(q) ||
-                                                i.sku.toLowerCase().includes(q)
-                                            );
-                                        })
-                                        .slice(0, 5)
-                                        .map(item => (
-                                        <div key={item.id} className="flex justify-between items-center bg-slate-50 p-3 rounded-lg border border-transparent hover:border-primary-300 cursor-pointer transition group" onClick={() => addToOrderCart(item)}>
-                                            <div>
-                                                <div className="font-bold text-sm text-slate-700 group-hover:text-primary-700">{item.name}</div>
-                                                <div className="text-xs text-slate-500">{item.sku} • Stok: {item.quantity} • Raf: {item.location}</div>
-                                            </div>
-                                            <button className="text-primary-600 font-bold px-3 py-1 bg-white border border-primary-200 rounded-md text-xs hover:bg-primary-600 hover:text-white transition">+ EKLE</button>
-                                        </div>
-                                    ))}
-                                </div>
-                                
-                                <div className="border-t border-slate-100 pt-4">
-                                    <h4 className="font-bold text-slate-700 mb-3 text-sm flex items-center justify-between">
-                                        Sepet Özeti 
-                                        <span className="bg-primary-100 text-primary-700 px-2 py-0.5 rounded text-xs">
-                                            {newOrder.items.reduce((a,b)=>a+b.qty,0)} Ürün
-                                        </span>
-                                    </h4>
-                                    {newOrder.items.length === 0 ? <div className="text-sm text-slate-400 italic text-center py-4 bg-slate-50 rounded-lg border border-dashed border-slate-200">Sepet boş</div> : (
-                                        <ul className="space-y-2 max-h-40 overflow-y-auto">
-                                            {newOrder.items.map((item, idx) => (
-                                                <li key={idx} className="flex justify-between items-center text-sm bg-primary-50/50 p-2 rounded border border-primary-100">
-                                                    <span className="font-medium text-slate-700">{item.name}</span>
-                                                    <span className="font-mono font-bold bg-white px-2 py-1 rounded text-primary-600 border border-primary-100">x{item.qty}</span>
-                                                </li>
-                                            ))}
-                                        </ul>
-                                    )}
-                                </div>
-                            </div>
-
-                            <button onClick={createOrder} className="w-full bg-primary-600 text-white py-3.5 rounded-xl font-bold shadow-lg shadow-primary-600/30 hover:bg-primary-700 transition transform hover:-translate-y-0.5">
-                                Siparişi Onayla
-                            </button>
-                        </div>
-                    </Modal>
-
-                    <Modal isOpen={isStockInModalOpen} onClose={() => setStockInModalOpen(false)} title="Stok Girişi (Mal Kabul)" maxWidth="max-w-md">
-                        <div className="space-y-5">
-                            <div>
-                                <label className="block text-sm font-semibold text-slate-700 mb-1">Ürün Seçin</label>
-                                <select 
-                                    className="w-full border border-slate-300 rounded-lg p-3 bg-white focus:ring-2 focus:ring-emerald-500 outline-none"
-                                    value={stockInData.itemId}
-                                    onChange={(e) => setStockInData({...stockInData, itemId: e.target.value})}
-                                >
-                                    <option value="">Seçiniz...</option>
-                                    {inventory.map(i => <option key={i.id} value={i.id}>{i.name} ({i.sku})</option>)}
-                                </select>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-semibold text-slate-700 mb-1">Giriş Miktarı</label>
-                                <input 
-                                    type="number" 
-                                    min="1"
-                                    className="w-full border border-slate-300 rounded-lg p-3 focus:ring-2 focus:ring-emerald-500 outline-none font-bold text-lg"
-                                    value={stockInData.qty}
-                                    onChange={(e) => setStockInData({...stockInData, qty: Number(e.target.value)})}
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-semibold text-slate-700 mb-1">Not / İrsaliye No</label>
-                                <input 
-                                    type="text" 
-                                    className="w-full border border-slate-300 rounded-lg p-3 focus:ring-2 focus:ring-emerald-500 outline-none"
-                                    placeholder="Opsiyonel"
-                                    value={stockInData.note}
-                                    onChange={(e) => setStockInData({...stockInData, note: e.target.value})}
-                                />
-                            </div>
-                            <button onClick={handleStockIn} className="w-full bg-emerald-600 text-white py-3 rounded-xl font-bold shadow-lg shadow-emerald-600/30 hover:bg-emerald-700 transition">
-                                Stok Ekle
-                            </button>
-                        </div>
-                    </Modal>
-
-                    <Modal isOpen={isEditModalOpen} onClose={() => setEditModalOpen(false)} title="Ürün Düzenle" maxWidth="max-w-md">
-                        {editItemData && (
-                            <div className="space-y-
+    </script>
+</body>
+</html>
