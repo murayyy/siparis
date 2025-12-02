@@ -3,190 +3,581 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Depo Giriş</title>
-
-  <!-- Tailwind CSS -->
+  <title>Depo Otomasyon Sistemi</title>
+  <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     body {
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
-        sans-serif;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Inter", sans-serif;
     }
   </style>
 </head>
-<body class="min-h-screen bg-slate-100 flex items-center justify-center p-4">
+<body class="bg-slate-100 min-h-screen">
+  <!-- Auth Section -->
+  <div id="authSection" class="flex items-center justify-center min-h-screen">
+    <div class="w-full max-w-md bg-white rounded-2xl shadow-xl p-8">
+      <h1 class="text-2xl font-bold text-center mb-6 text-slate-800">
+        Depo Otomasyon Sistemi
+      </h1>
 
-  <div class="w-full max-w-md bg-white rounded-2xl shadow-xl border border-slate-200 p-8">
-    <!-- Üst başlık -->
-    <div class="mb-6 text-center">
-      <div class="mx-auto w-12 h-12 rounded-2xl bg-blue-600 flex items-center justify-center text-white font-extrabold text-xl shadow-lg shadow-blue-500/40">
-        D
-      </div>
-      <h1 class="mt-3 text-2xl font-bold text-slate-900">Depo Giriş</h1>
-      <p class="mt-1 text-sm text-slate-500">
-        E-posta ve şifreniz ile sisteme giriş yapın.
-      </p>
-    </div>
-
-    <!-- Login Formu -->
-    <form id="loginForm" class="space-y-4">
-      <div>
-        <label for="email" class="block text-sm font-medium text-slate-700 mb-1">
-          E-posta
-        </label>
-        <input
-          type="email"
-          id="email"
-          required
-          autocomplete="username"
-          class="w-full px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
-          placeholder="ornek@firma.com"
-        />
+      <!-- Auth Tabs -->
+      <div class="flex mb-6 bg-slate-100 rounded-lg p-1">
+        <button id="loginTab" class="flex-1 py-2 text-center text-sm font-semibold rounded-md bg-white shadow">
+          Giriş Yap
+        </button>
+        <button id="registerTab" class="flex-1 py-2 text-center text-sm font-semibold text-slate-500">
+          Kayıt Ol
+        </button>
       </div>
 
-      <div>
-        <label for="password" class="block text-sm font-medium text-slate-700 mb-1">
-          Şifre
-        </label>
-        <input
-          type="password"
-          id="password"
-          required
-          autocomplete="current-password"
-          class="w-full px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
-          placeholder="••••••••"
-        />
-      </div>
+      <!-- Login Form -->
+      <form id="loginForm" class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">E-posta</label>
+          <input
+            id="loginEmail"
+            type="email"
+            required
+            class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
+          />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">Şifre</label>
+          <input
+            id="loginPassword"
+            type="password"
+            required
+            class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
+          />
+        </div>
+        <button
+          type="submit"
+          class="w-full py-2.5 text-sm font-semibold rounded-lg bg-sky-600 text-white hover:bg-sky-700 transition"
+        >
+          Giriş Yap
+        </button>
+      </form>
 
-      <!-- Hata mesajı -->
-      <p id="loginError" class="text-xs text-red-600 min-h-[1.25rem]"></p>
+      <!-- Register Form -->
+      <form id="registerForm" class="space-y-4 hidden mt-4">
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">Ad Soyad</label>
+          <input
+            id="registerName"
+            type="text"
+            required
+            class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
+          />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">Rol</label>
+          <select
+            id="registerRole"
+            required
+            class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
+          >
+            <option value="branch">Şube Kullanıcısı</option>
+            <option value="manager">Depo Yöneticisi</option>
+            <option value="picker">Toplayıcı</option>
+            <option value="admin">Admin</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">E-posta</label>
+          <input
+            id="registerEmail"
+            type="email"
+            required
+            class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
+          />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">Şifre</label>
+          <input
+            id="registerPassword"
+            type="password"
+            required
+            class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
+          />
+        </div>
+        <button
+          type="submit"
+          class="w-full py-2.5 text-sm font-semibold rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition"
+        >
+          Kayıt Ol
+        </button>
+      </form>
 
-      <button
-        type="submit"
-        class="w-full mt-1 inline-flex items-center justify-center px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg shadow-md shadow-blue-500/30 transition"
-      >
-        Giriş Yap
-      </button>
-    </form>
-
-    <!-- Alt bilgi -->
-    <div class="mt-6 text-xs text-slate-500">
-      <p class="mb-1">
-        <strong>Not:</strong> Kullanıcı rolü
-        <code class="bg-slate-100 px-1 rounded text-[10px]">manager / picker / qc</code>
-        Firestore’da
-        <code class="bg-slate-100 px-1 rounded text-[10px]">users/{uid}.role</code>
-        alanından okunur.
-      </p>
-      <p class="mt-2 text-[11px] text-slate-400">
-        Giriş sonrası rolünüze göre ilgili panele
-        (<code>manager.html</code>, <code>picker.html</code>, <code>qc.html</code>)
-        yönlendirilirsiniz.
-      </p>
+      <p id="authMessage" class="mt-4 text-center text-sm text-red-500"></p>
     </div>
   </div>
 
-  <!-- Firebase + Login Script -->
-  <script type="module">
-    // 1) Firebase importları
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-    import {
-      getAuth,
-      signInWithEmailAndPassword,
-      onAuthStateChanged,
-    } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-    import {
-      getFirestore,
-      doc,
-      getDoc,
-    } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+  <!-- App Section -->
+  <div id="appSection" class="hidden min-h-screen">
+    <div class="flex min-h-screen">
+      <!-- Sidebar -->
+      <aside class="w-64 bg-slate-900 text-slate-100 flex flex-col">
+        <div class="px-4 py-4 border-b border-slate-800">
+          <h2 class="text-lg font-bold">Depo Paneli</h2>
+          <p id="currentUserInfo" class="text-xs text-slate-400 mt-1"></p>
+        </div>
+        <nav class="flex-1 px-2 py-4 space-y-1 text-sm">
+          <button data-view="dashboardView" class="nav-btn w-full text-left px-3 py-2 rounded-lg hover:bg-slate-800">
+            📊 Dashboard
+          </button>
+          <button data-view="productsView" class="nav-btn w-full text-left px-3 py-2 rounded-lg hover:bg-slate-800">
+            📦 Ürünler
+          </button>
+          <button data-view="stockView" class="nav-btn w-full text-left px-3 py-2 rounded-lg hover:bg-slate-800">
+            🔄 Stok Hareketleri
+          </button>
+          <button data-view="ordersView" class="nav-btn w-full text-left px-3 py-2 rounded-lg hover:bg-slate-800">
+            🧾 Şube Siparişleri
+          </button>
+          <button data-view="pickingView" class="nav-btn w-full text-left px-3 py-2 rounded-lg hover:bg-slate-800">
+            🛒 Sipariş Toplama
+          </button>
+          <button data-view="reportsView" class="nav-btn w-full text-left px-3 py-2 rounded-lg hover:bg-slate-800">
+            📈 Raporlar
+          </button>
+        </nav>
+        <div class="px-4 py-4 border-t border-slate-800">
+          <button
+            id="logoutBtn"
+            class="w-full py-2 text-sm font-semibold rounded-lg bg-red-600 hover:bg-red-700 text-white"
+          >
+            Çıkış Yap
+          </button>
+        </div>
+      </aside>
 
-    // 2) KENDİ PROJENİN FIREBASE CONFIG'İNİ BURAYA YAZ
-    const firebaseConfig = {
-      apiKey: "BURAYA_API_KEY",
-      authDomain: "projen.firebaseapp.com",
-      projectId: "projen-id",
-      storageBucket: "projen.appspot.com",
-      messagingSenderId: "XXXXXXXXXXXX",
-      appId: "1:XXXXXXXXXXXX:web:YYYYYYYYYYYYYY",
-    };
+      <!-- Main Content -->
+      <main class="flex-1 p-6 space-y-6">
+        <!-- Top Bar -->
+        <div class="flex items-center justify-between">
+          <h1 class="text-2xl font-bold text-slate-800">Depo Otomasyon Sistemi</h1>
+          <span id="roleBadge" class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-sky-100 text-sky-700">
+            Rol: -
+          </span>
+        </div>
 
-    // 3) Firebase başlat
-    const app = initializeApp(firebaseConfig);
-    const auth = getAuth(app);      // <--- auth burada tanımlı
-    const db = getFirestore(app);
+        <!-- Alerts -->
+        <div id="globalAlert" class="hidden rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-800"></div>
 
-    const loginForm = document.getElementById("loginForm");
-    const loginError = document.getElementById("loginError");
+        <!-- Dashboard View -->
+        <section id="dashboardView" class="view space-y-4">
+          <h2 class="text-xl font-semibold text-slate-800 mb-2">Genel Durum</h2>
+          <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div class="bg-white rounded-xl shadow p-4">
+              <p class="text-xs text-slate-500">Toplam Ürün</p>
+              <p id="cardTotalProducts" class="mt-2 text-2xl font-bold text-slate-800">0</p>
+            </div>
+            <div class="bg-white rounded-xl shadow p-4">
+              <p class="text-xs text-slate-500">Açık Sipariş</p>
+              <p id="cardOpenOrders" class="mt-2 text-2xl font-bold text-slate-800">0</p>
+            </div>
+            <div class="bg-white rounded-xl shadow p-4">
+              <p class="text-xs text-slate-500">Toplanıyor</p>
+              <p id="cardPickingOrders" class="mt-2 text-2xl font-bold text-slate-800">0</p>
+            </div>
+            <div class="bg-white rounded-xl shadow p-4">
+              <p class="text-xs text-slate-500">Tamamlanan Sipariş</p>
+              <p id="cardCompletedOrders" class="mt-2 text-2xl font-bold text-slate-800">0</p>
+            </div>
+          </div>
+        </section>
 
-    // Firestore'dan rol oku
-    async function getUserRole(uid) {
-      const ref = doc(db, "users", uid);
-      const snap = await getDoc(ref);
+        <!-- Products View -->
+        <section id="productsView" class="view hidden space-y-4">
+          <div class="flex items-center justify-between">
+            <h2 class="text-xl font-semibold text-slate-800">Ürün Yönetimi</h2>
+            <button
+              id="openProductModalBtn"
+              class="px-4 py-2 text-sm font-semibold rounded-lg bg-emerald-600 text-white hover:bg-emerald-700"
+            >
+              + Yeni Ürün
+            </button>
+          </div>
+          <div class="bg-white rounded-xl shadow overflow-hidden">
+            <table class="min-w-full text-sm">
+              <thead class="bg-slate-50">
+                <tr>
+                  <th class="px-3 py-2 text-left text-xs font-semibold text-slate-500">Kod</th>
+                  <th class="px-3 py-2 text-left text-xs font-semibold text-slate-500">İsim</th>
+                  <th class="px-3 py-2 text-left text-xs font-semibold text-slate-500">Birim</th>
+                  <th class="px-3 py-2 text-left text-xs font-semibold text-slate-500">Raf Kodu</th>
+                  <th class="px-3 py-2 text-left text-xs font-semibold text-slate-500">Stok</th>
+                  <th class="px-3 py-2 text-right text-xs font-semibold text-slate-500">İşlemler</th>
+                </tr>
+              </thead>
+              <tbody id="productsTableBody" class="divide-y divide-slate-100"></tbody>
+            </table>
+            <p id="productsEmpty" class="text-center text-xs text-slate-400 py-4 hidden">
+              Henüz ürün eklenmemiş.
+            </p>
+          </div>
+        </section>
 
-      if (!snap.exists()) {
-        throw new Error("Kullanıcı Firestore'da bulunamadı (users/" + uid + ").");
-      }
+        <!-- Stock Movements View -->
+        <section id="stockView" class="view hidden space-y-4">
+          <h2 class="text-xl font-semibold text-slate-800">Stok Hareketleri</h2>
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div class="bg-white rounded-xl shadow p-4">
+              <h3 class="font-semibold text-slate-800 mb-3 text-sm">Yeni Stok Hareketi</h3>
+              <form id="stockForm" class="space-y-3 text-sm">
+                <div>
+                  <label class="block text-xs font-medium text-slate-600 mb-1">Ürün</label>
+                  <select
+                    id="stockProductSelect"
+                    required
+                    class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
+                  ></select>
+                </div>
+                <div class="grid grid-cols-3 gap-3">
+                  <div class="col-span-1">
+                    <label class="block text-xs font-medium text-slate-600 mb-1">Tip</label>
+                    <select
+                      id="stockType"
+                      class="w-full rounded-lg border border-slate-300 px-2 py-2 text-sm"
+                    >
+                      <option value="in">Giriş</option>
+                      <option value="out">Çıkış</option>
+                      <option value="transfer">Transfer</option>
+                    </select>
+                  </div>
+                  <div class="col-span-1">
+                    <label class="block text-xs font-medium text-slate-600 mb-1">Miktar</label>
+                    <input
+                      id="stockQty"
+                      type="number"
+                      min="1"
+                      required
+                      class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                    />
+                  </div>
+                  <div class="col-span-1">
+                    <label class="block text-xs font-medium text-slate-600 mb-1">Birim</label>
+                    <input
+                      id="stockUnit"
+                      type="text"
+                      placeholder="kg, adet..."
+                      class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                    />
+                  </div>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                  <div>
+                    <label class="block text-xs font-medium text-slate-600 mb-1">Kaynak Lokasyon</label>
+                    <input
+                      id="stockSourceLocation"
+                      type="text"
+                      placeholder="Depo-01 / Raf-01"
+                      class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label class="block text-xs font-medium text-slate-600 mb-1">Hedef Lokasyon</label>
+                    <input
+                      id="stockTargetLocation"
+                      type="text"
+                      placeholder="Depo-02 / Raf-05"
+                      class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label class="block text-xs font-medium text-slate-600 mb-1">Açıklama</label>
+                  <textarea
+                    id="stockNote"
+                    rows="2"
+                    class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                  ></textarea>
+                </div>
+                <button
+                  type="submit"
+                  class="w-full py-2 text-sm font-semibold rounded-lg bg-sky-600 text-white hover:bg-sky-700"
+                >
+                  Hareket Kaydet
+                </button>
+              </form>
+            </div>
+            <div class="bg-white rounded-xl shadow p-4">
+              <h3 class="font-semibold text-slate-800 mb-3 text-sm">Son 10 Hareket</h3>
+              <div id="stockMovementsList" class="space-y-2 text-xs max-h-80 overflow-y-auto"></div>
+              <p id="stockMovementsEmpty" class="text-center text-xs text-slate-400 mt-2 hidden">
+                Henüz hareket kaydı yok.
+              </p>
+            </div>
+          </div>
+        </section>
 
-      return snap.data().role || "picker";
-    }
+        <!-- Orders View -->
+        <section id="ordersView" class="view hidden space-y-4">
+          <div class="flex items-center justify-between">
+            <h2 class="text-xl font-semibold text-slate-800">Şube Siparişleri</h2>
+            <button
+              id="openOrderModalBtn"
+              class="px-4 py-2 text-sm font-semibold rounded-lg bg-emerald-600 text-white hover:bg-emerald-700"
+            >
+              + Yeni Sipariş
+            </button>
+          </div>
+          <div class="bg-white rounded-xl shadow overflow-hidden">
+            <table class="min-w-full text-sm">
+              <thead class="bg-slate-50">
+                <tr>
+                  <th class="px-3 py-2 text-left text-xs font-semibold text-slate-500">No</th>
+                  <th class="px-3 py-2 text-left text-xs font-semibold text-slate-500">Şube</th>
+                  <th class="px-3 py-2 text-left text-xs font-semibold text-slate-500">Durum</th>
+                  <th class="px-3 py-2 text-left text-xs font-semibold text-slate-500">Toplayıcı</th>
+                  <th class="px-3 py-2 text-left text-xs font-semibold text-slate-500">Tarih</th>
+                  <th class="px-3 py-2 text-right text-xs font-semibold text-slate-500">İşlemler</th>
+                </tr>
+              </thead>
+              <tbody id="ordersTableBody" class="divide-y divide-slate-100"></tbody>
+            </table>
+            <p id="ordersEmpty" class="text-center text-xs text-slate-400 py-4 hidden">
+              Henüz sipariş girilmemiş.
+            </p>
+          </div>
+        </section>
 
-    // Form submit → giriş
-    loginForm.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      loginError.textContent = "";
+        <!-- Picking View -->
+        <section id="pickingView" class="view hidden space-y-4">
+          <h2 class="text-xl font-semibold text-slate-800">Sipariş Toplama</h2>
+          <div class="bg-white rounded-xl shadow overflow-hidden">
+            <table class="min-w-full text-sm">
+              <thead class="bg-slate-50">
+                <tr>
+                  <th class="px-3 py-2 text-left text-xs font-semibold text-slate-500">Sipariş No</th>
+                  <th class="px-3 py-2 text-left text-xs font-semibold text-slate-500">Şube</th>
+                  <th class="px-3 py-2 text-left text-xs font-semibold text-slate-500">Durum</th>
+                  <th class="px-3 py-2 text-left text-xs font-semibold text-slate-500">Toplanma</th>
+                  <th class="px-3 py-2 text-right text-xs font-semibold text-slate-500">İşlemler</th>
+                </tr>
+              </thead>
+              <tbody id="pickingTableBody" class="divide-y divide-slate-100"></tbody>
+            </table>
+            <p id="pickingEmpty" class="text-center text-xs text-slate-400 py-4 hidden">
+              Atanmış sipariş bulunmuyor.
+            </p>
+          </div>
+        </section>
 
-      const email = document.getElementById("email").value.trim();
-      const password = document.getElementById("password").value.trim();
+        <!-- Reports View -->
+        <section id="reportsView" class="view hidden space-y-4">
+          <h2 class="text-xl font-semibold text-slate-800">Basit Raporlar</h2>
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div class="bg-white rounded-xl shadow p-4 text-sm space-y-2">
+              <h3 class="font-semibold text-slate-800 mb-2 text-sm">Genel Özet</h3>
+              <ul class="list-disc list-inside text-slate-700 text-sm">
+                <li id="reportTotalProducts">Toplam ürün: -</li>
+                <li id="reportTotalOrders">Toplam sipariş: -</li>
+                <li id="reportCompletedOrders">Tamamlanan sipariş: -</li>
+              </ul>
+            </div>
+            <div class="bg-white rounded-xl shadow p-4 text-sm space-y-2">
+              <h3 class="font-semibold text-slate-800 mb-2 text-sm">Not</h3>
+              <p class="text-slate-600 text-xs">
+                Bu panel, Firestore üzerinde tutulan verilerden dinamik olarak beslenir.
+                İstersen buradaki verileri Excel/PDF için dışa aktarma mantığını da kolayca
+                ekleyebiliriz.
+              </p>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
 
-      if (!email || !password) {
-        loginError.textContent = "E-posta ve şifre zorunludur.";
-        return;
-      }
+  <!-- Product Modal -->
+  <div
+    id="productModal"
+    class="hidden fixed inset-0 bg-black/40 flex items-center justify-center z-50"
+  >
+    <div class="bg-white w-full max-w-lg rounded-2xl shadow-xl p-6">
+      <div class="flex items-center justify-between mb-4">
+        <h3 id="productModalTitle" class="text-lg font-semibold text-slate-800">Yeni Ürün</h3>
+        <button id="closeProductModalBtn" class="text-slate-400 hover:text-slate-600 text-xl">&times;</button>
+      </div>
+      <form id="productForm" class="space-y-3 text-sm">
+        <input type="hidden" id="productId" />
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-medium text-slate-600 mb-1">Ürün Kodu</label>
+            <input
+              id="productCode"
+              type="text"
+              required
+              class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            />
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-600 mb-1">Ürün Adı</label>
+            <input
+              id="productName"
+              type="text"
+              required
+              class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            />
+          </div>
+        </div>
+        <div class="grid grid-cols-3 gap-3">
+          <div>
+            <label class="block text-xs font-medium text-slate-600 mb-1">Birim</label>
+            <input
+              id="productUnit"
+              type="text"
+              placeholder="kg / adet..."
+              class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            />
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-600 mb-1">Raf Kodu</label>
+            <input
+              id="productShelf"
+              type="text"
+              placeholder="A-01-01"
+              class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            />
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-600 mb-1">Başlangıç Stok</label>
+            <input
+              id="productStock"
+              type="number"
+              min="0"
+              value="0"
+              class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            />
+          </div>
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-slate-600 mb-1">Açıklama</label>
+          <textarea
+            id="productNote"
+            rows="2"
+            class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+          ></textarea>
+        </div>
+        <div class="flex justify-end space-x-2 mt-4">
+          <button
+            type="button"
+            id="cancelProductBtn"
+            class="px-4 py-2 text-xs font-semibold rounded-lg border border-slate-300 text-slate-700"
+          >
+            İptal
+          </button>
+          <button
+            type="submit"
+            class="px-4 py-2 text-xs font-semibold rounded-lg bg-sky-600 text-white hover:bg-sky-700"
+          >
+            Kaydet
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
 
-      try {
-        // Email/şifre ile giriş
-        await signInWithEmailAndPassword(auth, email, password);
+  <!-- Order Modal -->
+  <div
+    id="orderModal"
+    class="hidden fixed inset-0 bg-black/40 flex items-center justify-center z-50"
+  >
+    <div class="bg-white w-full max-w-3xl rounded-2xl shadow-xl p-6">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-semibold text-slate-800">Yeni Şube Siparişi</h3>
+        <button id="closeOrderModalBtn" class="text-slate-400 hover:text-slate-600 text-xl">&times;</button>
+      </div>
 
-        const user = auth.currentUser;
-        if (!user) {
-          loginError.textContent = "Giriş başarısız: kullanıcı okunamadı.";
-          return;
-        }
+      <form id="orderForm" class="space-y-4 text-sm">
+        <div class="grid grid-cols-3 gap-3">
+          <div>
+            <label class="block text-xs font-medium text-slate-600 mb-1">Şube Adı</label>
+            <input
+              id="orderBranchName"
+              type="text"
+              required
+              class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            />
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-600 mb-1">Belge No (Opsiyonel)</label>
+            <input
+              id="orderDocumentNo"
+              type="text"
+              class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            />
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-600 mb-1">Açıklama</label>
+            <input
+              id="orderNote"
+              type="text"
+              class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            />
+          </div>
+        </div>
 
-        // Rol oku ve yönlendir
-        const role = await getUserRole(user.uid);
+        <div class="border rounded-xl border-slate-200 p-3">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-semibold text-slate-700">Sipariş Kalemleri</span>
+            <button
+              type="button"
+              id="addOrderItemBtn"
+              class="px-3 py-1 text-xs font-semibold rounded-lg bg-emerald-600 text-white hover:bg-emerald-700"
+            >
+              + Satır Ekle
+            </button>
+          </div>
+          <div id="orderItemsContainer" class="space-y-2 max-h-64 overflow-y-auto text-xs"></div>
+          <p id="orderItemsEmpty" class="text-xs text-slate-400 mt-2">
+            Henüz satır eklenmedi. "Satır Ekle" ile ürün ekleyin.
+          </p>
+        </div>
 
-        if (role === "manager") {
-          window.location.href = "manager.html";
-        } else if (role === "qc") {
-          window.location.href = "qc.html";
-        } else {
-          window.location.href = "picker.html";
-        }
-      } catch (err) {
-        console.error("Giriş hatası:", err);
-        loginError.textContent =
-          "Giriş hatası: " + (err.message || err.code || "Bilinmeyen hata");
-      }
-    });
+        <div class="flex justify-end space-x-2 mt-2">
+          <button
+            type="button"
+            id="cancelOrderBtn"
+            class="px-4 py-2 text-xs font-semibold rounded-lg border border-slate-300 text-slate-700"
+          >
+            İptal
+          </button>
+          <button
+            type="submit"
+            class="px-4 py-2 text-xs font-semibold rounded-lg bg-sky-600 text-white hover:bg-sky-700"
+          >
+            Siparişi Kaydet
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
 
-    // Sayfa açıldığında zaten login ise direkt yönlendir
-    onAuthStateChanged(auth, async (user) => {
-      if (!user) return;
-      try {
-        const role = await getUserRole(user.uid);
-        if (role === "manager") {
-          window.location.href = "manager.html";
-        } else if (role === "qc") {
-          window.location.href = "qc.html";
-        } else {
-          window.location.href = "picker.html";
-        }
-      } catch (err) {
-        console.error("Oturum rol kontrolü hatası:", err);
-      }
-    });
-  </script>
+  <!-- Picking Detail Modal -->
+  <div
+    id="pickingDetailModal"
+    class="hidden fixed inset-0 bg-black/40 flex items-center justify-center z-50"
+  >
+    <div class="bg-white w-full max-w-3xl rounded-2xl shadow-xl p-6">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-semibold text-slate-800">Sipariş Detayı ve Toplama</h3>
+        <button id="closePickingDetailModalBtn" class="text-slate-400 hover:text-slate-600 text-xl">&times;</button>
+      </div>
+      <div id="pickingDetailContent" class="text-sm space-y-3"></div>
+      <div class="flex justify-end mt-4">
+        <button
+          id="completePickingBtn"
+          class="px-4 py-2 text-xs font-semibold rounded-lg bg-emerald-600 text-white hover:bg-emerald-700"
+        >
+          Toplamayı Tamamla
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script type="module" src="./app.js"></script>
 </body>
 </html>
