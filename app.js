@@ -585,15 +585,7 @@ async function loadOrders() {
     empty.classList.add("hidden");
   }
 
-  // events
-  tbody.querySelectorAll("button[data-detail]").forEach((btn) => {
-    btn.addEventListener("click", () => openPickingDetailModal(btn.getAttribute("data-detail"), false));
-  });
-  tbody.querySelectorAll("button[data-assign]").forEach((btn) => {
-    btn.addEventListener("click", () => assignOrderToPicker(btn.getAttribute("data-assign")));
-  });
-
-  // dashboard & reports için sayılar
+  // dashboard & rapor sayıları
   updateDashboardCounts();
   updateReportSummary();
 }
@@ -1017,8 +1009,71 @@ document.addEventListener("DOMContentLoaded", () => {
   $("closeOrderModalBtn").addEventListener("click", closeOrderModal);
   $("cancelOrderBtn").addEventListener("click", closeOrderModal);
   $("orderForm").addEventListener("submit", saveOrder);
+  // --- Şube Siparişleri tablosu: Detay & Toplayıcı Ata (event delegation) ---
+  const ordersTableBody = $("ordersTableBody");
+  if (ordersTableBody) {
+    ordersTableBody.addEventListener("click", (e) => {
+      const detailBtn = e.target.closest("button[data-detail]");
+      if (detailBtn) {
+        const id = detailBtn.getAttribute("data-detail");
+        openPickingDetailModal(id, false); // sadece detay
+        return;
+      }
+
+      const assignBtn = e.target.closest("button[data-assign]");
+      if (assignBtn) {
+        const id = assignBtn.getAttribute("data-assign");
+        assignOrderToPicker(id); // toplayıcı ata
+        return;
+      }
+    });
+  }
+
+  // --- Toplama tablosu: Topla butonu (event delegation) ---
+  const pickingTableBody = $("pickingTableBody");
+  if (pickingTableBody) {
+    pickingTableBody.addEventListener("click", (e) => {
+      const pickBtn = e.target.closest("button[data-pick]");
+      if (pickBtn) {
+        const id = pickBtn.getAttribute("data-pick");
+        openPickingDetailModal(id, true); // toplama ekranı
+      }
+    });
+  }
 
   // Picking detail modal
   $("closePickingDetailModalBtn").addEventListener("click", closePickingDetailModal);
   $("completePickingBtn").addEventListener("click", completePicking);
+ const ordersTableBody = $("ordersTableBody");
+  if (ordersTableBody) {
+    ordersTableBody.addEventListener("click", (e) => {
+      const detailBtn = e.target.closest("button[data-detail]");
+      if (detailBtn) {
+        const id = detailBtn.getAttribute("data-detail");
+        openPickingDetailModal(id, false);
+        return;
+      }
+      const assignBtn = e.target.closest("button[data-assign]");
+      if (assignBtn) {
+        const id = assignBtn.getAttribute("data-assign");
+        assignOrderToPicker(id);
+        return;
+      }
+    });
+  }
+
+  const pickingTableBody = $("pickingTableBody");
+  if (pickingTableBody) {
+    pickingTableBody.addEventListener("click", (e) => {
+      const pickBtn = e.target.closest("button[data-pick]");
+      if (pickBtn) {
+        const id = pickBtn.getAttribute("data-pick");
+        openPickingDetailModal(id, true);
+      }
+    });
+  }
 });
+
+
+
+
