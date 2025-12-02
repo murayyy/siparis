@@ -284,10 +284,10 @@ async function loadStockMovements() {
   qSnap.forEach((docSnap) => {
     if (count >= 10) return;
     const d = docSnap.data();
-    const div = document.createElement("div");
     const typeLabel =
       d.type === "in" ? "Giriş" : d.type === "out" ? "Çıkış" : "Transfer";
 
+    div = document.createElement("div");
     div.className =
       "border border-slate-100 rounded-lg px-3 py-2 flex justify-between items-center";
     div.innerHTML = `
@@ -689,7 +689,6 @@ async function loadPickingOrders() {
         ? "Toplanıyor"
         : "Tamamlandı";
 
-    // sadece ilgili olanlar gösterilsin
     hasAny = true;
     const tr = document.createElement("tr");
     tr.innerHTML = `
@@ -792,7 +791,7 @@ async function openPickingDetailModal(orderId, fromPicking) {
         </tbody>
       </table>
     </div>
-  `;
+ `;
 
   container.innerHTML = headerHtml + tableHtml;
   $("pickingDetailModal").classList.remove("hidden");
