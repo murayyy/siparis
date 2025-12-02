@@ -287,7 +287,7 @@ async function loadStockMovements() {
     const typeLabel =
       d.type === "in" ? "Giriş" : d.type === "out" ? "Çıkış" : "Transfer";
 
-    const div = document.createElement("div");
+    const div = document.createElement("div"); // <-- DÜZELTİLEN SATIR
     div.className =
       "border border-slate-100 rounded-lg px-3 py-2 flex justify-between items-center";
     div.innerHTML = `
