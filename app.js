@@ -104,7 +104,6 @@ function setCurrentUserInfo(user, profile) {
   el.textContent = `${profile.fullName || user.email} • ${profile.role || "?"}`;
 }
 
-// basit rol helper’ları
 function isAdminOrManagerRole() {
   if (!currentUserProfile) return false;
   return (
@@ -118,7 +117,7 @@ function isBranchRole() {
   return currentUserProfile?.role === "branch";
 }
 
-// Rol’e göre UI’yi şekillendirme (sadece görünüm, rules değil)
+// Rol bazlı UI (sadece görünüm, rules değil)
 function applyRoleUI(role) {
   const allowedViewsByRole = {
     admin:   ["dashboardView", "productsView", "stockView", "ordersView", "pickingView", "reportsView"],
@@ -888,6 +887,91 @@ async function updateReportSummary() {
   $("reportCompletedOrders").textContent = `Tamamlanan sipariş: ${completedOrders}`;
 }
 
+// --- CSV Export Helpers & Rapor Dışa Aktarım ---
+
+function convertRowsToCSV(rows) {
+  if (!rows || !rows.length) return "";
+  const headers = Object.keys(rows[0]);
+  const esc = (v) => {
+    if (v === undefined || v === null) return "";
+    const s = String(v).replace(/"/g, '""');
+    return /[",;\n]/.test(s) ? `"${s}"` : s;
+  };
+
+  const headerLine = headers.map(esc).join(";");
+  const lines = rows.map((row) =>
+    headers.map((h) => esc(row[h])).join(";")
+  );
+  return [headerLine, ...lines].join("\n");
+}
+
+function downloadCSV(filename, rows) {
+  const csv = convertRowsToCSV(rows);
+  if (!csv) {
+    showGlobalAlert("Dışa aktarılacak veri bulunamadı.");
+    return;
+  }
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+async function exportProductsToCSV() {
+  const snap = await getDocs(collection(db, "products"));
+  if (snap.empty) {
+    showGlobalAlert("Dışa aktarılacak ürün bulunamadı.");
+    return;
+  }
+
+  const rows = [];
+  snap.forEach((docSnap) => {
+    const d = docSnap.data();
+    rows.push({
+      kod: d.code || "",
+      ad: d.name || "",
+      birim: d.unit || "",
+      raf: d.shelf || "",
+      stok: d.stock ?? 0,
+      aciklama: d.note || "",
+    });
+  });
+
+  downloadCSV("urunler.csv", rows);
+  showGlobalAlert("Ürünler CSV olarak indirildi.", "success");
+}
+
+async function exportOrdersToCSV() {
+  const snap = await getDocs(collection(db, "orders"));
+  if (snap.empty) {
+    showGlobalAlert("Dışa aktarılacak sipariş bulunamadı.");
+    return;
+  }
+
+  const rows = [];
+  snap.forEach((docSnap) => {
+    const d = docSnap.data();
+    rows.push({
+      siparisNo: docSnap.id,
+      sube: d.branchName || "",
+      durum: d.status || "",
+      toplayici: d.assignedToEmail || "",
+      tarih:
+        d.createdAt?.toDate ? d.createdAt.toDate().toLocaleString("tr-TR") : "",
+      belgeNo: d.documentNo || "",
+      aciklama: d.note || "",
+    });
+  });
+
+  downloadCSV("siparisler.csv", rows);
+  showGlobalAlert("Siparişler CSV olarak indirildi.", "success");
+}
+
 // --------------------------------------------------------
 // 10. Toplayıcı Atama
 // --------------------------------------------------------
@@ -1102,4 +1186,8 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     });
   }
+
+  // CSV export butonları
+  $("exportProductsCsvBtn")?.addEventListener("click", exportProductsToCSV);
+  $("exportOrdersCsvBtn")?.addEventListener("click", exportOrdersToCSV);
 });
