@@ -1221,6 +1221,139 @@ async function completePicking() {
   await loadPickingOrders();
   await updatePickerDashboardStats(); // dashboard'taki günlük özet güncellensin
 }
+// --------------------------------------------------------
+// 9.1 Araç Yükleme & Sevk (loadingTasks)
+// --------------------------------------------------------
+async function loadLoadingTasks() {
+  const tbody = $("loadingTasksTableBody");
+  const empty = $("loadingTasksEmpty");
+  const statusFilter = $("loadingStatusFilter");
+
+  if (!tbody) return;
+
+  tbody.innerHTML = "";
+
+  let qRef = collection(db, "loadingTasks");
+
+  // Filtre uygulanacaksa
+  if (statusFilter && statusFilter.value && statusFilter.value !== "all") {
+    qRef = query(
+      collection(db, "loadingTasks"),
+      where("status", "==", statusFilter.value)
+    );
+  }
+
+  const snap = await getDocs(
+    query(qRef, orderBy("createdAt", "desc"))
+  );
+
+  let hasAny = false;
+  let waitingCount = 0;
+  let todayLoadedCount = 0;
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+
+  snap.forEach((docSnap) => {
+    hasAny = true;
+    const d = docSnap.data();
+
+    if (d.status === "waiting") waitingCount++;
+    if (d.status === "loaded") {
+      const dt = d.loadedAt?.toDate ? d.loadedAt.toDate() : null;
+      if (dt && dt >= today && dt < tomorrow) {
+        todayLoadedCount++;
+      }
+    }
+
+    const statusLabel =
+      d.status === "waiting"
+        ? "Bekliyor"
+        : d.status === "loading"
+        ? "Yükleniyor"
+        : "Yüklendi";
+
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td class="px-2 py-1">${d.shipmentNo || d.shipmentId || "-"}</td>
+      <td class="px-2 py-1 hidden sm:table-cell">${d.branchName || "-"}</td>
+      <td class="px-2 py-1">${d.palletNo || "-"}</td>
+      <td class="px-2 py-1 hidden md:table-cell">${d.dockLocationId || "-"}</td>
+      <td class="px-2 py-1">${statusLabel}</td>
+      <td class="px-2 py-1 hidden md:table-cell">${d.loadedByEmail || "-"}</td>
+      <td class="px-2 py-1 hidden md:table-cell">
+        ${
+          d.loadedAt?.toDate
+            ? d.loadedAt
+                .toDate()
+                .toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })
+            : "-"
+        }
+      </td>
+      <td class="px-2 py-1 text-right space-x-1">
+        ${
+          d.status !== "loaded"
+            ? `
+          <button
+            class="text-[11px] px-2 py-1 rounded bg-amber-100 text-amber-800 hover:bg-amber-200"
+            data-loading-start="${docSnap.id}">
+            Yüklemeye Başla
+          </button>
+          <button
+            class="text-[11px] px-2 py-1 rounded bg-emerald-100 text-emerald-800 hover:bg-emerald-200"
+            data-loading-complete="${docSnap.id}">
+            Yüklendi
+          </button>
+          `
+            : ""
+        }
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  if (!hasAny) empty.classList.remove("hidden");
+  else empty.classList.add("hidden");
+
+  // Özet kutularını güncelle
+  const waitingEl = $("loadingWaitingSummary");
+  const todayEl = $("loadingTodaySummary");
+  if (waitingEl)
+    waitingEl.textContent = `${waitingCount} palet bekliyor.`;
+  if (todayEl)
+    todayEl.textContent = `Bugün ${todayLoadedCount} palet yüklendi.`;
+}
+async function setLoadingTaskStatus(taskId, newStatus) {
+  try {
+    const ref = doc(db, "loadingTasks", taskId);
+
+    const payload = {
+      status: newStatus,
+    };
+
+    if (newStatus === "loading") {
+      payload.loadingStartedAt = serverTimestamp();
+      payload.loadingStartedBy = currentUser?.uid || null;
+      payload.loadingStartedByEmail = currentUser?.email || null;
+    }
+
+    if (newStatus === "loaded") {
+      payload.loadedAt = serverTimestamp();
+      payload.loadedBy = currentUser?.uid || null;
+      payload.loadedByEmail = currentUser?.email || null;
+    }
+
+    await updateDoc(ref, payload);
+    showGlobalAlert("Yükleme durumu güncellendi.", "success");
+
+    await loadLoadingTasks();
+  } catch (err) {
+    console.error("Yükleme durumu güncellenirken hata:", err);
+    showGlobalAlert("Yükleme durumu güncellenemedi: " + err.message);
+  }
+}
 
 // --------------------------------------------------------
 // 10. Dashboard & Reports
@@ -1361,6 +1494,7 @@ onAuthStateChanged(auth, async (user) => {
       notificationsUnsub = null;
     }
 
+
     $("authSection").classList.remove("hidden");
     $("appSection").classList.add("hidden");
     showAuthMessage("");
@@ -1392,7 +1526,7 @@ onAuthStateChanged(auth, async (user) => {
   $("authSection").classList.add("hidden");
   $("appSection").classList.remove("hidden");
   showView("dashboardView");
-
+await loadLoadingTasks();  // ← bunu ekle
   // 🔔 Bildirim dinleyicisini başlat
   startNotificationListener();
 
@@ -1400,6 +1534,7 @@ onAuthStateChanged(auth, async (user) => {
   await loadStockMovements();
   await loadOrders();
   await loadPickingOrders();
+  await loadLoadingTasks();  // ← bunu ekle
 });
 
 
@@ -1423,6 +1558,36 @@ document.addEventListener("DOMContentLoaded", () => {
         loadProducts();
         loadStockMovements();
       }
+        // Araç Yükleme view'i açıldığında kayıtları getir
+  const loadingStatusFilter = $("loadingStatusFilter");
+  const reloadLoadingTasksBtn = $("reloadLoadingTasksBtn");
+
+  if (reloadLoadingTasksBtn) {
+    reloadLoadingTasksBtn.addEventListener("click", loadLoadingTasks);
+  }
+  if (loadingStatusFilter) {
+    loadingStatusFilter.addEventListener("change", loadLoadingTasks);
+  }
+
+  const loadingTasksTableBody = $("loadingTasksTableBody");
+  if (loadingTasksTableBody) {
+    loadingTasksTableBody.addEventListener("click", (e) => {
+      const startBtn = e.target.closest("button[data-loading-start]");
+      const completeBtn = e.target.closest("button[data-loading-complete]");
+
+      if (startBtn) {
+        const id = startBtn.getAttribute("data-loading-start");
+        setLoadingTaskStatus(id, "loading");
+        return;
+      }
+      if (completeBtn) {
+        const id = completeBtn.getAttribute("data-loading-complete");
+        setLoadingTaskStatus(id, "loaded");
+        return;
+      }
+    });
+  }
+
       if (viewId === "ordersView") loadOrders();
       if (viewId === "pickingView") loadPickingOrders();
       if (viewId === "reportsView") updateReportSummary();
