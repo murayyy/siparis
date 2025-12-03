@@ -1,8 +1,5 @@
-// app.js – Depo Otomasyonu SPA (Son Temiz Versiyon)
+// app.js – Depo Otomasyonu SPA
 
-// --------------------------------------------------------
-// 1. Firebase
-// --------------------------------------------------------
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
 import {
   getAuth,
@@ -27,8 +24,9 @@ import {
   serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
 
-console.log("app.js yüklendi"); // kontrol için
-
+// --------------------------------------------------------
+// 1. Firebase Config
+// --------------------------------------------------------
 const firebaseConfig = {
   apiKey: "AIzaSyDcLQB4UggXlYA9x8AKw-XybJjcF6U_KA4",
   authDomain: "depo1-4668f.firebaseapp.com",
@@ -43,8 +41,10 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
+console.log("app.js yüklendi");
+
 // --------------------------------------------------------
-// 2. Global state & helpers
+// 2. Global State & Helpers
 // --------------------------------------------------------
 let currentUser = null;
 let currentUserProfile = null;
@@ -76,6 +76,7 @@ function showGlobalAlert(msg, type = "info") {
 
   el.classList.remove("hidden");
   el.textContent = msg;
+
   el.className =
     "rounded-lg border px-4 py-2 text-sm " +
     (type === "success"
@@ -103,8 +104,53 @@ function setCurrentUserInfo(user, profile) {
   el.textContent = `${profile.fullName || user.email} • ${profile.role || "?"}`;
 }
 
+// basit rol helper’ları
+function isAdminOrManagerRole() {
+  if (!currentUserProfile) return false;
+  return (
+    currentUserProfile.role === "admin" || currentUserProfile.role === "manager"
+  );
+}
+function isPickerRole() {
+  return currentUserProfile?.role === "picker";
+}
+function isBranchRole() {
+  return currentUserProfile?.role === "branch";
+}
+
+// Rol’e göre UI’yi şekillendirme (sadece görünüm, rules değil)
+function applyRoleUI(role) {
+  const allowedViewsByRole = {
+    admin:   ["dashboardView", "productsView", "stockView", "ordersView", "pickingView", "reportsView"],
+    manager: ["dashboardView", "productsView", "stockView", "ordersView", "pickingView", "reportsView"],
+    picker:  ["dashboardView", "pickingView", "reportsView"],
+    branch:  ["dashboardView", "ordersView", "reportsView"],
+  };
+
+  const allowedViews = new Set(
+    allowedViewsByRole[role] || allowedViewsByRole["branch"]
+  );
+
+  document.querySelectorAll(".nav-btn").forEach((btn) => {
+    const viewId = btn.getAttribute("data-view");
+    if (!allowedViews.has(viewId)) btn.classList.add("hidden");
+    else btn.classList.remove("hidden");
+  });
+
+  const isAdminMgr = role === "admin" || role === "manager";
+
+  const openProductBtn = $("openProductModalBtn");
+  if (openProductBtn) openProductBtn.classList.toggle("hidden", !isAdminMgr);
+
+  const stockForm = $("stockForm");
+  if (stockForm) stockForm.classList.toggle("hidden", !isAdminMgr);
+
+  const openOrderBtn = $("openOrderModalBtn");
+  if (openOrderBtn) openOrderBtn.classList.toggle("hidden", isPickerRole());
+}
+
 // --------------------------------------------------------
-// 3. Auth UI
+// 3. Auth UI Control
 // --------------------------------------------------------
 function switchAuthTab(tab) {
   const loginTab = $("loginTab");
@@ -130,7 +176,7 @@ function switchAuthTab(tab) {
 }
 
 // --------------------------------------------------------
-// 4. View routing
+// 4. View Routing
 // --------------------------------------------------------
 function showView(viewId) {
   const views = document.querySelectorAll(".view");
@@ -202,6 +248,11 @@ async function loadProducts() {
 }
 
 async function openProductModal(productId = null) {
+  if (!isAdminOrManagerRole()) {
+    showGlobalAlert("Ürün işlemleri için yetkin yok.");
+    return;
+  }
+
   $("productModal")?.classList.remove("hidden");
   $("productForm")?.reset();
   $("productId").value = productId || "";
@@ -230,6 +281,12 @@ function closeProductModal() {
 
 async function saveProduct(evt) {
   evt.preventDefault();
+
+  if (!isAdminOrManagerRole()) {
+    showGlobalAlert("Ürün kaydetmek için yetkin yok.");
+    return;
+  }
+
   const id = $("productId").value || null;
   const code = $("productCode").value.trim();
   const name = $("productName").value.trim();
@@ -261,6 +318,11 @@ async function saveProduct(evt) {
 }
 
 async function deleteProduct(id) {
+  if (!isAdminOrManagerRole()) {
+    showGlobalAlert("Ürün silmek için yetkin yok.");
+    return;
+  }
+
   if (!confirm("Bu ürünü silmek istediğine emin misin?")) return;
   await deleteDoc(doc(db, "products", id));
   showGlobalAlert("Ürün silindi.", "success");
@@ -268,7 +330,7 @@ async function deleteProduct(id) {
 }
 
 // --------------------------------------------------------
-// 6. Stock movements
+// 6. Stock Movements
 // --------------------------------------------------------
 async function loadStockMovements() {
   const container = $("stockMovementsList");
@@ -314,6 +376,12 @@ async function loadStockMovements() {
 
 async function saveStockMovement(evt) {
   evt.preventDefault();
+
+  if (!isAdminOrManagerRole()) {
+    showGlobalAlert("Stok hareketi eklemek için yetkin yok.");
+    return;
+  }
+
   const productId = $("stockProductSelect").value;
   const type = $("stockType").value;
   const qty = Number($("stockQty").value || 0);
@@ -367,7 +435,7 @@ async function saveStockMovement(evt) {
 }
 
 // --------------------------------------------------------
-// 7. Orders (şube siparişleri)
+// 7. Orders (Şube Siparişleri)
 // --------------------------------------------------------
 function createOrderItemRow(productsMap) {
   const row = document.createElement("div");
@@ -451,6 +519,12 @@ function closeOrderModal() {
 
 async function saveOrder(evt) {
   evt.preventDefault();
+
+  if (isPickerRole()) {
+    showGlobalAlert("Toplayıcı sipariş oluşturamaz.");
+    return;
+  }
+
   const branchName = $("orderBranchName").value.trim();
   const documentNo = $("orderDocumentNo").value.trim();
   const note = $("orderNote").value.trim();
@@ -563,7 +637,7 @@ async function loadOrders() {
       <td class="px-3 py-2 text-right space-x-1">
         <button class="text-xs px-2 py-1 rounded bg-sky-100 text-sky-700 hover:bg-sky-200" data-detail="${docSnap.id}">Detay</button>
         ${
-          currentUserProfile?.role === "manager" || currentUserProfile?.role === "admin"
+          isAdminOrManagerRole()
             ? `<button class="text-xs px-2 py-1 rounded bg-emerald-100 text-emerald-700 hover:bg-emerald-200" data-assign="${docSnap.id}">
                 Toplayıcı Ata
               </button>`
@@ -582,7 +656,7 @@ async function loadOrders() {
 }
 
 // --------------------------------------------------------
-// 8. Picking ekranı
+// 8. Picking Ekranı
 // --------------------------------------------------------
 async function loadPickingOrders() {
   const tbody = $("pickingTableBody");
@@ -594,15 +668,12 @@ async function loadPickingOrders() {
   if (!currentUser || !currentUserProfile) return;
 
   let qRef;
-  if (currentUserProfile.role === "picker") {
+  if (isPickerRole()) {
     qRef = query(
       collection(db, "orders"),
       where("assignedTo", "==", currentUser.uid)
     );
-  } else if (
-    currentUserProfile.role === "manager" ||
-    currentUserProfile.role === "admin"
-  ) {
+  } else if (isAdminOrManagerRole()) {
     qRef = collection(db, "orders");
   } else {
     qRef = query(
@@ -776,7 +847,7 @@ async function completePicking() {
 }
 
 // --------------------------------------------------------
-// 9. Dashboard & report
+// 9. Dashboard & Reports
 // --------------------------------------------------------
 async function updateDashboardCounts() {
   const ordersSnap = await getDocs(collection(db, "orders"));
@@ -818,13 +889,10 @@ async function updateReportSummary() {
 }
 
 // --------------------------------------------------------
-// 10. Toplayıcı atama (ayrı fonksiyon olarak yukarıda lazım)
+// 10. Toplayıcı Atama
 // --------------------------------------------------------
 async function assignOrderToPicker(orderId) {
-  if (
-    currentUserProfile?.role !== "manager" &&
-    currentUserProfile?.role !== "admin"
-  ) {
+  if (!isAdminOrManagerRole()) {
     showGlobalAlert("Bu işlem için yetkin yok.");
     return;
   }
@@ -866,7 +934,7 @@ async function assignOrderToPicker(orderId) {
 }
 
 // --------------------------------------------------------
-// 11. Auth handlers
+// 11. Auth Handlers
 // --------------------------------------------------------
 async function handleRegister(evt) {
   evt.preventDefault();
@@ -909,7 +977,7 @@ async function handleLogout() {
 }
 
 // --------------------------------------------------------
-// 12. Auth state
+// 12. Auth State Listener
 // --------------------------------------------------------
 onAuthStateChanged(auth, async (user) => {
   currentUser = user;
@@ -938,6 +1006,7 @@ onAuthStateChanged(auth, async (user) => {
 
   setCurrentUserInfo(user, currentUserProfile);
   setRoleBadge(currentUserProfile.role);
+  applyRoleUI(currentUserProfile.role);
 
   $("authSection")?.classList.add("hidden");
   $("appSection")?.classList.remove("hidden");
@@ -950,7 +1019,7 @@ onAuthStateChanged(auth, async (user) => {
 });
 
 // --------------------------------------------------------
-// 13. DOM events
+// 13. DOM Ready & Event Bindings
 // --------------------------------------------------------
 document.addEventListener("DOMContentLoaded", () => {
   $("loginTab")?.addEventListener("click", () => switchAuthTab("login"));
