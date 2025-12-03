@@ -221,6 +221,31 @@ async function applyPickingToLocationStocks(orderId, itemsWithPicked) {
     }
   }
 }
+// --------------------------------------------------------
+// 3.2 Rol Bazlı UI (branch sadece sipariş toplama görsün vb.)
+// --------------------------------------------------------
+function setupRoleBasedUI(profile) {
+  const role = profile?.role || "";
+
+  // Şube kullanıcıları için: ürün / stok ekranlarını gizle
+  const productsNavBtn = document.querySelector('button[data-view="productsView"]');
+  const stockNavBtn = document.querySelector('button[data-view="stockView"]');
+
+  if (productsNavBtn) {
+    productsNavBtn.classList.toggle("hidden", role === "branch");
+  }
+  if (stockNavBtn) {
+    stockNavBtn.classList.toggle("hidden", role === "branch");
+  }
+
+  // Yeni sipariş butonu: şube, manager, admin görebilsin
+  const newOrderBtn = $("openOrderModalBtn");
+  if (newOrderBtn) {
+    const canCreateOrder =
+      role === "branch" || role === "manager" || role === "admin";
+    newOrderBtn.classList.toggle("hidden", !canCreateOrder);
+  }
+}
 
 // --------------------------------------------------------
 // 4. Auth UI
@@ -702,6 +727,17 @@ async function loadOrders() {
   updateDashboardCounts();
   updateReportSummary();
 }
+async function updateDashboardCounts() {
+  // ... mevcut kodun aynen kalsın ...
+
+  $("cardTotalProducts").textContent = totalProducts;
+  $("cardOpenOrders").textContent = open;
+  $("cardPickingOrders").textContent = picking;
+  $("cardCompletedOrders").textContent = completed;
+
+  // 🔥 Picker ise, günlük performansı da güncelle
+  await updatePickerDashboardStats();
+}
 
 async function assignOrderToPicker(orderId) {
   if (
@@ -826,6 +862,26 @@ async function openPickingDetailModal(orderId, fromPicking) {
   pickingDetailOrderDoc = orderSnap;
   const orderData = orderSnap.data();
 
+  // 🔥 Toplayıcı ekrandan açıyorsa statüyü "picking" yap
+  if (
+    fromPicking &&
+    orderData.status !== "completed" &&
+    orderData.status !== "picking"
+  ) {
+    try {
+      await updateDoc(orderRef, {
+        status: "picking",
+        pickingStartedAt: serverTimestamp(),
+        pickingStartedBy: currentUser?.uid || null,
+        pickingStartedByEmail: currentUser?.email || null,
+      });
+      orderData.status = "picking"; // ekranda da güncel gözüksün
+    } catch (err) {
+      console.error("Statü picking yapılırken hata:", err);
+    }
+  }
+
+  // Sipariş kalemlerini oku
   const itemsSnap = await getDocs(collection(db, "orders", orderId, "items"));
   const items = [];
   itemsSnap.forEach((docSnap) => {
@@ -941,13 +997,6 @@ async function openPickingDetailModal(orderId, fromPicking) {
   }
 }
 
-function closePickingDetailModal() {
-  $("pickingDetailModal")?.classList.add("hidden");
-  pickingDetailOrderId = null;
-  pickingDetailItems = [];
-  pickingDetailOrderDoc = null;
-}
-
 async function completePicking() {
   if (!pickingDetailOrderId || !pickingDetailItems.length) return;
 
@@ -979,6 +1028,7 @@ async function completePicking() {
     updatedItems.push({ ...item, _pickedQty: picked });
   }
 
+  // Sipariş statüsünü tamamlandı yap
   await updateDoc(doc(db, "orders", pickingDetailOrderId), {
     status: "completed",
     completedAt: serverTimestamp(),
@@ -989,10 +1039,37 @@ async function completePicking() {
   // 🔥 Lokasyon stoklarını güncelle
   await applyPickingToLocationStocks(pickingDetailOrderId, updatedItems);
 
+  // 🔥 picker performans log'u
+  try {
+    const orderData =
+      pickingDetailOrderDoc && pickingDetailOrderDoc.data
+        ? pickingDetailOrderDoc.data()
+        : {};
+
+    const totalLines = updatedItems.length;
+    const totalQty = updatedItems.reduce(
+      (sum, it) => sum + Number(it._pickedQty || it.pickedQty || 0),
+      0
+    );
+
+    await addDoc(collection(db, "pickingLogs"), {
+      orderId: pickingDetailOrderId,
+      branchName: orderData.branchName || null,
+      pickerId: currentUser?.uid || null,
+      pickerEmail: currentUser?.email || null,
+      totalLines,
+      totalQty,
+      completedAt: serverTimestamp(),
+    });
+  } catch (err) {
+    console.error("pickingLogs yazılırken hata:", err);
+  }
+
   closePickingDetailModal();
   showGlobalAlert("Sipariş toplaması tamamlandı.", "success");
-  loadOrders();
-  loadPickingOrders();
+  await loadOrders();
+  await loadPickingOrders();
+  await updatePickerDashboardStats(); // dashboard'taki günlük özet güncellensin
 }
 
 // --------------------------------------------------------
@@ -1035,6 +1112,49 @@ async function updateReportSummary() {
   $("reportTotalProducts").textContent = `Toplam ürün: ${totalProducts}`;
   $("reportTotalOrders").textContent = `Toplam sipariş: ${totalOrders}`;
   $("reportCompletedOrders").textContent = `Tamamlanan sipariş: ${completedOrders}`;
+}
+// --------------------------------------------------------
+// 10.1 Picker günlük performans özeti
+// --------------------------------------------------------
+async function updatePickerDashboardStats() {
+  if (!currentUser) return;
+
+  const el = $("pickerStatsToday");
+  if (!el) return; // HTML'e eklemezsen sessizce geçer
+
+  try {
+    const snap = await getDocs(
+      query(collection(db, "pickingLogs"), where("pickerId", "==", currentUser.uid))
+    );
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    let totalOrders = 0;
+    let totalLines = 0;
+    let totalQty = 0;
+
+    snap.forEach((docSnap) => {
+      const d = docSnap.data();
+      const dt = d.completedAt?.toDate ? d.completedAt.toDate() : null;
+      if (!dt) return;
+      if (dt >= today && dt < tomorrow) {
+        totalOrders++;
+        totalLines += Number(d.totalLines || 0);
+        totalQty += Number(d.totalQty || 0);
+      }
+    });
+
+    if (totalOrders === 0) {
+      el.textContent = "Bugün henüz tamamlanan toplama yok.";
+    } else {
+      el.textContent = `Bugün ${totalOrders} siparişte, ${totalLines} kalem, toplam ${totalQty} birim toplandı.`;
+    }
+  } catch (err) {
+    console.error("Picker dashboard stats hata:", err);
+  }
 }
 
 // --------------------------------------------------------
@@ -1107,7 +1227,7 @@ onAuthStateChanged(auth, async (user) => {
 
   setCurrentUserInfo(user, currentUserProfile);
   setRoleBadge(currentUserProfile.role);
-
+setupRoleBasedUI(currentUserProfile);
   $("authSection").classList.add("hidden");
   $("appSection").classList.remove("hidden");
   showView("dashboardView");
