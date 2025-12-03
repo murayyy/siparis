@@ -516,6 +516,79 @@
             </p>
           </div>
         </section>
+<!--  Araç Yükleme & Sevk  -->
+<section id="loadingView" class="view hidden">
+  <div class="flex items-center justify-between mb-3">
+    <div>
+      <h2 class="text-sm font-semibold text-slate-800">
+        Araç Yükleme & Sevk
+      </h2>
+      <p class="text-[11px] text-slate-500">
+        Sevk edilecek paletleri, rampaları ve yükleme durumlarını buradan takip et.
+      </p>
+    </div>
+  </div>
+
+  <!-- Filtreler / Özet -->
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3 text-[11px]">
+    <div class="border border-slate-200 rounded-lg p-2">
+      <p class="font-semibold text-slate-700">Bugünkü Sevkiyatlar</p>
+      <p id="loadingTodaySummary" class="text-slate-500 mt-1">
+        Yüklenmiş kayıt yok.
+      </p>
+    </div>
+    <div class="border border-slate-200 rounded-lg p-2">
+      <p class="font-semibold text-slate-700">Bekleyen Paletler</p>
+      <p id="loadingWaitingSummary" class="text-slate-500 mt-1">
+        0 palet bekliyor.
+      </p>
+    </div>
+    <div class="border border-slate-200 rounded-lg p-2">
+      <p class="font-semibold text-slate-700">Filtre</p>
+      <div class="mt-1 flex gap-2">
+        <select id="loadingStatusFilter"
+                class="flex-1 rounded-lg border border-slate-300 px-2 py-1 text-[11px]">
+          <option value="all">Tümü</option>
+          <option value="waiting">Bekliyor</option>
+          <option value="loading">Yükleniyor</option>
+          <option value="loaded">Yüklendi</option>
+        </select>
+        <button id="reloadLoadingTasksBtn"
+                class="text-[11px] px-2 py-1 rounded-lg border border-slate-300 hover:bg-slate-50">
+          Yenile
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tablo -->
+  <div class="border border-slate-200 rounded-lg overflow-hidden">
+    <div class="overflow-x-auto">
+      <table class="min-w-full text-xs">
+        <thead class="bg-slate-50">
+          <tr>
+            <th class="px-2 py-1 text-left">Sevk No</th>
+            <th class="px-2 py-1 text-left hidden sm:table-cell">Şube</th>
+            <th class="px-2 py-1 text-left">Palet</th>
+            <th class="px-2 py-1 text-left hidden md:table-cell">Rampa</th>
+            <th class="px-2 py-1 text-left">Durum</th>
+            <th class="px-2 py-1 text-left hidden md:table-cell">Yükleyen</th>
+            <th class="px-2 py-1 text-left hidden md:table-cell">Yüklendi</th>
+            <th class="px-2 py-1 text-right">İşlem</th>
+          </tr>
+        </thead>
+        <tbody id="loadingTasksTableBody">
+          <!-- JS dolduracak -->
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <p id="loadingTasksEmpty"
+     class="text-[11px] text-slate-400 text-center mt-3 hidden">
+    Kayıtlı yükleme görevi yok.
+  </p>
+</section>
 
         <!-- Notifications View -->
         <section id="notificationsView" class="view hidden space-y-4">
