@@ -133,20 +133,15 @@ function switchAuthTab(tab) {
 function showView(viewId) {
   const views = document.querySelectorAll(".view");
   views.forEach((v) => {
-    if (v.id === viewId) {
-      v.classList.remove("hidden");
-    } else {
-      v.classList.add("hidden");
-    }
+    if (v.id === viewId) v.classList.remove("hidden");
+    else v.classList.add("hidden");
   });
+
   const navBtns = document.querySelectorAll(".nav-btn");
   navBtns.forEach((btn) => {
     const target = btn.getAttribute("data-view");
-    if (target === viewId) {
-      btn.classList.add("bg-slate-800");
-    } else {
-      btn.classList.remove("bg-slate-800");
-    }
+    if (target === viewId) btn.classList.add("bg-slate-800");
+    else btn.classList.remove("bg-slate-800");
   });
 }
 
@@ -163,11 +158,8 @@ async function loadProducts() {
   productSelect.innerHTML = "";
 
   const snapshot = await getDocs(collection(db, "products"));
-  if (snapshot.empty) {
-    emptyMsg.classList.remove("hidden");
-  } else {
-    emptyMsg.classList.add("hidden");
-  }
+  if (snapshot.empty) emptyMsg.classList.remove("hidden");
+  else emptyMsg.classList.add("hidden");
 
   snapshot.forEach((docSnap) => {
     const data = docSnap.data();
@@ -195,7 +187,6 @@ async function loadProducts() {
     productSelect.appendChild(opt);
   });
 
-  // Edit/Delete events
   tbody.querySelectorAll("button[data-edit]").forEach((btn) => {
     btn.addEventListener("click", () => openProductModal(btn.getAttribute("data-edit")));
   });
@@ -307,11 +298,8 @@ async function loadStockMovements() {
     count++;
   });
 
-  if (count === 0) {
-    empty.classList.remove("hidden");
-  } else {
-    empty.classList.add("hidden");
-  }
+  if (count === 0) empty.classList.remove("hidden");
+  else empty.classList.add("hidden");
 }
 
 async function saveStockMovement(evt) {
@@ -338,9 +326,8 @@ async function saveStockMovement(evt) {
   const productData = productSnap.data();
 
   let newStock = Number(productData.stock || 0);
-  if (type === "in") {
-    newStock += qty;
-  } else if (type === "out") {
+  if (type === "in") newStock += qty;
+  else if (type === "out") {
     newStock -= qty;
     if (newStock < 0) newStock = 0;
   }
@@ -381,7 +368,6 @@ function createOrderItemRow(productsMap) {
   select.className =
     "col-span-2 rounded-lg border border-slate-300 px-2 py-1 text-xs";
   select.required = true;
-
   select.innerHTML = `<option value="">Ürün seç</option>`;
   productsMap.forEach((p, id) => {
     const opt = document.createElement("option");
@@ -575,17 +561,13 @@ async function loadOrders() {
     tbody.appendChild(tr);
   }
 
-  if (!hasAny) {
-    empty.classList.remove("hidden");
-  } else {
-    empty.classList.add("hidden");
-  }
+  if (!hasAny) empty.classList.remove("hidden");
+  else empty.classList.add("hidden");
 
   updateDashboardCounts();
   updateReportSummary();
 }
 
-// Toplayıcıya atama
 async function assignOrderToPicker(orderId) {
   if (
     currentUserProfile?.role !== "manager" &&
@@ -687,11 +669,8 @@ async function loadPickingOrders() {
     tbody.appendChild(tr);
   }
 
-  if (!hasAny) {
-    empty.classList.remove("hidden");
-  } else {
-    empty.classList.add("hidden");
-  }
+  if (!hasAny) empty.classList.remove("hidden");
+  else empty.classList.add("hidden");
 }
 
 async function openPickingDetailModal(orderId, fromPicking) {
@@ -948,13 +927,13 @@ onAuthStateChanged(auth, async (user) => {
 // --------------------------------------------------------
 document.addEventListener("DOMContentLoaded", () => {
   // Auth tabları
-  $("loginTab").addEventListener("click", () => switchAuthTab("login"));
-  $("registerTab").addEventListener("click", () => switchAuthTab("register"));
+  $("loginTab")?.addEventListener("click", () => switchAuthTab("login"));
+  $("registerTab")?.addEventListener("click", () => switchAuthTab("register"));
 
   // Auth forms
-  $("registerForm").addEventListener("submit", handleRegister);
-  $("loginForm").addEventListener("submit", handleLogin);
-  $("logoutBtn").addEventListener("click", handleLogout);
+  $("registerForm")?.addEventListener("submit", handleRegister);
+  $("loginForm")?.addEventListener("submit", handleLogin);
+  $("logoutBtn")?.addEventListener("click", handleLogout);
 
   // Nav buttons
   document.querySelectorAll(".nav-btn").forEach((btn) => {
@@ -973,24 +952,24 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   // Products modal
-  $("openProductModalBtn").addEventListener("click", () => openProductModal());
-  $("closeProductModalBtn").addEventListener("click", closeProductModal);
-  $("cancelProductBtn").addEventListener("click", closeProductModal);
-  $("productForm").addEventListener("submit", saveProduct);
+  $("openProductModalBtn")?.addEventListener("click", () => openProductModal());
+  $("closeProductModalBtn")?.addEventListener("click", closeProductModal);
+  $("cancelProductBtn")?.addEventListener("click", closeProductModal);
+  $("productForm")?.addEventListener("submit", saveProduct);
 
   // Stock form
-  $("stockForm").addEventListener("submit", saveStockMovement);
+  $("stockForm")?.addEventListener("submit", saveStockMovement);
 
   // Order modal
-  $("openOrderModalBtn").addEventListener("click", async () => {
+  $("openOrderModalBtn")?.addEventListener("click", async () => {
     await prepareOrderModal();
     openOrderModal();
   });
-  $("closeOrderModalBtn").addEventListener("click", closeOrderModal);
-  $("cancelOrderBtn").addEventListener("click", closeOrderModal);
-  $("orderForm").addEventListener("submit", saveOrder);
+  $("closeOrderModalBtn")?.addEventListener("click", closeOrderModal);
+  $("cancelOrderBtn")?.addEventListener("click", closeOrderModal);
+  $("orderForm")?.addEventListener("submit", saveOrder);
 
-  // Şube Siparişleri tablosu: Detay & Toplayıcı Ata (event delegation)
+  // Şube Siparişleri tablosu: Detay & Toplayıcı Ata
   const ordersTableBody = $("ordersTableBody");
   if (ordersTableBody) {
     ordersTableBody.addEventListener("click", (e) => {
@@ -1010,7 +989,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // Toplama tablosu: Topla butonu (event delegation)
+  // Toplama tablosu: Topla
   const pickingTableBody = $("pickingTableBody");
   if (pickingTableBody) {
     pickingTableBody.addEventListener("click", (e) => {
@@ -1023,6 +1002,6 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // Picking detail modal
-  $("closePickingDetailModalBtn").addEventListener("click", closePickingDetailModal);
-  $("completePickingBtn").addEventListener("click", completePicking);
+  $("closePickingDetailModalBtn")?.addEventListener("click", closePickingDetailModal);
+  $("completePickingBtn")?.addEventListener("click", completePicking);
 });
