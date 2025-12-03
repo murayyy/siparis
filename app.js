@@ -23,6 +23,7 @@ import {
   where,
   orderBy,
   serverTimestamp,
+  onSnapshot
 } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
 
 // --------------------------------------------------------
@@ -50,6 +51,7 @@ let currentUserProfile = null;
 let pickingDetailOrderId = null;
 let pickingDetailItems = [];
 let pickingDetailOrderDoc = null;
+let notificationsUnsub = null;   // ← bildirim dinleyici
 
 // --------------------------------------------------------
 // 3. Helpers
@@ -244,6 +246,113 @@ function setupRoleBasedUI(profile) {
     const canCreateOrder =
       role === "branch" || role === "manager" || role === "admin";
     newOrderBtn.classList.toggle("hidden", !canCreateOrder);
+  }
+}
+// --------------------------------------------------------
+// 3.3 Bildirimler (notifications)
+// --------------------------------------------------------
+async function createNotification({ userId, type, title, message, orderId, extra }) {
+  if (!userId) return;
+  try {
+    await addDoc(collection(db, "notifications"), {
+      userId,
+      type: type || "info",
+      title: title || "",
+      message: message || "",
+      orderId: orderId || null,
+      extra: extra || null,
+      read: false,
+      createdAt: serverTimestamp(),
+    });
+  } catch (err) {
+    console.error("Bildirim oluşturulurken hata:", err);
+  }
+}
+
+function startNotificationListener() {
+  const listEl = $("notificationsList");
+  const badgeEl = $("notificationsUnread");
+
+  if (!currentUser || !listEl) return;
+
+  // Eski listener varsa kapat
+  if (notificationsUnsub) {
+    notificationsUnsub();
+    notificationsUnsub = null;
+  }
+
+  const qRef = query(
+    collection(db, "notifications"),
+    where("userId", "==", currentUser.uid),
+    orderBy("createdAt", "desc")
+  );
+
+  notificationsUnsub = onSnapshot(qRef, (snap) => {
+    listEl.innerHTML = "";
+    let unread = 0;
+
+    if (snap.empty) {
+      listEl.innerHTML =
+        `<li class="text-[11px] text-slate-400">Henüz bildirim yok.</li>`;
+    } else {
+      snap.forEach((docSnap) => {
+        const d = docSnap.data();
+        if (!d.read) unread++;
+
+        const li = document.createElement("li");
+        li.className =
+          "flex justify-between items-start text-xs border-b border-slate-100 py-1";
+        li.innerHTML = `
+          <div class="pr-2">
+            <p class="font-semibold text-slate-700">${d.title || "-"}</p>
+            <p class="text-[11px] text-slate-500">${d.message || ""}</p>
+          </div>
+          <span class="text-[10px] text-slate-400">
+            ${
+              d.createdAt?.toDate
+                ? d.createdAt
+                    .toDate()
+                    .toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })
+                : ""
+            }
+          </span>
+        `;
+        listEl.appendChild(li);
+      });
+    }
+
+    if (badgeEl) {
+      if (unread > 0) {
+        badgeEl.textContent = unread;
+        badgeEl.classList.remove("hidden");
+      } else {
+        badgeEl.classList.add("hidden");
+      }
+    }
+  });
+}
+
+// Bildirimleri okundu işaretle (isteğe bağlı)
+async function markNotificationsAsRead() {
+  if (!currentUser) return;
+  try {
+    const snap = await getDocs(
+      query(
+        collection(db, "notifications"),
+        where("userId", "==", currentUser.uid),
+        where("read", "==", false)
+      )
+    );
+
+    const promises = [];
+    snap.forEach((docSnap) => {
+      promises.push(
+        updateDoc(doc(db, "notifications", docSnap.id), { read: true })
+      );
+    });
+    await Promise.all(promises);
+  } catch (err) {
+    console.error("Bildirimler okunmuş işaretlenirken hata:", err);
   }
 }
 
@@ -728,7 +837,6 @@ async function loadOrders() {
   updateReportSummary();
 }
 
-
 async function assignOrderToPicker(orderId) {
   if (
     currentUserProfile?.role !== "manager" &&
@@ -737,6 +845,11 @@ async function assignOrderToPicker(orderId) {
     showGlobalAlert("Bu işlem için yetkin yok.");
     return;
   }
+
+  // Önce siparişi okuyalım (şube / belge bilgisi için)
+  const orderRef = doc(db, "orders", orderId);
+  const orderSnap = await getDoc(orderRef);
+  const orderData = orderSnap.exists() ? orderSnap.data() : {};
 
   const usersSnap = await getDocs(
     query(collection(db, "users"), where("role", "==", "picker"))
@@ -763,11 +876,32 @@ async function assignOrderToPicker(orderId) {
   }
 
   const picker = pickers[index];
-  await updateDoc(doc(db, "orders", orderId), {
+
+  await updateDoc(orderRef, {
     assignedTo: picker.id,
     assignedToEmail: picker.email,
     status: "assigned",
   });
+
+  // 🔔 Toplayıcıya bildirim
+  await createNotification({
+    userId: picker.id,
+    type: "orderAssigned",
+    orderId,
+    title: "Yeni sipariş atandı",
+    message: `${orderId.slice(-6)} no'lu (${orderData.branchName || "-"}) siparişi sana atandı.`,
+  });
+
+  // 🔔 Şube kullanıcısına (siparişi oluşturan) bilgi
+  if (orderData.createdBy) {
+    await createNotification({
+      userId: orderData.createdBy,
+      type: "orderStatus",
+      orderId,
+      title: "Sipariş durumu güncellendi",
+      message: `${orderId.slice(-6)} no'lu sipariş toplayıcıya atandı.`,
+    });
+  }
 
   showGlobalAlert("Sipariş toplayıcıya atandı.", "success");
   loadOrders();
@@ -1061,6 +1195,25 @@ async function completePicking() {
   } catch (err) {
     console.error("pickingLogs yazılırken hata:", err);
   }
+  // 🔔 Şube kullanıcısına "sipariş tamamlandı" bildirimi
+  try {
+    const orderData =
+      pickingDetailOrderDoc && pickingDetailOrderDoc.data
+        ? pickingDetailOrderDoc.data()
+        : {};
+
+    if (orderData.createdBy) {
+      await createNotification({
+        userId: orderData.createdBy,
+        type: "orderCompleted",
+        orderId: pickingDetailOrderId,
+        title: "Sipariş tamamlandı",
+        message: `${pickingDetailOrderId.slice(-6)} no'lu siparişin toplanması tamamlandı.`,
+      });
+    }
+  } catch (err) {
+    console.error("Sipariş tamamlandı bildirimi hata:", err);
+  }
 
   closePickingDetailModal();
   showGlobalAlert("Sipariş toplaması tamamlandı.", "success");
@@ -1208,6 +1361,14 @@ onAuthStateChanged(auth, async (user) => {
     setRoleBadge("-");
     return;
   }
+  if (!user) {
+    if (notificationsUnsub) {
+      notificationsUnsub();
+      notificationsUnsub = null;
+    }
+    $("authSection").classList.remove("hidden");
+    $("appSection").classList.add("hidden");
+    ...
 
   const userRef = doc(db, "users", user.uid);
   const snap = await getDoc(userRef);
@@ -1221,6 +1382,21 @@ onAuthStateChanged(auth, async (user) => {
     };
     await setDoc(userRef, currentUserProfile);
   }
+  setCurrentUserInfo(user, currentUserProfile);
+  setRoleBadge(currentUserProfile.role);
+  setupRoleBasedUI(currentUserProfile);
+
+  $("authSection").classList.add("hidden");
+  $("appSection").classList.remove("hidden");
+  showView("dashboardView");
+
+  // 🔔 Bildirim dinleyicisini başlat
+  startNotificationListener();
+
+  await loadProducts();
+  await loadStockMovements();
+  await loadOrders();
+  await loadPickingOrders();
 
   setCurrentUserInfo(user, currentUserProfile);
   setRoleBadge(currentUserProfile.role);
