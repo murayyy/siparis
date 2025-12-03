@@ -727,17 +727,7 @@ async function loadOrders() {
   updateDashboardCounts();
   updateReportSummary();
 }
-async function updateDashboardCounts() {
-  // ... mevcut kodun aynen kalsın ...
 
-  $("cardTotalProducts").textContent = totalProducts;
-  $("cardOpenOrders").textContent = open;
-  $("cardPickingOrders").textContent = picking;
-  $("cardCompletedOrders").textContent = completed;
-
-  // 🔥 Picker ise, günlük performansı da güncelle
-  await updatePickerDashboardStats();
-}
 
 async function assignOrderToPicker(orderId) {
   if (
@@ -995,6 +985,13 @@ async function openPickingDetailModal(orderId, fromPicking) {
     completeBtn.classList.toggle("opacity-50", !fromPicking);
     completeBtn.classList.toggle("cursor-not-allowed", !fromPicking);
   }
+}
+function closePickingDetailModal() {
+  const modal = $("pickingDetailModal");
+  if (modal) modal.classList.add("hidden");
+  pickingDetailOrderId = null;
+  pickingDetailItems = [];
+  pickingDetailOrderDoc = null;
 }
 
 async function completePicking() {
