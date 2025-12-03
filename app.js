@@ -529,7 +529,6 @@ async function loadOrders() {
   for (const docSnap of qSnap.docs) {
     hasAny = true;
     const d = docSnap.data();
-    const tr = document.createElement("tr");
     const statusLabel =
       d.status === "open"
         ? "Açık"
@@ -539,8 +538,11 @@ async function loadOrders() {
         ? "Toplanıyor"
         : "Tamamlandı";
 
+    const idShort = docSnap.id.slice(-6);
+
+    const tr = document.createElement("tr");
     tr.innerHTML = `
-      <td class="px-3 py-2">${docSnap.id.slice(-6)}</td>
+      <td class="px-3 py-2">${idShort}</td>
       <td class="px-3 py-2">${d.branchName || "-"}</td>
       <td class="px-3 py-2">${statusLabel}</td>
       <td class="px-3 py-2 text-xs">${d.assignedToEmail || "-"}</td>
@@ -548,12 +550,16 @@ async function loadOrders() {
         ${d.createdAt?.toDate ? d.createdAt.toDate().toLocaleString("tr-TR") : ""}
       </td>
       <td class="px-3 py-2 text-right space-x-1">
-        <button class="text-xs px-2 py-1 rounded bg-sky-100 text-sky-700 hover:bg-sky-200" data-detail="${docSnap.id}">Detay</button>
+        <button class="text-xs px-2 py-1 rounded bg-sky-100 text-sky-700 hover:bg-sky-200"
+                onclick="openOrderDetail('${docSnap.id}')">
+          Detay
+        </button>
         ${
           currentUserProfile?.role === "manager" || currentUserProfile?.role === "admin"
-            ? `<button class="text-xs px-2 py-1 rounded bg-emerald-100 text-emerald-700 hover:bg-emerald-200" data-assign="${docSnap.id}">
-                Toplayıcı Ata
-              </button>`
+            ? `<button class="text-xs px-2 py-1 rounded bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
+                       onclick="assignOrderToPicker('${docSnap.id}')">
+                 Toplayıcı Ata
+               </button>`
             : ""
         }
       </td>
@@ -566,51 +572,6 @@ async function loadOrders() {
 
   updateDashboardCounts();
   updateReportSummary();
-}
-
-async function assignOrderToPicker(orderId) {
-  if (
-    currentUserProfile?.role !== "manager" &&
-    currentUserProfile?.role !== "admin"
-  ) {
-    showGlobalAlert("Bu işlem için yetkin yok.");
-    return;
-  }
-
-  const usersSnap = await getDocs(
-    query(collection(db, "users"), where("role", "==", "picker"))
-  );
-  if (usersSnap.empty) {
-    showGlobalAlert("Kayıtlı toplayıcı yok.");
-    return;
-  }
-
-  const pickers = [];
-  usersSnap.forEach((docSnap) => {
-    pickers.push({ id: docSnap.id, ...docSnap.data() });
-  });
-
-  const pickerEmailList = pickers
-    .map((p, idx) => `${idx + 1}) ${p.fullName} - ${p.email}`)
-    .join("\n");
-  const input = prompt("Toplayıcı seç (numara ile):\n" + pickerEmailList);
-  if (!input) return;
-  const index = Number(input) - 1;
-  if (index < 0 || index >= pickers.length) {
-    showGlobalAlert("Geçersiz seçim.");
-    return;
-  }
-
-  const picker = pickers[index];
-  await updateDoc(doc(db, "orders", orderId), {
-    assignedTo: picker.id,
-    assignedToEmail: picker.email,
-    status: "assigned",
-  });
-
-  showGlobalAlert("Sipariş toplayıcıya atandı.", "success");
-  loadOrders();
-  loadPickingOrders();
 }
 
 // --------------------------------------------------------
@@ -663,7 +624,10 @@ async function loadPickingOrders() {
       <td class="px-3 py-2">${statusLabel}</td>
       <td class="px-3 py-2 text-xs">${d.assignedToEmail || "-"}</td>
       <td class="px-3 py-2 text-right">
-        <button class="text-xs px-2 py-1 rounded bg-sky-100 text-sky-700 hover:bg-sky-200" data-pick="${docSnap.id}">Topla</button>
+        <button class="text-xs px-2 py-1 rounded bg-sky-100 text-sky-700 hover:bg-sky-200"
+                onclick="pickOrder('${docSnap.id}')">
+          Topla
+        </button>
       </td>
     `;
     tbody.appendChild(tr);
@@ -845,7 +809,14 @@ async function updateReportSummary() {
 }
 
 // --------------------------------------------------------
-// 11. Auth Listeners & Init
+// 11. Global functions for inline onclick
+// --------------------------------------------------------
+window.openOrderDetail = (id) => openPickingDetailModal(id, false);
+window.assignOrderToPicker = (id) => assignOrderToPicker(id);
+window.pickOrder = (id) => openPickingDetailModal(id, true);
+
+// --------------------------------------------------------
+// 12. Auth Listeners & Init
 // --------------------------------------------------------
 async function handleRegister(evt) {
   evt.preventDefault();
@@ -923,19 +894,16 @@ onAuthStateChanged(auth, async (user) => {
 });
 
 // --------------------------------------------------------
-// 12. DOM Ready & Event Bindings
+// 13. DOM Ready & Event Bindings
 // --------------------------------------------------------
 document.addEventListener("DOMContentLoaded", () => {
-  // Auth tabları
   $("loginTab")?.addEventListener("click", () => switchAuthTab("login"));
   $("registerTab")?.addEventListener("click", () => switchAuthTab("register"));
 
-  // Auth forms
   $("registerForm")?.addEventListener("submit", handleRegister);
   $("loginForm")?.addEventListener("submit", handleLogin);
   $("logoutBtn")?.addEventListener("click", handleLogout);
 
-  // Nav buttons
   document.querySelectorAll(".nav-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
       const viewId = btn.getAttribute("data-view");
@@ -951,16 +919,13 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 
-  // Products modal
   $("openProductModalBtn")?.addEventListener("click", () => openProductModal());
   $("closeProductModalBtn")?.addEventListener("click", closeProductModal);
   $("cancelProductBtn")?.addEventListener("click", closeProductModal);
   $("productForm")?.addEventListener("submit", saveProduct);
 
-  // Stock form
   $("stockForm")?.addEventListener("submit", saveStockMovement);
 
-  // Order modal
   $("openOrderModalBtn")?.addEventListener("click", async () => {
     await prepareOrderModal();
     openOrderModal();
@@ -969,39 +934,6 @@ document.addEventListener("DOMContentLoaded", () => {
   $("cancelOrderBtn")?.addEventListener("click", closeOrderModal);
   $("orderForm")?.addEventListener("submit", saveOrder);
 
-  // Şube Siparişleri tablosu: Detay & Toplayıcı Ata
-  const ordersTableBody = $("ordersTableBody");
-  if (ordersTableBody) {
-    ordersTableBody.addEventListener("click", (e) => {
-      const detailBtn = e.target.closest("button[data-detail]");
-      if (detailBtn) {
-        const id = detailBtn.getAttribute("data-detail");
-        openPickingDetailModal(id, false);
-        return;
-      }
-
-      const assignBtn = e.target.closest("button[data-assign]");
-      if (assignBtn) {
-        const id = assignBtn.getAttribute("data-assign");
-        assignOrderToPicker(id);
-        return;
-      }
-    });
-  }
-
-  // Toplama tablosu: Topla
-  const pickingTableBody = $("pickingTableBody");
-  if (pickingTableBody) {
-    pickingTableBody.addEventListener("click", (e) => {
-      const pickBtn = e.target.closest("button[data-pick]");
-      if (pickBtn) {
-        const id = pickBtn.getAttribute("data-pick");
-        openPickingDetailModal(id, true);
-      }
-    });
-  }
-
-  // Picking detail modal
   $("closePickingDetailModalBtn")?.addEventListener("click", closePickingDetailModal);
   $("completePickingBtn")?.addEventListener("click", completePicking);
 });
