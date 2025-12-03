@@ -114,6 +114,104 @@ function setCurrentUserInfo(user, profile) {
   }
   el.textContent = `${profile.fullName || user.email} • ${profile.role || "?"}`;
 }
+// --------------------------------------------------------
+// 3.1 Location Helpers - Toplama Rotası
+// --------------------------------------------------------
+
+// "A1-01-01" gibi kodu parçalayıp sayıya çevirir
+function parseLocationCode(code) {
+  if (!code || typeof code !== "string") {
+    return { zone: "", aisle: 0, rack: 0, level: 0 };
+  }
+  const parts = code.split("-");
+  let zone = "";
+  let aisle = 0;
+  let rack = 0;
+  let level = 0;
+
+  if (parts.length >= 1) {
+    const m = parts[0].match(/^([A-Za-z]+)(\d+)?$/);
+    if (m) {
+      zone = m[1];
+      aisle = m[2] ? Number(m[2]) || 0 : 0;
+    } else {
+      zone = parts[0];
+    }
+  }
+  if (parts.length >= 2) rack = Number(parts[1]) || 0;
+  if (parts.length >= 3) level = Number(parts[2]) || 0;
+
+  return { zone, aisle, rack, level };
+}
+
+// İki lokasyon kodunu kıyaslar (rota sırası)
+function compareLocationCode(a, b) {
+  const pa = parseLocationCode(a || "");
+  const pb = parseLocationCode(b || "");
+
+  if (pa.zone < pb.zone) return -1;
+  if (pa.zone > pb.zone) return 1;
+
+  if (pa.aisle < pb.aisle) return -1;
+  if (pa.aisle > pb.aisle) return 1;
+
+  if (pa.rack < pb.rack) return -1;
+  if (pa.rack > pb.rack) return 1;
+
+  if (pa.level < pb.level) return -1;
+  if (pa.level > pb.level) return 1;
+
+  return 0;
+}
+
+// Her ürün için en uygun lokasyonu bulur (şimdilik en küçük lokasyonCode)
+async function enrichItemsWithLocation(items) {
+  const result = [];
+
+  for (const it of items) {
+    let bestLocationCode = null;
+    let bestLocationId = null;
+
+    try {
+      if (it.productId) {
+        const qSnap = await getDocs(
+          query(
+            collection(db, "locationStocks"),
+            where("productId", "==", it.productId)
+          )
+        );
+
+        let best = null;
+        qSnap.forEach((docSnap) => {
+          const d = docSnap.data();
+          if (!d.locationCode) return;
+          if (!best) {
+            best = { id: docSnap.id, ...d };
+          } else if (
+            compareLocationCode(d.locationCode, best.locationCode) < 0
+          ) {
+            best = { id: docSnap.id, ...d };
+          }
+        });
+
+        if (best) {
+          bestLocationCode = best.locationCode;
+          bestLocationId = best.locationId || best.id;
+        }
+      }
+    } catch (err) {
+      console.error("Lokasyon okunurken hata:", err);
+    }
+
+    result.push({
+      ...it,
+      locationCode: bestLocationCode,
+      locationId: bestLocationId,
+    });
+  }
+
+  return result;
+}
 
 // --------------------------------------------------------
 // 4. Auth UI Control
@@ -756,12 +854,24 @@ async function openPickingDetailModal(orderId, fromPicking) {
   pickingDetailOrderDoc = orderSnap;
 
   const orderData = orderSnap.data();
+
+  // Sipariş kalemlerini oku
   const itemsSnap = await getDocs(collection(db, "orders", orderId, "items"));
   const items = [];
   itemsSnap.forEach((docSnap) => {
     items.push({ id: docSnap.id, ...docSnap.data() });
   });
-  pickingDetailItems = items;
+
+  // 🔥 Toplama rotası: her kalemi lokasyonla zenginleştir + sırala
+  const itemsWithLocation = await enrichItemsWithLocation(items);
+
+  itemsWithLocation.sort((a, b) => {
+    const aCode = a.locationCode || "";
+    const bCode = b.locationCode || "";
+    return compareLocationCode(aCode, bCode);
+  });
+
+  pickingDetailItems = itemsWithLocation;
 
   const headerHtml = `
     <div class="border border-slate-200 rounded-lg p-3 text-xs">
@@ -773,14 +883,18 @@ async function openPickingDetailModal(orderId, fromPicking) {
       <p><span class="font-semibold">Toplayıcı:</span> ${
         orderData.assignedToEmail || "-"
       }</p>
+      <p class="mt-1 text-[11px] text-slate-500">
+        🔁 Toplama rotası: lokasyon koduna göre (bölge > koridor > raf > seviye) otomatik sıralandı.
+      </p>
     </div>
   `;
 
-  const rowsHtml = items
+  const rowsHtml = itemsWithLocation
     .map(
       (it, index) => `
     <tr class="border-b border-slate-100">
       <td class="px-2 py-1 text-xs">${index + 1}</td>
+      <td class="px-2 py-1 text-xs">${it.locationCode || "-"}</td>
       <td class="px-2 py-1 text-xs">${it.productCode || ""}</td>
       <td class="px-2 py-1 text-xs">${it.productName || ""}</td>
       <td class="px-2 py-1 text-xs">${it.qty} ${it.unit || ""}</td>
@@ -805,6 +919,7 @@ async function openPickingDetailModal(orderId, fromPicking) {
         <thead class="bg-slate-50">
           <tr>
             <th class="px-2 py-1 text-left">#</th>
+            <th class="px-2 py-1 text-left">Lokasyon</th>
             <th class="px-2 py-1 text-left">Kod</th>
             <th class="px-2 py-1 text-left">Ürün</th>
             <th class="px-2 py-1 text-left">İstenen</th>
@@ -815,7 +930,7 @@ async function openPickingDetailModal(orderId, fromPicking) {
         <tbody>
           ${
             rowsHtml ||
-            `<tr><td colspan="6" class="px-2 py-2 text-center text-slate-400">Kalem yok.</td></tr>`
+            `<tr><td colspan="7" class="px-2 py-2 text-center text-slate-400">Kalem yok.</td></tr>`
           }
         </tbody>
       </table>
@@ -832,6 +947,7 @@ async function openPickingDetailModal(orderId, fromPicking) {
     completeBtn.classList.toggle("cursor-not-allowed", !fromPicking);
   }
 }
+
 
 function closePickingDetailModal() {
   $("pickingDetailModal")?.classList.add("hidden");
