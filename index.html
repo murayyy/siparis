@@ -377,11 +377,25 @@
               </ul>
             </div>
             <div class="bg-white rounded-xl shadow p-4 text-sm space-y-2">
-              <h3 class="font-semibold text-slate-800 mb-2 text-sm">Not</h3>
+              <h3 class="font-semibold text-slate-800 mb-2 text-sm">Dışa Aktarım & Not</h3>
+              <div class="flex flex-wrap gap-2 mb-2">
+                <button
+                  id="exportProductsCsvBtn"
+                  class="px-3 py-1 text-xs font-semibold rounded-lg bg-sky-600 text-white hover:bg-sky-700"
+                >
+                  Ürünler CSV
+                </button>
+                <button
+                  id="exportOrdersCsvBtn"
+                  class="px-3 py-1 text-xs font-semibold rounded-lg bg-emerald-600 text-white hover:bg-emerald-700"
+                >
+                  Siparişler CSV
+                </button>
+              </div>
               <p class="text-slate-600 text-xs">
                 Bu panel, Firestore üzerinde tutulan verilerden dinamik olarak beslenir.
-                İstersen buradaki verileri Excel/PDF için dışa aktarma mantığını da kolayca
-                ekleyebiliriz.
+                Buradaki verileri tek tıkla CSV formatında indirebilir, Excel'de açıp
+                muhasebe / raporlama için kullanabilirsin.
               </p>
             </div>
           </div>
