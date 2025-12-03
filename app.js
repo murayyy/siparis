@@ -1352,7 +1352,15 @@ async function handleLogout() {
 
 onAuthStateChanged(auth, async (user) => {
   currentUser = user;
+
+  // Kullanıcı yoksa (logout / login değilse)
   if (!user) {
+    // Bildirim listener'ını da kapat
+    if (notificationsUnsub) {
+      notificationsUnsub();
+      notificationsUnsub = null;
+    }
+
     $("authSection").classList.remove("hidden");
     $("appSection").classList.add("hidden");
     showAuthMessage("");
@@ -1361,15 +1369,8 @@ onAuthStateChanged(auth, async (user) => {
     setRoleBadge("-");
     return;
   }
-  if (!user) {
-    if (notificationsUnsub) {
-      notificationsUnsub();
-      notificationsUnsub = null;
-    }
-    $("authSection").classList.remove("hidden");
-    $("appSection").classList.add("hidden");
-    ...
 
+  // Kullanıcı varsa profilini çek
   const userRef = doc(db, "users", user.uid);
   const snap = await getDoc(userRef);
   if (snap.exists()) {
@@ -1379,9 +1380,11 @@ onAuthStateChanged(auth, async (user) => {
       fullName: user.email,
       role: "branch",
       email: user.email,
+      createdAt: serverTimestamp(),
     };
     await setDoc(userRef, currentUserProfile);
   }
+
   setCurrentUserInfo(user, currentUserProfile);
   setRoleBadge(currentUserProfile.role);
   setupRoleBasedUI(currentUserProfile);
@@ -1397,19 +1400,8 @@ onAuthStateChanged(auth, async (user) => {
   await loadStockMovements();
   await loadOrders();
   await loadPickingOrders();
-
-  setCurrentUserInfo(user, currentUserProfile);
-  setRoleBadge(currentUserProfile.role);
-setupRoleBasedUI(currentUserProfile);
-  $("authSection").classList.add("hidden");
-  $("appSection").classList.remove("hidden");
-  showView("dashboardView");
-
-  await loadProducts();
-  await loadStockMovements();
-  await loadOrders();
-  await loadPickingOrders();
 });
+
 
 // --------------------------------------------------------
 // 12. DOM Ready & Events
