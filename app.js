@@ -223,6 +223,7 @@ async function applyPickingToLocationStocks(orderId, itemsWithPicked) {
     }
   }
 }
+
 // --------------------------------------------------------
 // 3.2 Rol Bazlı UI (branch sadece sipariş toplama görsün vb.)
 // --------------------------------------------------------
@@ -248,6 +249,7 @@ function setupRoleBasedUI(profile) {
     newOrderBtn.classList.toggle("hidden", !canCreateOrder);
   }
 }
+
 // --------------------------------------------------------
 // 3.3 Bildirimler (notifications)
 // --------------------------------------------------------
@@ -541,9 +543,7 @@ async function loadStockMovements() {
       <div>
         <p class="font-semibold text-slate-700 text-xs">${d.productName || "-"}</p>
         <p class="text-[11px] text-slate-500">
-          ${typeLabel} • ${d.qty} ${d.unit || ""} • ${d.sourceLocation || "-"} ➜ ${
-      d.targetLocation || "-"
-    }
+          ${typeLabel} • ${d.qty} ${d.unit || ""} • ${d.sourceLocation || "-"} ➜ ${d.targetLocation || "-"}
         </p>
       </div>
       <span class="text-[11px] text-slate-400">
@@ -1120,6 +1120,7 @@ async function openPickingDetailModal(orderId, fromPicking) {
     completeBtn.classList.toggle("cursor-not-allowed", !fromPicking);
   }
 }
+
 function closePickingDetailModal() {
   const modal = $("pickingDetailModal");
   if (modal) modal.classList.add("hidden");
@@ -1195,6 +1196,7 @@ async function completePicking() {
   } catch (err) {
     console.error("pickingLogs yazılırken hata:", err);
   }
+
   // 🔔 Şube kullanıcısına "sipariş tamamlandı" bildirimi
   try {
     const orderData =
@@ -1221,6 +1223,7 @@ async function completePicking() {
   await loadPickingOrders();
   await updatePickerDashboardStats(); // dashboard'taki günlük özet güncellensin
 }
+
 // --------------------------------------------------------
 // 9.1 Araç Yükleme & Sevk (loadingTasks)
 // --------------------------------------------------------
@@ -1325,6 +1328,7 @@ async function loadLoadingTasks() {
   if (todayEl)
     todayEl.textContent = `Bugün ${todayLoadedCount} palet yüklendi.`;
 }
+
 async function setLoadingTaskStatus(taskId, newStatus) {
   try {
     const ref = doc(db, "loadingTasks", taskId);
@@ -1396,6 +1400,7 @@ async function updateReportSummary() {
   $("reportTotalOrders").textContent = `Toplam sipariş: ${totalOrders}`;
   $("reportCompletedOrders").textContent = `Tamamlanan sipariş: ${completedOrders}`;
 }
+
 // --------------------------------------------------------
 // 10.1 Picker günlük performans özeti
 // --------------------------------------------------------
@@ -1403,7 +1408,7 @@ async function updatePickerDashboardStats() {
   if (!currentUser) return;
 
   const el = $("pickerStatsToday");
-  if (!el) return; // HTML'e eklemezsen sessizce geçer
+  if (!el) return;
 
   try {
     const snap = await getDocs(
@@ -1494,7 +1499,6 @@ onAuthStateChanged(auth, async (user) => {
       notificationsUnsub = null;
     }
 
-
     $("authSection").classList.remove("hidden");
     $("appSection").classList.add("hidden");
     showAuthMessage("");
@@ -1526,17 +1530,19 @@ onAuthStateChanged(auth, async (user) => {
   $("authSection").classList.add("hidden");
   $("appSection").classList.remove("hidden");
   showView("dashboardView");
-await loadLoadingTasks();  // ← bunu ekle
-  // 🔔 Bildirim dinleyicisini başlat
-  startNotificationListener();
 
   await loadProducts();
   await loadStockMovements();
   await loadOrders();
   await loadPickingOrders();
-  await loadLoadingTasks();  // ← bunu ekle
-});
+  await loadLoadingTasks();
+  await updateDashboardCounts();
+  await updateReportSummary();
+  await updatePickerDashboardStats();
 
+  // 🔔 Bildirim dinleyicisini başlat
+  startNotificationListener();
+});
 
 // --------------------------------------------------------
 // 12. DOM Ready & Events
@@ -1549,16 +1555,39 @@ document.addEventListener("DOMContentLoaded", () => {
   $("loginForm").addEventListener("submit", handleLogin);
   $("logoutBtn").addEventListener("click", handleLogout);
 
+  // Navigation
   document.querySelectorAll(".nav-btn").forEach((btn) => {
-    btn.addEventListener("click", () => {
+    btn.addEventListener("click", async () => {
       const viewId = btn.getAttribute("data-view");
       showView(viewId);
-      if (viewId === "productsView") loadProducts();
-      if (viewId === "stockView") {
-        loadProducts();
-        loadStockMovements();
+
+      if (viewId === "productsView") {
+        await loadProducts();
       }
-        // Araç Yükleme view'i açıldığında kayıtları getir
+      if (viewId === "stockView") {
+        await loadProducts();
+        await loadStockMovements();
+      }
+      if (viewId === "ordersView") {
+        await loadOrders();
+      }
+      if (viewId === "pickingView") {
+        await loadPickingOrders();
+        await updatePickerDashboardStats();
+      }
+      if (viewId === "reportsView") {
+        await updateReportSummary();
+      }
+      if (viewId === "notificationsView") {
+        await markNotificationsAsRead();
+      }
+      if (viewId === "loadingView") {
+        await loadLoadingTasks();
+      }
+    });
+  });
+
+  // Araç Yükleme view'i: filtreler ve tablo click handler
   const loadingStatusFilter = $("loadingStatusFilter");
   const reloadLoadingTasksBtn = $("reloadLoadingTasksBtn");
 
@@ -1588,19 +1617,16 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-      if (viewId === "ordersView") loadOrders();
-      if (viewId === "pickingView") loadPickingOrders();
-      if (viewId === "reportsView") updateReportSummary();
-    });
-  });
-
+  // Ürün modal
   $("openProductModalBtn").addEventListener("click", () => openProductModal());
   $("closeProductModalBtn").addEventListener("click", closeProductModal);
   $("cancelProductBtn").addEventListener("click", closeProductModal);
   $("productForm").addEventListener("submit", saveProduct);
 
+  // Stok hareket formu
   $("stockForm").addEventListener("submit", saveStockMovement);
 
+  // Sipariş modal
   $("openOrderModalBtn").addEventListener("click", async () => {
     await prepareOrderModal();
     openOrderModal();
