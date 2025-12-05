@@ -149,6 +149,10 @@
           <button data-view="shipmentsView" class="nav-btn w-full text-left px-3 py-2 rounded-lg hover:bg-slate-800">
             🚛 Sevkiyat & Yükleme
           </button>
+          <!-- YENİ: Work Orders menü -->
+          <button data-view="workOrdersView" class="nav-btn w-full text-left px-3 py-2 rounded-lg hover:bg-slate-800">
+            📋 Work Orders
+          </button>
           <button data-view="notificationsView" class="nav-btn w-full text-left px-3 py-2 rounded-lg hover:bg-slate-800">
             🔔 Bildirimler
           </button>
@@ -165,17 +169,10 @@
           </button>
 
           <button
-  class="nav-btn text-xs px-3 py-2 rounded-lg hover:bg-slate-800/60 hover:text-white transition"
-  data-view="loadingView">
-  Araç Yükleme
-</button>
-
-
-
-
-
-
-          
+            class="nav-btn text-xs px-3 py-2 rounded-lg hover:bg-slate-800/60 hover:text-white transition mt-2"
+            data-view="loadingView">
+            Araç Yükleme
+          </button>
         </div>
       </aside>
 
@@ -213,30 +210,31 @@
               <p id="cardCompletedOrders" class="mt-2 text-2xl font-bold text-slate-800">0</p>
             </div>
           </div>
-        </section>
-<div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
-  <div class="bg-white rounded-xl shadow p-4">
-    <div class="flex items-center justify-between mb-2">
-      <h3 class="text-sm font-semibold text-slate-800">Bildirimler</h3>
-      <span
-        id="notificationsUnread"
-        class="hidden text-[11px] px-2 py-1 rounded-full bg-red-100 text-red-700"
-      ></span>
-    </div>
-    <ul id="notificationsList" class="space-y-1">
-      <li class="text-[11px] text-slate-400">Henüz bildirim yok.</li>
-    </ul>
-  </div>
 
-  <div class="bg-white rounded-xl shadow p-4">
-    <h3 class="text-sm font-semibold text-slate-800 mb-2">
-      Günlük Toplama Özeti
-    </h3>
-    <p id="pickerStatsToday" class="text-xs text-slate-600">
-      Bugün henüz tamamlanan toplama yok.
-    </p>
-  </div>
-</div>
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
+            <div class="bg-white rounded-xl shadow p-4">
+              <div class="flex items-center justify-between mb-2">
+                <h3 class="text-sm font-semibold text-slate-800">Bildirimler</h3>
+                <span
+                  id="notificationsUnread"
+                  class="hidden text-[11px] px-2 py-1 rounded-full bg-red-100 text-red-700"
+                ></span>
+              </div>
+              <ul id="notificationsList" class="space-y-1">
+                <li class="text-[11px] text-slate-400">Henüz bildirim yok.</li>
+              </ul>
+            </div>
+
+            <div class="bg-white rounded-xl shadow p-4">
+              <h3 class="text-sm font-semibold text-slate-800 mb-2">
+                Günlük Toplama Özeti
+              </h3>
+              <p id="pickerStatsToday" class="text-xs text-slate-600">
+                Bugün henüz tamamlanan toplama yok.
+              </p>
+            </div>
+          </div>
+        </section>
 
         <!-- Products View -->
         <section id="productsView" class="view hidden space-y-4">
@@ -516,85 +514,118 @@
             </p>
           </div>
         </section>
-<!--  Araç Yükleme & Sevk  -->
-<section id="loadingView" class="view hidden">
-  <div class="flex items-center justify-between mb-3">
-    <div>
-      <h2 class="text-sm font-semibold text-slate-800">
-        Araç Yükleme & Sevk
-      </h2>
-      <p class="text-[11px] text-slate-500">
-        Sevk edilecek paletleri, rampaları ve yükleme durumlarını buradan takip et.
-      </p>
-    </div>
-  </div>
 
-  <!-- Filtreler / Özet -->
-  <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3 text-[11px]">
-    <div class="border border-slate-200 rounded-lg p-2">
-      <p class="font-semibold text-slate-700">Bugünkü Sevkiyatlar</p>
-      <p id="loadingTodaySummary" class="text-slate-500 mt-1">
-        Yüklenmiş kayıt yok.
-      </p>
-    </div>
-    <div class="border border-slate-200 rounded-lg p-2">
-      <p class="font-semibold text-slate-700">Bekleyen Paletler</p>
-      <p id="loadingWaitingSummary" class="text-slate-500 mt-1">
-        0 palet bekliyor.
-      </p>
-    </div>
-    <div class="border border-slate-200 rounded-lg p-2">
-      <p class="font-semibold text-slate-700">Filtre</p>
-      <div class="mt-1 flex gap-2">
-        <select id="loadingStatusFilter"
-                class="flex-1 rounded-lg border border-slate-300 px-2 py-1 text-[11px]">
-          <option value="all">Tümü</option>
-          <option value="waiting">Bekliyor</option>
-          <option value="loading">Yükleniyor</option>
-          <option value="loaded">Yüklendi</option>
-        </select>
-        <button id="reloadLoadingTasksBtn"
-                class="text-[11px] px-2 py-1 rounded-lg border border-slate-300 hover:bg-slate-50">
-          Yenile
-        </button>
-      </div>
-    </div>
-  </div>
+        <!-- Work Orders View -->
+        <section id="workOrdersView" class="view hidden space-y-4">
+          <div class="flex items-center justify-between">
+            <h2 class="text-xl font-semibold text-slate-800">Work Orders</h2>
+            <p class="text-[11px] text-slate-500">
+              Picking / putaway / sevk gibi tüm iş emirleri.
+            </p>
+          </div>
+          <div class="bg-white rounded-xl shadow overflow-hidden">
+            <table class="min-w-full text-xs">
+              <thead class="bg-slate-50">
+                <tr>
+                  <th class="px-3 py-2 text-left font-semibold text-[11px] text-slate-500">ID</th>
+                  <th class="px-3 py-2 text-left font-semibold text-[11px] text-slate-500">Tip</th>
+                  <th class="px-3 py-2 text-left font-semibold text-[11px] text-slate-500">Durum</th>
+                  <th class="px-3 py-2 text-left font-semibold text-[11px] text-slate-500">Şube</th>
+                  <th class="px-3 py-2 text-left font-semibold text-[11px] text-slate-500">Atanan</th>
+                  <th class="px-3 py-2 text-left font-semibold text-[11px] text-slate-500">Oluşturma</th>
+                </tr>
+              </thead>
+              <tbody id="workOrdersTableBody">
+                <tr>
+                  <td colspan="6" class="px-3 py-3 text-center text-[11px] text-slate-400">
+                    Work order bulunamadı.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
 
-  <!-- Tablo -->
-  <div class="border border-slate-200 rounded-lg overflow-hidden">
-    <div class="overflow-x-auto">
-      <table class="min-w-full text-xs">
-        <thead class="bg-slate-50">
-          <tr>
-            <th class="px-2 py-1 text-left">Sevk No</th>
-            <th class="px-2 py-1 text-left hidden sm:table-cell">Şube</th>
-            <th class="px-2 py-1 text-left">Palet</th>
-            <th class="px-2 py-1 text-left hidden md:table-cell">Rampa</th>
-            <th class="px-2 py-1 text-left">Durum</th>
-            <th class="px-2 py-1 text-left hidden md:table-cell">Yükleyen</th>
-            <th class="px-2 py-1 text-left hidden md:table-cell">Yüklendi</th>
-            <th class="px-2 py-1 text-right">İşlem</th>
-          </tr>
-        </thead>
-        <tbody id="loadingTasksTableBody">
-          <!-- JS dolduracak -->
-        </tbody>
-      </table>
-    </div>
-  </div>
+        <!--  Araç Yükleme & Sevk  -->
+        <section id="loadingView" class="view hidden">
+          <div class="flex items-center justify-between mb-3">
+            <div>
+              <h2 class="text-sm font-semibold text-slate-800">
+                Araç Yükleme & Sevk
+              </h2>
+              <p class="text-[11px] text-slate-500">
+                Sevk edilecek paletleri, rampaları ve yükleme durumlarını buradan takip et.
+              </p>
+            </div>
+          </div>
 
-  <p id="loadingTasksEmpty"
-     class="text-[11px] text-slate-400 text-center mt-3 hidden">
-    Kayıtlı yükleme görevi yok.
-  </p>
-</section>
+          <!-- Filtreler / Özet -->
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3 text-[11px]">
+            <div class="border border-slate-200 rounded-lg p-2">
+              <p class="font-semibold text-slate-700">Bugünkü Sevkiyatlar</p>
+              <p id="loadingTodaySummary" class="text-slate-500 mt-1">
+                Yüklenmiş kayıt yok.
+              </p>
+            </div>
+            <div class="border border-slate-200 rounded-lg p-2">
+              <p class="font-semibold text-slate-700">Bekleyen Paletler</p>
+              <p id="loadingWaitingSummary" class="text-slate-500 mt-1">
+                0 palet bekliyor.
+              </p>
+            </div>
+            <div class="border border-slate-200 rounded-lg p-2">
+              <p class="font-semibold text-slate-700">Filtre</p>
+              <div class="mt-1 flex gap-2">
+                <select id="loadingStatusFilter"
+                        class="flex-1 rounded-lg border border-slate-300 px-2 py-1 text-[11px]">
+                  <option value="all">Tümü</option>
+                  <option value="waiting">Bekliyor</option>
+                  <option value="loading">Yükleniyor</option>
+                  <option value="loaded">Yüklendi</option>
+                </select>
+                <button id="reloadLoadingTasksBtn"
+                        class="text-[11px] px-2 py-1 rounded-lg border border-slate-300 hover:bg-slate-50">
+                  Yenile
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tablo -->
+          <div class="border border-slate-200 rounded-lg overflow-hidden">
+            <div class="overflow-x-auto">
+              <table class="min-w-full text-xs">
+                <thead class="bg-slate-50">
+                  <tr>
+                    <th class="px-2 py-1 text-left">Sevk No</th>
+                    <th class="px-2 py-1 text-left hidden sm:table-cell">Şube</th>
+                    <th class="px-2 py-1 text-left">Palet</th>
+                    <th class="px-2 py-1 text-left hidden md:table-cell">Rampa</th>
+                    <th class="px-2 py-1 text-left">Durum</th>
+                    <th class="px-2 py-1 text-left hidden md:table-cell">Yükleyen</th>
+                    <th class="px-2 py-1 text-left hidden md:table-cell">Yüklendi</th>
+                    <th class="px-2 py-1 text-right">İşlem</th>
+                  </tr>
+                </thead>
+                <tbody id="loadingTasksTableBody">
+                  <!-- JS dolduracak -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <p id="loadingTasksEmpty"
+             class="text-[11px] text-slate-400 text-center mt-3 hidden">
+            Kayıtlı yükleme görevi yok.
+          </p>
+        </section>
 
         <!-- Notifications View -->
         <section id="notificationsView" class="view hidden space-y-4">
           <h2 class="text-xl font-semibold text-slate-800">Bildirimler</h2>
           <div class="bg-white rounded-xl shadow p-4 text-sm">
-            <div id="notificationsList" class="space-y-2 text-xs max-h-96 overflow-y-auto"></div>
+            <!-- ID ÇAKIŞMASI OLMAMASI İÇİN FARKLI ID -->
+            <div id="notificationsListFull" class="space-y-2 text-xs max-h-96 overflow-y-auto"></div>
             <p id="notificationsEmpty" class="text-center text-xs text-slate-400 mt-2 hidden">
               Bildirim yok.
             </p>
@@ -604,7 +635,7 @@
         <!-- Reports View -->
         <section id="reportsView" class="view hidden space-y-4">
           <h2 class="text-xl font-semibold text-slate-800">Basit Raporlar</h2>
-          <div class="grid grid-cols-1 lg-grid-cols-2 lg:grid-cols-2 gap-4">
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <div class="bg-white rounded-xl shadow p-4 text-sm space-y-2">
               <h3 class="font-semibold text-slate-800 mb-2 text-sm">Genel Özet</h3>
               <ul class="list-disc list-inside text-slate-700 text-sm">
