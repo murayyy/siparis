@@ -1331,7 +1331,7 @@ async function completePicking() {
   await updatePickerDashboardStats(); // dashboard'taki günlük özet güncellensin
 }
 // --------------------------------------------------------
-// 9.1 Araç Yükleme & Sevk (loadingTasks)
+// 9.1 Araç Yükleme & Sevk (pallets üzerinden)
 // --------------------------------------------------------
 async function loadLoadingTasks() {
   const tbody = $("loadingTasksTableBody");
@@ -1342,12 +1342,13 @@ async function loadLoadingTasks() {
 
   tbody.innerHTML = "";
 
-  let qRef = collection(db, "loadingTasks");
+  // Artık pallets koleksiyonu üzerinden çalışıyoruz
+  let qRef = collection(db, "pallets");
 
   // Filtre uygulanacaksa
   if (statusFilter && statusFilter.value && statusFilter.value !== "all") {
     qRef = query(
-      collection(db, "loadingTasks"),
+      collection(db, "pallets"),
       where("status", "==", statusFilter.value)
     );
   }
@@ -1434,9 +1435,11 @@ async function loadLoadingTasks() {
   if (todayEl)
     todayEl.textContent = `Bugün ${todayLoadedCount} palet yüklendi.`;
 }
+
 async function setLoadingTaskStatus(taskId, newStatus) {
   try {
-    const ref = doc(db, "loadingTasks", taskId);
+    // pallets koleksiyonundaki palet kaydı
+    const ref = doc(db, "pallets", taskId);
 
     const payload = {
       status: newStatus,
@@ -1635,7 +1638,7 @@ onAuthStateChanged(auth, async (user) => {
   $("authSection").classList.add("hidden");
   $("appSection").classList.remove("hidden");
   showView("dashboardView");
-  await loadLoadingTasks();  // ← bunu ekle
+  await loadLoadingTasks();  // araç yükleme özetleri
   // 🔔 Bildirim dinleyicisini başlat
   startNotificationListener();
 
@@ -1643,7 +1646,7 @@ onAuthStateChanged(auth, async (user) => {
   await loadStockMovements();
   await loadOrders();
   await loadPickingOrders();
-  await loadLoadingTasks();  // ← bunu ekle
+  await loadLoadingTasks();
 });
 
 
@@ -1667,35 +1670,35 @@ document.addEventListener("DOMContentLoaded", () => {
         loadProducts();
         loadStockMovements();
       }
-        // Araç Yükleme view'i açıldığında kayıtları getir
-  const loadingStatusFilter = $("loadingStatusFilter");
-  const reloadLoadingTasksBtn = $("reloadLoadingTasksBtn");
+      // Araç Yükleme view'i açıldığında kayıtları getir
+      const loadingStatusFilter = $("loadingStatusFilter");
+      const reloadLoadingTasksBtn = $("reloadLoadingTasksBtn");
 
-  if (reloadLoadingTasksBtn) {
-    reloadLoadingTasksBtn.addEventListener("click", loadLoadingTasks);
-  }
-  if (loadingStatusFilter) {
-    loadingStatusFilter.addEventListener("change", loadLoadingTasks);
-  }
-
-  const loadingTasksTableBody = $("loadingTasksTableBody");
-  if (loadingTasksTableBody) {
-    loadingTasksTableBody.addEventListener("click", (e) => {
-      const startBtn = e.target.closest("button[data-loading-start]");
-      const completeBtn = e.target.closest("button[data-loading-complete]");
-
-      if (startBtn) {
-        const id = startBtn.getAttribute("data-loading-start");
-        setLoadingTaskStatus(id, "loading");
-        return;
+      if (reloadLoadingTasksBtn) {
+        reloadLoadingTasksBtn.addEventListener("click", loadLoadingTasks);
       }
-      if (completeBtn) {
-        const id = completeBtn.getAttribute("data-loading-complete");
-        setLoadingTaskStatus(id, "loaded");
-        return;
+      if (loadingStatusFilter) {
+        loadingStatusFilter.addEventListener("change", loadLoadingTasks);
       }
-    });
-  }
+
+      const loadingTasksTableBody = $("loadingTasksTableBody");
+      if (loadingTasksTableBody) {
+        loadingTasksTableBody.addEventListener("click", (e) => {
+          const startBtn = e.target.closest("button[data-loading-start]");
+          const completeBtn = e.target.closest("button[data-loading-complete]");
+
+          if (startBtn) {
+            const id = startBtn.getAttribute("data-loading-start");
+            setLoadingTaskStatus(id, "loading");
+            return;
+          }
+          if (completeBtn) {
+            const id = completeBtn.getAttribute("data-loading-complete");
+            setLoadingTaskStatus(id, "loaded");
+            return;
+          }
+        });
+      }
 
       if (viewId === "ordersView") loadOrders();
       if (viewId === "pickingView") loadPickingOrders();
