@@ -223,7 +223,6 @@ async function applyPickingToLocationStocks(orderId, itemsWithPicked) {
     }
   }
 }
-
 // --------------------------------------------------------
 // 3.2 Rol Bazlı UI (branch sadece sipariş toplama görsün vb.)
 // --------------------------------------------------------
@@ -249,7 +248,6 @@ function setupRoleBasedUI(profile) {
     newOrderBtn.classList.toggle("hidden", !canCreateOrder);
   }
 }
-
 // --------------------------------------------------------
 // 3.3 Bildirimler (notifications)
 // --------------------------------------------------------
@@ -543,7 +541,9 @@ async function loadStockMovements() {
       <div>
         <p class="font-semibold text-slate-700 text-xs">${d.productName || "-"}</p>
         <p class="text-[11px] text-slate-500">
-          ${typeLabel} • ${d.qty} ${d.unit || ""} • ${d.sourceLocation || "-"} ➜ ${d.targetLocation || "-"}
+          ${typeLabel} • ${d.qty} ${d.unit || ""} • ${d.sourceLocation || "-"} ➜ ${
+      d.targetLocation || "-"
+    }
         </p>
       </div>
       <span class="text-[11px] text-slate-400">
@@ -560,6 +560,68 @@ async function loadStockMovements() {
 
   if (count === 0) empty.classList.remove("hidden");
   else empty.classList.add("hidden");
+}
+
+// 🔥 7.1 locationStocks güncelleme helper’ı
+async function adjustLocationStock({
+  productId,
+  productData,
+  locationCode,
+  deltaQty,
+  unitOverride,
+}) {
+  // Lokasyon veya ürün yoksa ya da değişim 0 ise boşver
+  if (!productId || !locationCode || !deltaQty) return;
+
+  try {
+    // aynı productId + locationCode için kayıt var mı?
+    const qRef = query(
+      collection(db, "locationStocks"),
+      where("productId", "==", productId),
+      where("locationCode", "==", locationCode)
+    );
+    const snap = await getDocs(qRef);
+
+    let currentQty = 0;
+    let targetDocRef = null;
+
+    if (!snap.empty) {
+      const ds = snap.docs[0];
+      targetDocRef = ds.ref;
+      const d = ds.data();
+      currentQty = Number(d.qty || 0);
+    }
+
+    // negatif başlayıp eksiye düşürmeye çalışma
+    if (!targetDocRef && deltaQty < 0) {
+      return;
+    }
+
+    let newQty = currentQty + deltaQty;
+    if (newQty < 0) newQty = 0;
+
+    const basePayload = {
+      productId,
+      productCode: productData?.code || "",
+      productName: productData?.name || "",
+      locationId: null,
+      locationCode,
+      unit: unitOverride || productData?.unit || "",
+      qty: newQty,
+      updatedAt: serverTimestamp(),
+    };
+
+    if (targetDocRef) {
+      await updateDoc(targetDocRef, basePayload);
+    } else {
+      await addDoc(collection(db, "locationStocks"), {
+        ...basePayload,
+        createdAt: serverTimestamp(),
+      });
+    }
+  } catch (err) {
+    console.error("adjustLocationStock hata:", err);
+  }
 }
 
 async function saveStockMovement(evt) {
@@ -609,6 +671,53 @@ async function saveStockMovement(evt) {
 
   await addDoc(collection(db, "stockMovements"), movementPayload);
   await updateDoc(productRef, { stock: newStock, updatedAt: serverTimestamp() });
+
+  // 🔥 7.2 locationStocks senkronizasyonu
+  try {
+    const commonArgs = {
+      productId,
+      productData,
+      unitOverride: unit || productData.unit || "",
+    };
+
+    if (type === "in") {
+      // GİRİŞ: hedef lokasyona qty ekle
+      if (targetLocation) {
+        await adjustLocationStock({
+          ...commonArgs,
+          locationCode: targetLocation,
+          deltaQty: qty,
+        });
+      }
+    } else if (type === "out") {
+      // ÇIKIŞ: kaynak lokasyondan qty düş
+      if (sourceLocation) {
+        await adjustLocationStock({
+          ...commonArgs,
+          locationCode: sourceLocation,
+          deltaQty: -qty,
+        });
+      }
+    } else if (type === "transfer") {
+      // TRANSFER: kaynaktan düş, hedefe ekle
+      if (sourceLocation) {
+        await adjustLocationStock({
+          ...commonArgs,
+          locationCode: sourceLocation,
+          deltaQty: -qty,
+        });
+      }
+      if (targetLocation) {
+        await adjustLocationStock({
+          ...commonArgs,
+          locationCode: targetLocation,
+          deltaQty: qty,
+        });
+      }
+    }
+  } catch (err) {
+    console.error("locationStocks senkronizasyon hata:", err);
+  }
 
   $("stockForm").reset();
   loadProducts();
@@ -1120,7 +1229,6 @@ async function openPickingDetailModal(orderId, fromPicking) {
     completeBtn.classList.toggle("cursor-not-allowed", !fromPicking);
   }
 }
-
 function closePickingDetailModal() {
   const modal = $("pickingDetailModal");
   if (modal) modal.classList.add("hidden");
@@ -1196,7 +1304,6 @@ async function completePicking() {
   } catch (err) {
     console.error("pickingLogs yazılırken hata:", err);
   }
-
   // 🔔 Şube kullanıcısına "sipariş tamamlandı" bildirimi
   try {
     const orderData =
@@ -1223,7 +1330,6 @@ async function completePicking() {
   await loadPickingOrders();
   await updatePickerDashboardStats(); // dashboard'taki günlük özet güncellensin
 }
-
 // --------------------------------------------------------
 // 9.1 Araç Yükleme & Sevk (loadingTasks)
 // --------------------------------------------------------
@@ -1328,7 +1434,6 @@ async function loadLoadingTasks() {
   if (todayEl)
     todayEl.textContent = `Bugün ${todayLoadedCount} palet yüklendi.`;
 }
-
 async function setLoadingTaskStatus(taskId, newStatus) {
   try {
     const ref = doc(db, "loadingTasks", taskId);
@@ -1400,7 +1505,6 @@ async function updateReportSummary() {
   $("reportTotalOrders").textContent = `Toplam sipariş: ${totalOrders}`;
   $("reportCompletedOrders").textContent = `Tamamlanan sipariş: ${completedOrders}`;
 }
-
 // --------------------------------------------------------
 // 10.1 Picker günlük performans özeti
 // --------------------------------------------------------
@@ -1408,7 +1512,7 @@ async function updatePickerDashboardStats() {
   if (!currentUser) return;
 
   const el = $("pickerStatsToday");
-  if (!el) return;
+  if (!el) return; // HTML'e eklemezsen sessizce geçer
 
   try {
     const snap = await getDocs(
@@ -1499,6 +1603,7 @@ onAuthStateChanged(auth, async (user) => {
       notificationsUnsub = null;
     }
 
+
     $("authSection").classList.remove("hidden");
     $("appSection").classList.add("hidden");
     showAuthMessage("");
@@ -1530,19 +1635,17 @@ onAuthStateChanged(auth, async (user) => {
   $("authSection").classList.add("hidden");
   $("appSection").classList.remove("hidden");
   showView("dashboardView");
+  await loadLoadingTasks();  // ← bunu ekle
+  // 🔔 Bildirim dinleyicisini başlat
+  startNotificationListener();
 
   await loadProducts();
   await loadStockMovements();
   await loadOrders();
   await loadPickingOrders();
-  await loadLoadingTasks();
-  await updateDashboardCounts();
-  await updateReportSummary();
-  await updatePickerDashboardStats();
-
-  // 🔔 Bildirim dinleyicisini başlat
-  startNotificationListener();
+  await loadLoadingTasks();  // ← bunu ekle
 });
+
 
 // --------------------------------------------------------
 // 12. DOM Ready & Events
@@ -1555,39 +1658,16 @@ document.addEventListener("DOMContentLoaded", () => {
   $("loginForm").addEventListener("submit", handleLogin);
   $("logoutBtn").addEventListener("click", handleLogout);
 
-  // Navigation
   document.querySelectorAll(".nav-btn").forEach((btn) => {
-    btn.addEventListener("click", async () => {
+    btn.addEventListener("click", () => {
       const viewId = btn.getAttribute("data-view");
       showView(viewId);
-
-      if (viewId === "productsView") {
-        await loadProducts();
-      }
+      if (viewId === "productsView") loadProducts();
       if (viewId === "stockView") {
-        await loadProducts();
-        await loadStockMovements();
+        loadProducts();
+        loadStockMovements();
       }
-      if (viewId === "ordersView") {
-        await loadOrders();
-      }
-      if (viewId === "pickingView") {
-        await loadPickingOrders();
-        await updatePickerDashboardStats();
-      }
-      if (viewId === "reportsView") {
-        await updateReportSummary();
-      }
-      if (viewId === "notificationsView") {
-        await markNotificationsAsRead();
-      }
-      if (viewId === "loadingView") {
-        await loadLoadingTasks();
-      }
-    });
-  });
-
-  // Araç Yükleme view'i: filtreler ve tablo click handler
+        // Araç Yükleme view'i açıldığında kayıtları getir
   const loadingStatusFilter = $("loadingStatusFilter");
   const reloadLoadingTasksBtn = $("reloadLoadingTasksBtn");
 
@@ -1617,16 +1697,19 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // Ürün modal
+      if (viewId === "ordersView") loadOrders();
+      if (viewId === "pickingView") loadPickingOrders();
+      if (viewId === "reportsView") updateReportSummary();
+    });
+  });
+
   $("openProductModalBtn").addEventListener("click", () => openProductModal());
   $("closeProductModalBtn").addEventListener("click", closeProductModal);
   $("cancelProductBtn").addEventListener("click", closeProductModal);
   $("productForm").addEventListener("submit", saveProduct);
 
-  // Stok hareket formu
   $("stockForm").addEventListener("submit", saveStockMovement);
 
-  // Sipariş modal
   $("openOrderModalBtn").addEventListener("click", async () => {
     await prepareOrderModal();
     openOrderModal();
