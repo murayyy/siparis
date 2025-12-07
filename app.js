@@ -256,6 +256,19 @@ function setupRoleBasedUI(profile) {
   if (stockNavBtn) {
     stockNavBtn.classList.toggle("hidden", role === "branch");
   }
+function applyRoleBasedMenu(role) {
+  const menuButtons = document.querySelectorAll("nav button[data-role]");
+
+  menuButtons.forEach(btn => {
+    const allowedRoles = btn.dataset.role.split(",");
+    if (!allowedRoles.includes(role)) {
+      btn.classList.add("hidden");
+    } else {
+      btn.classList.remove("hidden");
+    }
+  });
+}
+applyRoleBasedMenu(userRole);
 
   const newOrderBtn = $("openOrderModalBtn");
   if (newOrderBtn) {
