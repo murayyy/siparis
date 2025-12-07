@@ -290,7 +290,50 @@
         <button
           class="nav-btn text-xs md:text-sm px-4 py-1.5 rounded-full bg-slate-900/30 text-slate-300 border border-slate-700/60"
           data-view="reportsView"
+
+          <nav class="w-full border-b border-slate-800 bg-slate-950/90 backdrop-blur px-3 md:px-6 py-2">
+  <div class="flex flex-wrap gap-2">
+
+    <button data-view="dashboardView" data-role="admin,manager,picker,branch"
+      class="nav-btn text-xs md:text-sm px-4 py-1.5 rounded-full">
+      Panel
+    </button>
+
+    <button data-view="productsView" data-role="admin,manager"
+      class="nav-btn text-xs md:text-sm px-4 py-1.5 rounded-full">
+      Ürünler
+    </button>
+
+    <button data-view="stockView" data-role="admin,manager"
+      class="nav-btn text-xs md:text-sm px-4 py-1.5 rounded-full">
+      Stok Hareketleri
+    </button>
+
+    <button data-view="ordersView" data-role="admin,manager,branch"
+      class="nav-btn text-xs md:text-sm px-4 py-1.5 rounded-full">
+      Şube Siparişleri
+    </button>
+
+    <button data-view="pickingView" data-role="admin,manager,picker"
+      class="nav-btn text-xs md:text-sm px-4 py-1.5 rounded-full">
+      Toplama
+    </button>
+
+    <button data-view="loadingView" data-role="admin,manager"
+      class="nav-btn text-xs md:text-sm px-4 py-1.5 rounded-full">
+      Araç Yükleme
+    </button>
+
+    <button data-view="reportsView" data-role="admin,manager"
+      class="nav-btn text-xs md:text-sm px-4 py-1.5 rounded-full">
+      Raporlar
+    </button>
+
+  </div>
+</nav>
+
         >
+          
           Raporlar
         </button>
       </div>
