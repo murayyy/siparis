@@ -1683,11 +1683,26 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // Picking detail modal
-  $("closePickingDetailModalBtn")?.addEventListener(
-    "click",
-    closePickingDetailModal
-  );
+  // Picking detail modal – KAPATMA
+  const closePickingBtn = $("closePickingDetailModalBtn");
+  if (closePickingBtn) {
+    // X’e basınca kapat
+    closePickingBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      closePickingDetailModal();
+    });
+  }
+
+  const pickingModal = $("pickingDetailModal");
+  if (pickingModal) {
+    // Arka plan (karanlık boşluk) tıklanınca kapat
+    pickingModal.addEventListener("click", (e) => {
+      if (e.target === pickingModal) {
+        closePickingDetailModal();
+      }
+    });
+  }
+
   $("completePickingBtn")?.addEventListener("click", completePicking);
 
   // Loading tasks filters & buttons
@@ -1712,3 +1727,4 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 });
+
