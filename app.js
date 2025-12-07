@@ -387,16 +387,27 @@ function switchAuthTab(tab) {
 // 5. View Routing
 // --------------------------------------------------------
 function showView(viewId) {
+  // Tüm view'leri gizle / ilgili olanı göster
   const views = document.querySelectorAll(".view");
   views.forEach((v) => {
-    v.classList.toggle("hidden", v.id !== viewId);
+    if (v.id === viewId) {
+      v.classList.add("active");      // göster
+    } else {
+      v.classList.remove("active");   // gizle
+    }
   });
 
+  // Üstteki sekmelerin aktif halini güncelle
   document.querySelectorAll(".nav-btn").forEach((btn) => {
     const target = btn.getAttribute("data-view");
-    btn.classList.toggle("bg-slate-800", target === viewId);
+    if (target === viewId) {
+      btn.classList.add("nav-btn--active");
+    } else {
+      btn.classList.remove("nav-btn--active");
+    }
   });
 }
+
 
 // --------------------------------------------------------
 // 6. Products (search destekli)
