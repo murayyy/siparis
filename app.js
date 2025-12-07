@@ -1251,6 +1251,17 @@ async function openPickingDetailModal(orderId, fromPicking) {
     const uniqueLocations = new Set(
       itemsWithLoc.map((it) => it.locationCode || "Lokasyon yok")
     ).size;
+// ... openPickingDetailModal(orderId, fromPicking) { ... } fonksiyonunun bitişi
+
+function closePickingDetailModal() {
+  const modal = $("pickingDetailModal");
+  if (modal) modal.classList.add("hidden");
+
+  // Seçili siparişle ilgili geçici değişkenleri sıfırlıyoruz
+  pickingDetailOrderId = null;
+  pickingDetailItems = [];
+  pickingDetailOrderDoc = null;
+}
 
     // ---------------- HEADER CARD (KOYU TEMA, PROFESYONEL) ----------------
     const headerHtml = `
