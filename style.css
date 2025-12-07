@@ -198,6 +198,12 @@ body {
   align-items: center;
   gap: 6px;
 }
+.nav-btn--active {
+  background: radial-gradient(circle at top, #0b1120, #020617);
+  color: var(--text);
+  border-color: #334155;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.7);
+}
 
 .nav-btn::before {
   content: "";
