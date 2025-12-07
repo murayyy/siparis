@@ -101,10 +101,20 @@ function showGlobalAlert(msg, type = "info") {
   setTimeout(() => el.classList.add("hidden"), 4000);
 }
 
+// Rolü Türkçe label ile gösterelim
+function getRoleLabel(role) {
+  const r = (role || "").toLowerCase();
+  if (r === "branch") return "şube";
+  if (r === "picker") return "toplayıcı";
+  if (r === "manager") return "depo yöneticisi";
+  if (r === "admin") return "admin";
+  return role || "-";
+}
+
 function setRoleBadge(role) {
   const el = $("roleBadge");
   if (!el) return;
-  el.textContent = `Rol: ${role || "-"}`;
+  el.textContent = `Rol: ${getRoleLabel(role)}`;
 }
 
 function setCurrentUserInfo(user, profile) {
@@ -116,7 +126,9 @@ function setCurrentUserInfo(user, profile) {
     return;
   }
 
-  el.textContent = `${profile.fullName || user.email} • ${profile.role || "?"}`;
+  el.textContent = `${profile.fullName || user.email} • ${getRoleLabel(
+    profile.role
+  )}`;
 }
 
 // --------------------------------------------------------
@@ -243,17 +255,37 @@ async function applyPickingToLocationStocks(orderId, itemsWithPicked) {
 // 3.2 Rol Bazlı UI
 // --------------------------------------------------------
 
+// Eski kayıtlı rolleri (sube, toplayici vs.) yeni sisteme mapleyelim
+function normalizeRole(role) {
+  if (!role) return "";
+  const r = role.toString().toLowerCase().trim();
+
+  if (r === "sube") return "branch";
+  if (r === "toplayici") return "picker";
+  if (r === "yonetici" || r === "depo" || r === "depo_yoneticisi")
+    return "manager";
+  if (r === "admin") return "admin";
+
+  // zaten yeni tipteseyse aynen dönsün
+  if (r === "branch" || r === "picker" || r === "manager") return r;
+  return r;
+}
+
 // Navbar menülerini role göre gizle/göster
 function applyRoleBasedMenu(role) {
   const menuButtons = document.querySelectorAll("nav button[data-role]");
   if (!menuButtons) return;
 
+  const normRole = normalizeRole(role);
+
   menuButtons.forEach((btn) => {
     const allowedRoles = btn.dataset.role
-      ? btn.dataset.role.split(",")
+      ? btn.dataset.role
+          .split(",")
+          .map((r) => r.trim().toLowerCase())
       : [];
 
-    if (!allowedRoles.includes(role)) {
+    if (!allowedRoles.includes(normRole)) {
       btn.classList.add("hidden");
     } else {
       btn.classList.remove("hidden");
@@ -262,7 +294,7 @@ function applyRoleBasedMenu(role) {
 }
 
 function setupRoleBasedUI(profile) {
-  const role = profile?.role || "";
+  const role = normalizeRole(profile?.role || "");
 
   // Menü görünürlüğü
   applyRoleBasedMenu(role);
@@ -472,21 +504,13 @@ function showView(viewId) {
   const navBtns = document.querySelectorAll(".nav-btn");
   navBtns.forEach((btn) => {
     const target = btn.getAttribute("data-view");
-    btn.classList.toggle(
-      "bg-slate-900/70",
-      target === viewId
-    );
-    btn.classList.toggle(
-      "text-white",
-      target === viewId
-    );
+    btn.classList.toggle("bg-slate-900/70", target === viewId);
+    btn.classList.toggle("text-white", target === viewId);
   });
 
   const loader = viewLoaders[viewId];
   if (loader) {
-    loader().catch((err) =>
-      console.error("View loader hata:", viewId, err)
-    );
+    loader().catch((err) => console.error("View loader hata:", viewId, err));
   }
 }
 
@@ -1087,8 +1111,8 @@ async function loadOrders() {
 
 async function assignOrderToPicker(orderId) {
   if (
-    currentUserProfile?.role !== "manager" &&
-    currentUserProfile?.role !== "admin"
+    normalizeRole(currentUserProfile?.role) !== "manager" &&
+    normalizeRole(currentUserProfile?.role) !== "admin"
   ) {
     showGlobalAlert("Bu işlem için yetkin yok.");
     return;
@@ -1174,15 +1198,13 @@ async function loadPickingOrders() {
 
   try {
     let qRef;
-    if (currentUserProfile.role === "picker") {
+    const role = normalizeRole(currentUserProfile.role);
+    if (role === "picker") {
       qRef = query(
         collection(db, "orders"),
         where("assignedTo", "==", currentUser.uid)
       );
-    } else if (
-      currentUserProfile.role === "manager" ||
-      currentUserProfile.role === "admin"
-    ) {
+    } else if (role === "manager" || role === "admin") {
       qRef = collection(db, "orders");
     } else {
       qRef = query(
@@ -1702,7 +1724,10 @@ async function updatePickerDashboardStats() {
 
   try {
     const snap = await getDocs(
-      query(collection(db, "pickingLogs"), where("pickerId", "==", currentUser.uid))
+      query(
+        collection(db, "pickingLogs"),
+        where("pickerId", "==", currentUser.uid)
+      )
     );
 
     const today = new Date();
@@ -1748,9 +1773,10 @@ async function handleRegister(evt) {
   try {
     const cred = await createUserWithEmailAndPassword(auth, email, password);
     const uid = cred.user.uid;
+    const normRole = normalizeRole(role) || "branch";
     await setDoc(doc(db, "users", uid), {
       fullName,
-      role,
+      role: normRole,
       email,
       createdAt: serverTimestamp(),
     });
@@ -1808,11 +1834,24 @@ onAuthStateChanged(auth, async (user) => {
     const userRef = doc(db, "users", user.uid);
     const snap = await getDoc(userRef);
     if (snap.exists()) {
-      currentUserProfile = snap.data();
+      const data = snap.data();
+      const rawRole = data.role || "branch";
+      const normRole = normalizeRole(rawRole) || "branch";
+
+      currentUserProfile = {
+        ...data,
+        role: normRole,
+      };
+
+      // Eski roller varsa Firestore'da normalize edelim
+      if (normRole !== rawRole) {
+        await updateDoc(userRef, { role: normRole });
+      }
     } else {
+      const normRole = "branch";
       currentUserProfile = {
         fullName: user.email,
-        role: "branch",
+        role: normRole,
         email: user.email,
         createdAt: serverTimestamp(),
       };
