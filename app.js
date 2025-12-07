@@ -1185,73 +1185,8 @@ async function assignOrderToPicker(orderId) {
 }
 
 // --------------------------------------------------------
-// 9. Picking (Toplayıcı Ekranı + Rota)
+// 9. Picking (Toplayıcı Ekranı + Rota) – PROFESYONEL UI
 // --------------------------------------------------------
-async function loadPickingOrders() {
-  const tbody = $("pickingTableBody");
-  const empty = $("pickingEmpty");
-  if (!tbody || !empty) return;
-
-  tbody.innerHTML = "";
-
-  if (!currentUser || !currentUserProfile) return;
-
-  try {
-    let qRef;
-    const role = normalizeRole(currentUserProfile.role);
-    if (role === "picker") {
-      qRef = query(
-        collection(db, "orders"),
-        where("assignedTo", "==", currentUser.uid)
-      );
-    } else if (role === "manager" || role === "admin") {
-      qRef = collection(db, "orders");
-    } else {
-      qRef = query(
-        collection(db, "orders"),
-        where("createdBy", "==", currentUser.uid)
-      );
-    }
-
-    const qSnap = await getDocs(qRef);
-    let hasAny = false;
-
-    for (const docSnap of qSnap.docs) {
-      hasAny = true;
-      const d = docSnap.data();
-
-      const statusLabel =
-        d.status === "open"
-          ? "Açık"
-          : d.status === "assigned"
-          ? "Atandı"
-          : d.status === "picking"
-          ? "Toplanıyor"
-          : "Tamamlandı";
-
-      const tr = document.createElement("tr");
-      tr.innerHTML = `
-        <td class="px-3 py-2 text-xs">${docSnap.id.slice(-6)}</td>
-        <td class="px-3 py-2 text-xs">${d.branchName || "-"}</td>
-        <td class="px-3 py-2 text-xs">${statusLabel}</td>
-        <td class="px-3 py-2 text-[11px]">${d.assignedToEmail || "-"}</td>
-        <td class="px-3 py-2 text-right">
-          <button class="text-[11px] px-2 py-1 rounded-full bg-sky-100 text-sky-700 hover:bg-sky-200" data-pick="${
-            docSnap.id
-          }">Topla</button>
-        </td>
-      `;
-      tbody.appendChild(tr);
-    }
-
-    if (!hasAny) empty.classList.remove("hidden");
-    else empty.classList.add("hidden");
-  } catch (err) {
-    console.error("loadPickingOrders hata:", err);
-    showGlobalAlert("Toplama listesi okunamadı: " + err.message);
-  }
-}
-
 async function openPickingDetailModal(orderId, fromPicking) {
   pickingDetailOrderId = orderId;
 
@@ -1273,6 +1208,7 @@ async function openPickingDetailModal(orderId, fromPicking) {
     pickingDetailOrderDoc = orderSnap;
     const orderData = orderSnap.data();
 
+    // Toplayıcı ekranından açıldıysa statüyü "picking" yap
     if (
       fromPicking &&
       orderData.status !== "completed" &&
@@ -1291,6 +1227,7 @@ async function openPickingDetailModal(orderId, fromPicking) {
       }
     }
 
+    // Kalemler
     const itemsSnap = await getDocs(
       collection(db, "orders", orderId, "items")
     );
@@ -1299,6 +1236,7 @@ async function openPickingDetailModal(orderId, fromPicking) {
       items.push({ id: docSnap.id, ...docSnap.data() });
     });
 
+    // Lokasyon ve rota
     const itemsWithLoc = await enrichItemsWithLocation(items);
     itemsWithLoc.sort((a, b) =>
       compareLocationCode(a.locationCode || "", b.locationCode || "")
@@ -1314,85 +1252,133 @@ async function openPickingDetailModal(orderId, fromPicking) {
       itemsWithLoc.map((it) => it.locationCode || "Lokasyon yok")
     ).size;
 
+    // ---------------- HEADER CARD (KOYU TEMA, PROFESYONEL) ----------------
     const headerHtml = `
-      <div class="border border-slate-200 rounded-xl p-3 text-xs bg-white/70">
-        <p><span class="font-semibold">Şube:</span> ${
-          orderData.branchName || "-"
-        }</p>
-        <p><span class="font-semibold">Belge No:</span> ${
-          orderData.documentNo || "-"
-        }</p>
-        <p><span class="font-semibold">Durum:</span> ${orderData.status ||
-          "-"}</p>
-        <p><span class="font-semibold">Toplayıcı:</span> ${
-          orderData.assignedToEmail || "-"
-        }</p>
-        <p class="mt-1 text-[11px] text-slate-600">
-          🔁 Toplama rotası: ${uniqueLocations} lokasyonda ${totalLines} kalem, toplam ${totalQty} birim.
-        </p>
-        <p class="mt-1 text-[11px] text-amber-700">
+      <div class="border border-slate-700 rounded-2xl p-4 text-xs bg-slate-900/90 text-slate-100 shadow-md">
+        <div class="grid md:grid-cols-4 gap-2">
+          <div>
+            <p class="text-[11px] text-slate-400">Şube</p>
+            <p class="font-semibold text-slate-100">${orderData.branchName || "-"}</p>
+          </div>
+          <div>
+            <p class="text-[11px] text-slate-400">Belge No</p>
+            <p class="font-semibold text-slate-100">${orderData.documentNo || "-"}</p>
+          </div>
+          <div>
+            <p class="text-[11px] text-slate-400">Durum</p>
+            <p class="inline-flex items-center px-2 py-[2px] rounded-full bg-slate-800 text-[11px]">
+              ${orderData.status || "-"}
+            </p>
+          </div>
+          <div>
+            <p class="text-[11px] text-slate-400">Toplayıcı</p>
+            <p class="font-semibold text-slate-100">${orderData.assignedToEmail || "-"}</p>
+          </div>
+        </div>
+
+        <div class="mt-3 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+          <p class="text-[11px] text-slate-300 flex items-center gap-1">
+            <span class="text-sky-400">🧭</span>
+            Toplama rotası:
+            <span class="font-semibold text-slate-100 ml-1">
+              ${uniqueLocations} lokasyonda ${totalLines} kalem, toplam ${totalQty} birim.
+            </span>
+          </p>
           ${
             itemsWithLoc.some((it) => it.locationShortage)
-              ? "⚠ Bazı lokasyonlarda istenen miktardan az stok var (kırmızı satırlar)."
-              : ""
+              ? `<p class="text-[11px] text-amber-300 flex items-center gap-1">
+                  <span>⚠</span>
+                  Bazı lokasyonlarda istenen miktardan az stok var
+                  <span class="hidden sm:inline">(kırmızı satırlar).</span>
+                </p>`
+              : `<p class="text-[11px] text-emerald-300 flex items-center gap-1">
+                  <span>✅</span>
+                  Tüm lokasyonlarda istenen miktar kadar stok görünüyor.
+                </p>`
           }
-        </p>
+        </div>
       </div>
     `;
 
+    // ---------------- SATIRLAR (YÜKSEK KONTRAST + PROFESYONEL) ----------------
     const rowsHtml = itemsWithLoc
       .map((it, index) => {
         const shortage = it.locationShortage;
+
         const shortageBadge = shortage
-          ? `<span class="ml-1 inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-red-100 text-red-700">Eksik</span>`
+          ? `<span class="ml-1 inline-flex items-center px-2 py-[2px] rounded-full text-[10px] font-semibold bg-red-500/10 text-red-300 border border-red-500/40">
+               Eksik
+             </span>`
           : "";
-        const rowClass = shortage ? "bg-red-50 text-slate-800" : "text-slate-800";
+
+        const baseRowClass =
+          "border-b border-slate-800 text-[11px] transition-colors duration-150";
+        const shortageClass =
+          "bg-red-950/60 text-red-50 hover:bg-red-900";
+        const normalClass =
+          "bg-slate-900/40 text-slate-100 hover:bg-slate-900/80";
+
+        const rowClass = `${baseRowClass} ${
+          shortage ? shortageClass : normalClass
+        }`;
+
         return `
-        <tr class="border-b border-slate-100 ${rowClass}">
-          <td class="px-2 py-1 text-xs">${index + 1}</td>
-          <td class="px-2 py-1 text-xs">${it.locationCode || "-"}</td>
-          <td class="px-2 py-1 text-xs">${it.productCode || ""}</td>
-          <td class="px-2 py-1 text-xs">${it.productName || ""}</td>
-          <td class="px-2 py-1 text-xs">
-            ${it.qty} ${it.unit || ""} 
-            <span class="text-[10px] text-slate-500">(Lokasyondaki: ${
-              it.locationAvailableQty ?? "-"
-            })</span>
+        <tr class="${rowClass}">
+          <td class="px-3 py-1.5">${index + 1}</td>
+          <td class="px-3 py-1.5 font-mono text-[11px]">${it.locationCode || "-"}</td>
+          <td class="px-3 py-1.5 font-mono text-[11px]">${it.productCode || ""}</td>
+          <td class="px-3 py-1.5">${it.productName || ""}</td>
+          <td class="px-3 py-1.5">
+            ${it.qty} ${it.unit || ""}
+            <span class="ml-1 text-[10px] text-slate-300">
+              (Lokasyondaki: ${it.locationAvailableQty ?? "-"})
+            </span>
             ${shortageBadge}
           </td>
-          <td class="px-2 py-1 text-xs">
+          <td class="px-3 py-1.5">
             ${
               fromPicking
-                ? `<input type="number" min="0" value="${
-                    it.pickedQty ?? it.qty
-                  }" data-item="${it.id}" class="w-20 border border-slate-300 rounded px-1 py-0.5 text-xs bg-white" />`
-                : `${it.pickedQty ?? 0}`
+                ? `<input
+                     type="number"
+                     min="0"
+                     value="${it.pickedQty ?? it.qty}"
+                     data-item="${it.id}"
+                     class="w-20 rounded-lg border border-slate-600 bg-slate-950/70 px-2 py-1 text-[11px] text-slate-100 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                   />`
+                : `<span class="text-[11px]">${it.pickedQty ?? 0}</span>`
             }
           </td>
-          <td class="px-2 py-1 text-xs">${it.note || ""}</td>
+          <td class="px-3 py-1.5 text-[11px] text-slate-200">
+            ${it.note || ""}
+          </td>
         </tr>
       `;
       })
       .join("");
 
+    // ---------------- TABLO KUTUSU ----------------
     const tableHtml = `
-      <div class="mt-3 border border-slate-200 rounded-xl overflow-hidden bg-white/80">
+      <div class="mt-3 border border-slate-800 rounded-2xl overflow-hidden bg-slate-950/80 shadow-lg">
         <table class="min-w-full text-xs">
-          <thead class="bg-slate-50">
+          <thead class="bg-slate-900/80">
             <tr>
-              <th class="px-2 py-1 text-left">#</th>
-              <th class="px-2 py-1 text-left">Lokasyon</th>
-              <th class="px-2 py-1 text-left">Kod</th>
-              <th class="px-2 py-1 text-left">Ürün</th>
-              <th class="px-2 py-1 text-left">İstenen</th>
-              <th class="px-2 py-1 text-left">Toplanan</th>
-              <th class="px-2 py-1 text-left">Not</th>
+              <th class="px-3 py-2 text-left text-[11px] font-semibold text-slate-300 uppercase tracking-wide">#</th>
+              <th class="px-3 py-2 text-left text-[11px] font-semibold text-slate-300 uppercase tracking-wide">Lokasyon</th>
+              <th class="px-3 py-2 text-left text-[11px] font-semibold text-slate-300 uppercase tracking-wide">Kod</th>
+              <th class="px-3 py-2 text-left text-[11px] font-semibold text-slate-300 uppercase tracking-wide">Ürün</th>
+              <th class="px-3 py-2 text-left text-[11px] font-semibold text-slate-300 uppercase tracking-wide">İstenen</th>
+              <th class="px-3 py-2 text-left text-[11px] font-semibold text-slate-300 uppercase tracking-wide">Toplanan</th>
+              <th class="px-3 py-2 text-left text-[11px] font-semibold text-slate-300 uppercase tracking-wide">Not</th>
             </tr>
           </thead>
           <tbody>
             ${
               rowsHtml ||
-              `<tr><td colspan="7" class="px-2 py-2 text-center text-slate-400">Kalem yok.</td></tr>`
+              `<tr>
+                 <td colspan="7" class="px-3 py-3 text-center text-[11px] text-slate-400">
+                   Kalem yok.
+                 </td>
+               </tr>`
             }
           </tbody>
         </table>
@@ -1414,251 +1400,6 @@ async function openPickingDetailModal(orderId, fromPicking) {
   }
 }
 
-function closePickingDetailModal() {
-  const modal = $("pickingDetailModal");
-  if (modal) modal.classList.add("hidden");
-  pickingDetailOrderId = null;
-  pickingDetailItems = [];
-  pickingDetailOrderDoc = null;
-}
-
-async function completePicking() {
-  if (!pickingDetailOrderId || !pickingDetailItems.length) return;
-
-  const container = $("pickingDetailContent");
-  if (!container) return;
-
-  try {
-    const inputs = container.querySelectorAll("input[data-item]");
-    const newPickedMap = new Map();
-    inputs.forEach((inp) => {
-      const id = inp.getAttribute("data-item");
-      const val = Number(inp.value || 0);
-      newPickedMap.set(id, val);
-    });
-
-    const updatedItems = [];
-
-    for (const item of pickingDetailItems) {
-      const picked = newPickedMap.has(item.id)
-        ? newPickedMap.get(item.id)
-        : item.pickedQty || 0;
-
-      await updateDoc(
-        doc(db, "orders", pickingDetailOrderId, "items", item.id),
-        {
-          pickedQty: picked,
-          status: picked >= item.qty ? "completed" : "partial",
-        }
-      );
-
-      updatedItems.push({ ...item, _pickedQty: picked });
-    }
-
-    await updateDoc(doc(db, "orders", pickingDetailOrderId), {
-      status: "completed",
-      completedAt: serverTimestamp(),
-      completedBy: currentUser?.uid || null,
-      completedByEmail: currentUser?.email || null,
-    });
-
-    await applyPickingToLocationStocks(pickingDetailOrderId, updatedItems);
-
-    try {
-      const orderData =
-        pickingDetailOrderDoc && pickingDetailOrderDoc.data
-          ? pickingDetailOrderDoc.data()
-          : {};
-
-      const totalLines = updatedItems.length;
-      const totalQty = updatedItems.reduce(
-        (sum, it) => sum + Number(it._pickedQty || it.pickedQty || 0),
-        0
-      );
-
-      await addDoc(collection(db, "pickingLogs"), {
-        orderId: pickingDetailOrderId,
-        branchName: orderData.branchName || null,
-        pickerId: currentUser?.uid || null,
-        pickerEmail: currentUser?.email || null,
-        totalLines,
-        totalQty,
-        completedAt: serverTimestamp(),
-      });
-    } catch (err) {
-      console.error("pickingLogs yazılırken hata:", err);
-    }
-
-    try {
-      const orderData =
-        pickingDetailOrderDoc && pickingDetailOrderDoc.data
-          ? pickingDetailOrderDoc.data()
-          : {};
-      if (orderData.createdBy) {
-        await createNotification({
-          userId: orderData.createdBy,
-          type: "orderCompleted",
-          orderId: pickingDetailOrderId,
-          title: "Sipariş tamamlandı",
-          message: `${pickingDetailOrderId.slice(
-            -6
-          )} no'lu siparişin toplanması tamamlandı.`,
-        });
-      }
-    } catch (err) {
-      console.error("Sipariş tamamlandı bildirimi hata:", err);
-    }
-
-    closePickingDetailModal();
-    showGlobalAlert("Sipariş toplaması tamamlandı.", "success");
-    await loadOrders();
-    await loadPickingOrders();
-    await updatePickerDashboardStats();
-  } catch (err) {
-    console.error("completePicking hata:", err);
-    showGlobalAlert("Toplama tamamlanamadı: " + err.message);
-  }
-}
-
-// --------------------------------------------------------
-// 9.1 Araç Yükleme & Sevk (pallets)
-// --------------------------------------------------------
-async function loadLoadingTasks() {
-  const tbody = $("loadingTasksTableBody");
-  const empty = $("loadingTasksEmpty");
-  const statusFilter = $("loadingStatusFilter");
-
-  if (!tbody || !empty) return;
-
-  tbody.innerHTML = "";
-
-  try {
-    let qRef = collection(db, "pallets");
-
-    if (statusFilter && statusFilter.value && statusFilter.value !== "all") {
-      qRef = query(
-        collection(db, "pallets"),
-        where("status", "==", statusFilter.value)
-      );
-    }
-
-    const snap = await getDocs(query(qRef, orderBy("createdAt", "desc")));
-
-    let hasAny = false;
-    let waitingCount = 0;
-    let todayLoadedCount = 0;
-
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-
-    snap.forEach((docSnap) => {
-      hasAny = true;
-      const d = docSnap.data();
-
-      if (d.status === "waiting") waitingCount++;
-      if (d.status === "loaded") {
-        const dt = d.loadedAt?.toDate ? d.loadedAt.toDate() : null;
-        if (dt && dt >= today && dt < tomorrow) {
-          todayLoadedCount++;
-        }
-      }
-
-      const statusLabel =
-        d.status === "waiting"
-          ? "Bekliyor"
-          : d.status === "loading"
-          ? "Yükleniyor"
-          : "Yüklendi";
-
-      const tr = document.createElement("tr");
-      tr.innerHTML = `
-        <td class="px-2 py-1 text-xs">${d.shipmentNo ||
-          d.shipmentId ||
-          "-"}</td>
-        <td class="px-2 py-1 text-xs hidden sm:table-cell">${d.branchName ||
-          "-"}</td>
-        <td class="px-2 py-1 text-xs">${d.palletNo || "-"}</td>
-        <td class="px-2 py-1 text-xs hidden md:table-cell">${d.dockLocationId ||
-          "-"}</td>
-        <td class="px-2 py-1 text-xs">${statusLabel}</td>
-        <td class="px-2 py-1 text-[11px] hidden md:table-cell">${
-          d.loadedByEmail || "-"
-        }</td>
-        <td class="px-2 py-1 text-[11px] hidden md:table-cell">
-          ${
-            d.loadedAt?.toDate
-              ? d.loadedAt
-                  .toDate()
-                  .toLocaleTimeString("tr-TR", {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })
-              : "-"
-          }
-        </td>
-        <td class="px-2 py-1 text-right space-x-1">
-          ${
-            d.status !== "loaded"
-              ? `
-            <button class="text-[11px] px-2 py-1 rounded-full bg-amber-100 text-amber-800 hover:bg-amber-200" data-loading-start="${docSnap.id}">
-              Yüklemeye Başla
-            </button>
-            <button class="text-[11px] px-2 py-1 rounded-full bg-emerald-100 text-emerald-800 hover:bg-emerald-200" data-loading-complete="${docSnap.id}">
-              Yüklendi
-            </button>`
-              : ""
-          }
-        </td>
-      `;
-      tbody.appendChild(tr);
-    });
-
-    if (!hasAny) empty.classList.remove("hidden");
-    else empty.classList.add("hidden");
-
-    const waitingEl = $("loadingWaitingSummary");
-    const todayEl = $("loadingTodaySummary");
-    if (waitingEl) waitingEl.textContent = `${waitingCount} palet bekliyor.`;
-    if (todayEl)
-      todayEl.textContent = `Bugün ${todayLoadedCount} palet yüklendi.`;
-  } catch (err) {
-    console.error("loadLoadingTasks hata:", err);
-    showGlobalAlert("Yükleme listesi okunamadı: " + err.message);
-  }
-}
-
-async function setLoadingTaskStatus(taskId, newStatus) {
-  if (!taskId) return;
-
-  try {
-    const ref = doc(db, "pallets", taskId);
-
-    const payload = {
-      status: newStatus,
-    };
-
-    if (newStatus === "loading") {
-      payload.loadingStartedAt = serverTimestamp();
-      payload.loadingStartedBy = currentUser?.uid || null;
-      payload.loadingStartedByEmail = currentUser?.email || null;
-    }
-
-    if (newStatus === "loaded") {
-      payload.loadedAt = serverTimestamp();
-      payload.loadedBy = currentUser?.uid || null;
-      payload.loadedByEmail = currentUser?.email || null;
-    }
-
-    await updateDoc(ref, payload);
-    showGlobalAlert("Yükleme durumu güncellendi.", "success");
-    await loadLoadingTasks();
-  } catch (err) {
-    console.error("setLoadingTaskStatus hata:", err);
-    showGlobalAlert("Yükleme durumu güncellenemedi: " + err.message);
-  }
-}
 
 // --------------------------------------------------------
 // 10. Dashboard & Reports
