@@ -200,7 +200,7 @@
         </button>
 
         <div
-          class="absolute right-0 mt-2 w-72 bg-slate-900 border border-slate-800 rounded-2xl shadow-xl p-2 hidden group-[.open]/block"
+          class="absolute right-0 mt-2 w-72 bg-slate-900 border border-slate-800 rounded-2xl shadow-xl p-2 hidden"
           id="notificationsPanel"
         >
           <div class="flex items-center justify-between mb-1">
@@ -254,86 +254,50 @@
         <button
           class="nav-btn text-xs md:text-sm px-4 py-1.5 rounded-full bg-slate-900/70 text-white border border-slate-700"
           data-view="dashboardView"
+          data-role="admin,manager,picker,branch"
         >
           Panel
         </button>
         <button
           class="nav-btn text-xs md:text-sm px-4 py-1.5 rounded-full bg-slate-900/30 text-slate-300 border border-slate-700/60"
           data-view="productsView"
+          data-role="admin,manager"
         >
           Ürünler
         </button>
         <button
           class="nav-btn text-xs md:text-sm px-4 py-1.5 rounded-full bg-slate-900/30 text-slate-300 border border-slate-700/60"
           data-view="stockView"
+          data-role="admin,manager"
         >
           Stok Hareketleri
         </button>
         <button
           class="nav-btn text-xs md:text-sm px-4 py-1.5 rounded-full bg-slate-900/30 text-slate-300 border border-slate-700/60"
           data-view="ordersView"
+          data-role="admin,manager,branch"
         >
           Şube Siparişleri
         </button>
         <button
           class="nav-btn text-xs md:text-sm px-4 py-1.5 rounded-full bg-slate-900/30 text-slate-300 border border-slate-700/60"
           data-view="pickingView"
+          data-role="admin,manager,picker"
         >
           Toplama
         </button>
         <button
           class="nav-btn text-xs md:text-sm px-4 py-1.5 rounded-full bg-slate-900/30 text-slate-300 border border-slate-700/60"
           data-view="loadingView"
+          data-role="admin,manager"
         >
           Araç Yükleme
         </button>
         <button
           class="nav-btn text-xs md:text-sm px-4 py-1.5 rounded-full bg-slate-900/30 text-slate-300 border border-slate-700/60"
           data-view="reportsView"
-
-          <nav class="w-full border-b border-slate-800 bg-slate-950/90 backdrop-blur px-3 md:px-6 py-2">
-  <div class="flex flex-wrap gap-2">
-
-    <button data-view="dashboardView" data-role="admin,manager,picker,branch"
-      class="nav-btn text-xs md:text-sm px-4 py-1.5 rounded-full">
-      Panel
-    </button>
-
-    <button data-view="productsView" data-role="admin,manager"
-      class="nav-btn text-xs md:text-sm px-4 py-1.5 rounded-full">
-      Ürünler
-    </button>
-
-    <button data-view="stockView" data-role="admin,manager"
-      class="nav-btn text-xs md:text-sm px-4 py-1.5 rounded-full">
-      Stok Hareketleri
-    </button>
-
-    <button data-view="ordersView" data-role="admin,manager,branch"
-      class="nav-btn text-xs md:text-sm px-4 py-1.5 rounded-full">
-      Şube Siparişleri
-    </button>
-
-    <button data-view="pickingView" data-role="admin,manager,picker"
-      class="nav-btn text-xs md:text-sm px-4 py-1.5 rounded-full">
-      Toplama
-    </button>
-
-    <button data-view="loadingView" data-role="admin,manager"
-      class="nav-btn text-xs md:text-sm px-4 py-1.5 rounded-full">
-      Araç Yükleme
-    </button>
-
-    <button data-view="reportsView" data-role="admin,manager"
-      class="nav-btn text-xs md:text-sm px-4 py-1.5 rounded-full">
-      Raporlar
-    </button>
-
-  </div>
-</nav>
-
+          data-role="admin,manager"
         >
-          
           Raporlar
         </button>
       </div>
@@ -763,18 +727,15 @@
           </div>
 
           <div class="grid lg:grid-cols-3 gap-3">
-            <!-- Sol: picker özeti -->
+            <!-- Sol: picker özeti (sabit metin, asıl istatistik dashboard’da) -->
             <div
               class="lg:col-span-1 bg-slate-900/70 border border-slate-800 rounded-3xl p-4"
             >
               <h3 class="text-xs font-semibold text-slate-200 mb-1">
                 Bugünkü Performansın
               </h3>
-              <p
-                id="pickerStatsToday"
-                class="text-[11px] text-slate-400"
-              >
-                Bugün henüz tamamlanan toplama yok.
+              <p class="text-[11px] text-slate-400">
+                Detaylı performans kartını Panel sekmesinde görebilirsin.
               </p>
             </div>
 
