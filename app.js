@@ -387,27 +387,31 @@ function switchAuthTab(tab) {
 // 5. View Routing
 // --------------------------------------------------------
 function showView(viewId) {
-  // Tüm view'leri gizle / ilgili olanı göster
+  // Tüm view'ları kapat / aç
   const views = document.querySelectorAll(".view");
   views.forEach((v) => {
     if (v.id === viewId) {
-      v.classList.add("active");      // göster
+      v.classList.remove("hidden");
+      // Her ihtimale karşı inline display verelim
+      v.style.display = "block";
     } else {
-      v.classList.remove("active");   // gizle
+      v.classList.add("hidden");
+      v.style.display = "none";
     }
   });
 
-  // Üstteki sekmelerin aktif halini güncelle
+  // Menüde aktif butonu işaretle
   document.querySelectorAll(".nav-btn").forEach((btn) => {
     const target = btn.getAttribute("data-view");
     if (target === viewId) {
-      btn.classList.add("nav-btn--active");
+      btn.classList.add("nav-btn-active");
     } else {
-      btn.classList.remove("nav-btn--active");
+      btn.classList.remove("nav-btn-active");
     }
   });
-}
 
+  console.log("Aktif view:", viewId);
+}
 
 // --------------------------------------------------------
 // 6. Products (search destekli)
