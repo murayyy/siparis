@@ -1,710 +1,970 @@
 <!DOCTYPE html>
 <html lang="tr">
-<head>
-  <meta charset="UTF-8" />
-  <title>Depo Otomasyonu Paneli</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <head>
+    <meta charset="UTF-8" />
+    <title>DepoOS • Depo Otomasyonu</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-  <!-- Tailwind CDN (geliştirme için) -->
-  <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Tailwind (CSS dosyası, eval kullanmaz) -->
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css"
+    />
 
-  <!-- Özel stil dosyan -->
-  <link rel="stylesheet" href="style.css" />
-</head>
-<body class="min-h-screen bg-slate-950 text-slate-50">
+    <!-- Özel stiller -->
+    <style>
+      body {
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text",
+          "Segoe UI", sans-serif;
+      }
 
-  <!-- AUTH SECTION -->
-  <section id="authSection" class="min-h-screen flex items-center justify-center px-4">
-    <div class="w-full max-w-md bg-slate-900/80 border border-slate-800 rounded-2xl shadow-2xl p-6 space-y-5">
-      <div class="flex items-center gap-3">
-        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-sky-500 to-indigo-500 flex items-center justify-center text-xl font-bold">
-          D
-        </div>
-        <div>
-          <h1 class="text-lg font-semibold tracking-tight">Depo Otomasyonu</h1>
-          <p class="text-xs text-slate-400">Merkez depo sipariş & stok yönetimi</p>
-        </div>
-      </div>
+      /* Nav butonları için ekstra stil */
+      .nav-btn {
+        @apply inline-flex items-center px-5 py-2 rounded-full border border-slate-700 text-sm text-slate-200 bg-slate-900/70;
+        cursor: pointer;
+        transition: background 0.15s ease-out, transform 0.15s ease-out,
+          box-shadow 0.15s ease-out, border-color 0.15s ease-out;
+      }
 
-      <div class="flex text-xs bg-slate-900 border border-slate-800 rounded-full p-1">
-        <button
-          id="loginTab"
-          class="flex-1 px-3 py-1.5 rounded-full text-center bg-white text-slate-900 shadow">
-          Giriş
-        </button>
-        <button
-          id="registerTab"
-          class="flex-1 px-3 py-1.5 rounded-full text-center text-slate-500">
-          Kayıt Ol
-        </button>
-      </div>
+      .nav-btn:hover {
+        background: rgb(15 23 42);
+        border-color: rgb(59 130 246);
+        box-shadow: 0 10px 25px rgba(15, 23, 42, 0.8);
+        transform: translateY(-1px);
+      }
 
-      <p id="authMessage" class="text-xs text-red-500 min-h-[16px]"></p>
+      .nav-btn-active {
+        background: rgb(15 23 42);
+        border-color: rgb(59 130 246);
+        box-shadow: 0 10px 25px rgba(37, 99, 235, 0.5);
+      }
 
-      <!-- LOGIN FORM -->
-      <form id="loginForm" class="space-y-3">
-        <div class="space-y-1">
-          <label for="loginEmail" class="text-xs text-slate-300">E-posta</label>
-          <input
-            id="loginEmail"
-            type="email"
-            class="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-sky-500"
-            required />
-        </div>
-        <div class="space-y-1">
-          <label for="loginPassword" class="text-xs text-slate-300">Şifre</label>
-          <input
-            id="loginPassword"
-            type="password"
-            class="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-sky-500"
-            required />
-        </div>
-        <button
-          type="submit"
-          class="w-full mt-2 inline-flex items-center justify-center rounded-full bg-gradient-to-r from-sky-500 to-indigo-500 px-4 py-2 text-sm font-medium shadow-lg hover:shadow-xl hover:brightness-110 transition">
-          Giriş Yap
-        </button>
-      </form>
+      .view {
+        animation: fadeIn 0.16s ease-out;
+      }
 
-      <!-- REGISTER FORM -->
-      <form id="registerForm" class="space-y-3 hidden">
-        <div class="space-y-1">
-          <label for="registerName" class="text-xs text-slate-300">Ad Soyad</label>
-          <input
-            id="registerName"
-            type="text"
-            class="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-sky-500"
-            required />
-        </div>
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+          transform: translateY(3px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
 
-        <div class="space-y-1">
-          <label for="registerRole" class="text-xs text-slate-300">Rol</label>
-          <select
-            id="registerRole"
-            class="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-sky-500">
-            <option value="branch">Şube</option>
-            <option value="picker">Toplayıcı</option>
-            <option value="manager">Depo Sorumlusu</option>
-            <option value="admin">Admin</option>
-          </select>
-        </div>
+      /* Scrollbar ufak dokunuş */
+      .nice-scroll::-webkit-scrollbar {
+        width: 6px;
+      }
+      .nice-scroll::-webkit-scrollbar-thumb {
+        background: #1f2937;
+        border-radius: 999px;
+      }
+    </style>
+  </head>
 
-        <div class="space-y-1">
-          <label for="registerEmail" class="text-xs text-slate-300">E-posta</label>
-          <input
-            id="registerEmail"
-            type="email"
-            class="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-sky-500"
-            required />
-        </div>
-
-        <div class="space-y-1">
-          <label for="registerPassword" class="text-xs text-slate-300">Şifre</label>
-          <input
-            id="registerPassword"
-            type="password"
-            class="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-sky-500"
-            required />
-        </div>
-
-        <button
-          type="submit"
-          class="w-full mt-2 inline-flex items-center justify-center rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 px-4 py-2 text-sm font-medium shadow-lg hover:shadow-xl hover:brightness-110 transition">
-          Kaydı Tamamla
-        </button>
-      </form>
-    </div>
-  </section>
-
-  <!-- APP SECTION -->
-  <section id="appSection" class="hidden min-h-screen flex flex-col">
-    <!-- HEADER -->
-    <header class="border-b border-slate-800 bg-slate-950/80 backdrop-blur-lg">
-      <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
-        <div class="flex items-center gap-3">
-          <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-sky-500 to-indigo-500 flex items-center justify-center text-xl font-bold">
+  <body class="min-h-screen bg-slate-950 text-slate-50 flex flex-col">
+    <!-- AUTH SECTION -->
+    <section
+      id="authSection"
+      class="min-h-screen flex items-center justify-center px-4"
+    >
+      <div
+        class="w-full max-w-md bg-slate-900/80 border border-slate-800 rounded-2xl shadow-2xl shadow-black/70 p-6 space-y-5"
+      >
+        <header class="flex items-center gap-3">
+          <div
+            class="w-11 h-11 rounded-2xl bg-gradient-to-br from-sky-500 to-indigo-500 flex items-center justify-center text-xl font-semibold shadow-lg shadow-sky-500/40"
+          >
             D
           </div>
           <div>
-            <h1 class="text-sm sm:text-base font-semibold tracking-tight">
-              Depo Otomasyonu
+            <h1 class="text-lg font-semibold tracking-wide">
+              DepoOS Giriş Paneli
             </h1>
-            <p class="text-[11px] text-slate-400">
-              Sipariş toplama • stok • yükleme
+            <p class="text-xs text-slate-400">
+              Roller: Şube, Toplayıcı, Yönetici, Admin
             </p>
           </div>
+        </header>
+
+        <!-- Auth sekmeleri -->
+        <div
+          class="inline-flex rounded-full bg-slate-900 border border-slate-700 p-1 text-xs"
+        >
+          <button
+            id="loginTab"
+            class="flex-1 px-4 py-1 rounded-full bg-white text-slate-900 shadow"
+          >
+            Giriş Yap
+          </button>
+          <button
+            id="registerTab"
+            class="flex-1 px-4 py-1 rounded-full text-slate-500"
+          >
+            Kayıt Ol
+          </button>
         </div>
 
-        <div class="flex items-center gap-4 text-xs">
-          <div class="hidden sm:flex flex-col items-end">
-            <span id="currentUserInfo" class="text-[11px] text-slate-300"></span>
-            <span id="roleBadge" class="mt-1 inline-flex items-center rounded-full border border-slate-600 px-2 py-0.5 text-[10px] text-slate-300">
-              Rol: -
-            </span>
+        <!-- Giriş formu -->
+        <form id="loginForm" class="space-y-3 mt-1">
+          <div class="space-y-1 text-xs">
+            <label class="block text-slate-300">E-posta</label>
+            <input
+              id="loginEmail"
+              type="email"
+              class="w-full rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-sky-500"
+              placeholder="ornek@firma.com"
+            />
+          </div>
+          <div class="space-y-1 text-xs">
+            <label class="block text-slate-300">Şifre</label>
+            <input
+              id="loginPassword"
+              type="password"
+              class="w-full rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-sky-500"
+              placeholder="••••••••"
+            />
+          </div>
+          <button
+            type="submit"
+            class="w-full mt-1 rounded-full bg-gradient-to-r from-sky-500 to-indigo-500 py-2 text-xs font-medium shadow-lg shadow-sky-500/40 hover:shadow-sky-500/60 hover:-translate-y-0.5 transition"
+          >
+            Giriş Yap
+          </button>
+        </form>
+
+        <!-- Kayıt formu -->
+        <form id="registerForm" class="space-y-3 mt-1 hidden">
+          <div class="space-y-1 text-xs">
+            <label class="block text-slate-300">Ad Soyad</label>
+            <input
+              id="registerName"
+              type="text"
+              class="w-full rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-sky-500"
+              placeholder="Ad Soyad"
+            />
           </div>
 
-          <!-- Bildirim alanı -->
-          <div class="relative">
-            <div class="flex items-center gap-2">
-              <span class="text-[11px] text-slate-400">Bildirimler</span>
+          <div class="space-y-1 text-xs">
+            <label class="block text-slate-300">Rol</label>
+            <select
+              id="registerRole"
+              class="w-full rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-sky-500"
+            >
+              <option value="branch">Şube</option>
+              <option value="picker">Toplayıcı</option>
+              <option value="manager">Yönetici</option>
+              <option value="admin">Admin</option>
+            </select>
+          </div>
+
+          <div class="space-y-1 text-xs">
+            <label class="block text-slate-300">E-posta</label>
+            <input
+              id="registerEmail"
+              type="email"
+              class="w-full rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-sky-500"
+              placeholder="ornek@firma.com"
+            />
+          </div>
+
+          <div class="space-y-1 text-xs">
+            <label class="block text-slate-300">Şifre</label>
+            <input
+              id="registerPassword"
+              type="password"
+              class="w-full rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-sky-500"
+              placeholder="En az 6 karakter"
+            />
+          </div>
+
+          <button
+            type="submit"
+            class="w-full mt-1 rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 py-2 text-xs font-medium shadow-lg shadow-emerald-500/40 hover:shadow-emerald-500/60 hover:-translate-y-0.5 transition"
+          >
+            Kaydı Oluştur
+          </button>
+        </form>
+
+        <!-- Auth mesajı -->
+        <p
+          id="authMessage"
+          class="text-[11px] text-red-500 min-h-[16px] mt-1"
+        ></p>
+
+        <p class="text-[10px] text-slate-500">
+          Giriş yaptıktan sonra panel, ürünler, sipariş ve toplama ekranlarına
+          erişebilirsin.
+        </p>
+      </div>
+    </section>
+
+    <!-- APP SECTION -->
+    <section id="appSection" class="min-h-screen flex flex-col hidden">
+      <!-- HEADER -->
+      <header
+        class="sticky top-0 z-20 border-b border-slate-900 bg-slate-950/90 backdrop-blur"
+      >
+        <div
+          class="max-w-6xl mx-auto flex items-center justify-between px-4 py-3"
+        >
+          <div class="flex items-center gap-3">
+            <div
+              class="w-9 h-9 rounded-2xl bg-gradient-to-br from-sky-500 to-indigo-500 flex items-center justify-center text-lg font-semibold shadow-lg shadow-sky-500/40"
+            >
+              D
+            </div>
+            <div>
+              <h1 class="text-sm font-semibold tracking-wide">DepoOS</h1>
+              <p class="text-[11px] text-slate-400">
+                Gerçek zamanlı depo ve sipariş yönetimi
+              </p>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-4 text-xs">
+            <!-- Bildirimler -->
+            <div class="relative">
+              <div
+                class="w-8 h-8 rounded-full border border-slate-700 flex items-center justify-center text-slate-300 bg-slate-900/80"
+              >
+                🔔
+              </div>
               <span
                 id="notificationsUnread"
-                class="hidden inline-flex items-center justify-center rounded-full bg-rose-500 text-[10px] px-1.5 py-0.5">
+                class="hidden absolute -top-1 -right-1 text-[10px] bg-rose-500 text-white rounded-full px-1.5 py-0.5"
+              >
+                0
               </span>
+              <div
+                class="absolute right-0 mt-2 w-72 bg-white text-slate-900 rounded-2xl shadow-2xl p-2 text-xs z-30"
+              >
+                <ul
+                  id="notificationsList"
+                  class="space-y-1 max-h-64 overflow-auto nice-scroll"
+                >
+                  <li class="text-[11px] text-slate-500">
+                    Henüz bildirim yok.
+                  </li>
+                </ul>
+              </div>
             </div>
-            <div class="absolute right-0 mt-1 w-64 bg-white text-slate-800 rounded-xl shadow-xl border border-slate-200 max-h-60 overflow-y-auto text-xs p-2 z-20">
-              <ul id="notificationsList" class="space-y-1">
-                <!-- JS dolduracak -->
-              </ul>
+
+            <div class="text-right">
+              <div
+                id="currentUserInfo"
+                class="text-xs font-medium text-slate-100"
+              ></div>
+              <div
+                id="roleBadge"
+                class="text-[11px] text-slate-400"
+              ></div>
             </div>
+
+            <button
+              id="logoutBtn"
+              class="px-3 py-1 rounded-full border border-slate-600 text-[11px] text-slate-100 hover:bg-slate-800"
+            >
+              Çıkış
+            </button>
           </div>
-
-          <button
-            id="logoutBtn"
-            class="inline-flex items-center rounded-full border border-slate-600 px-3 py-1 text-[11px] hover:border-rose-400 hover:text-rose-300 transition">
-            Çıkış
-          </button>
         </div>
-      </div>
 
-      <!-- NAVBAR -->
-      <nav class="border-t border-slate-900">
-        <div class="max-w-6xl mx-auto px-4 py-2 flex flex-wrap gap-2 text-xs">
-          <button class="nav-btn px-3 py-1.5 rounded-full border border-slate-700 bg-slate-800 text-slate-100" data-view="dashboardView">
+        <!-- NAV -->
+        <nav class="max-w-6xl mx-auto px-4 pb-3 flex gap-3 text-xs">
+          <button
+            class="nav-btn nav-btn-active"
+            data-view="dashboardView"
+          >
             Panel
           </button>
-          <button class="nav-btn px-3 py-1.5 rounded-full border border-slate-800 text-slate-300 hover:border-sky-500" data-view="productsView">
-            Ürünler
-          </button>
-          <button class="nav-btn px-3 py-1.5 rounded-full border border-slate-800 text-slate-300 hover:border-sky-500" data-view="stockView">
+          <button class="nav-btn" data-view="productsView">Ürünler</button>
+          <button class="nav-btn" data-view="stockView">
             Stok Hareketleri
           </button>
-          <button class="nav-btn px-3 py-1.5 rounded-full border border-slate-800 text-slate-300 hover:border-sky-500" data-view="ordersView">
+          <button class="nav-btn" data-view="ordersView">
             Şube Siparişleri
           </button>
-          <button class="nav-btn px-3 py-1.5 rounded-full border border-slate-800 text-slate-300 hover:border-sky-500" data-view="pickingView">
-            Toplama
-          </button>
-          <button class="nav-btn px-3 py-1.5 rounded-full border border-slate-800 text-slate-300 hover:border-sky-500" data-view="loadingView">
+          <button class="nav-btn" data-view="pickingView">Toplama</button>
+          <button class="nav-btn" data-view="loadingView">
             Araç Yükleme
           </button>
-          <button class="nav-btn px-3 py-1.5 rounded-full border border-slate-800 text-slate-300 hover:border-sky-500" data-view="reportsView">
-            Raporlar
-          </button>
+          <button class="nav-btn" data-view="reportsView">Raporlar</button>
+        </nav>
+
+        <!-- Global Uyarı -->
+        <div class="max-w-6xl mx-auto px-4 pb-2">
+          <div
+            id="globalAlert"
+            class="hidden text-[11px] px-3 py-2 rounded-lg border bg-amber-50 text-amber-800 border-amber-300"
+          ></div>
         </div>
-      </nav>
+      </header>
 
-      <!-- GLOBAL ALERT -->
-      <div class="max-w-6xl mx-auto px-4 pb-2">
-        <div
-          id="globalAlert"
-          class="hidden mt-1 rounded-xl border text-[11px] px-3 py-2 bg-amber-50 border-amber-300 text-amber-800">
-        </div>
-      </div>
-    </header>
-
-    <!-- MAIN CONTENT -->
-    <main class="flex-1 max-w-6xl mx-auto w-full px-4 py-4 space-y-4">
-
-      <!-- DASHBOARD VIEW -->
-      <section id="dashboardView" class="view">
-        <div class="grid grid-cols-1 sm:grid-cols-4 gap-3 mb-4">
-          <div class="bg-slate-900/80 rounded-2xl border border-slate-800 p-3 shadow-lg">
-            <p class="text-[11px] text-slate-400">Toplam Ürün</p>
-            <p id="cardTotalProducts" class="mt-1 text-xl font-semibold">0</p>
-          </div>
-          <div class="bg-slate-900/80 rounded-2xl border border-slate-800 p-3 shadow-lg">
-            <p class="text-[11px] text-slate-400">Açık / Atanmış Sipariş</p>
-            <p id="cardOpenOrders" class="mt-1 text-xl font-semibold">0</p>
-          </div>
-          <div class="bg-slate-900/80 rounded-2xl border border-slate-800 p-3 shadow-lg">
-            <p class="text-[11px] text-slate-400">Toplanan Sipariş</p>
-            <p id="cardPickingOrders" class="mt-1 text-xl font-semibold">0</p>
-          </div>
-          <div class="bg-slate-900/80 rounded-2xl border border-slate-800 p-3 shadow-lg">
-            <p class="text-[11px] text-slate-400">Tamamlanan Sipariş</p>
-            <p id="cardCompletedOrders" class="mt-1 text-xl font-semibold">0</p>
-          </div>
-        </div>
-
-        <div class="grid gap-4 md:grid-cols-2">
-          <div class="bg-slate-900/80 rounded-2xl border border-slate-800 p-4 shadow-lg">
-            <h2 class="text-sm font-semibold mb-2">Toplayıcı Günlük Performans</h2>
-            <p id="pickerStatsToday" class="text-xs text-slate-300">
-              Bugün henüz tamamlanan toplama yok.
-            </p>
-          </div>
-
-          <div class="bg-slate-900/80 rounded-2xl border border-slate-800 p-4 shadow-lg">
-            <h2 class="text-sm font-semibold mb-2">Araç Yükleme Özeti</h2>
-            <p id="loadingWaitingSummary" class="text-xs text-slate-300 mb-1">
-              0 palet bekliyor.
-            </p>
-            <p id="loadingTodaySummary" class="text-xs text-slate-300">
-              Bugün 0 palet yüklendi.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      <!-- PRODUCTS VIEW -->
-      <section id="productsView" class="view hidden space-y-3">
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          <h2 class="text-sm font-semibold">Ürün Kartları</h2>
-          <div class="flex flex-wrap gap-2 items-center">
-            <input
-              id="productSearch"
-              type="text"
-              placeholder="Kod veya isim ara…"
-              class="w-40 sm:w-56 rounded-full border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-sky-500" />
-            <button
-              id="openProductModalBtn"
-              class="inline-flex items-center rounded-full bg-sky-500 px-3 py-1.5 text-xs font-medium shadow hover:bg-sky-400">
-              + Yeni Ürün
-            </button>
-          </div>
-        </div>
-
-        <div class="bg-slate-900/80 rounded-2xl border border-slate-800 shadow-lg overflow-hidden">
-          <table class="min-w-full text-xs">
-            <thead class="bg-slate-900/80 border-b border-slate-800 text-[11px] uppercase text-slate-400">
-              <tr>
-                <th class="px-3 py-2 text-left">Kod</th>
-                <th class="px-3 py-2 text-left">Ad</th>
-                <th class="px-3 py-2 text-left">Birim</th>
-                <th class="px-3 py-2 text-left">Raf</th>
-                <th class="px-3 py-2 text-left">Stok</th>
-                <th class="px-3 py-2 text-right">İşlemler</th>
-              </tr>
-            </thead>
-            <tbody id="productsTableBody" class="divide-y divide-slate-800">
-              <!-- JS dolduracak -->
-            </tbody>
-          </table>
-          <p
-            id="productsEmpty"
-            class="text-[11px] text-slate-400 px-3 py-3 border-t border-slate-800">
-            Henüz ürün kaydı yok.
-          </p>
-        </div>
-      </section>
-
-      <!-- STOCK VIEW -->
-      <section id="stockView" class="view hidden space-y-3">
-        <div class="grid gap-4 md:grid-cols-2">
-          <!-- Stok hareket formu -->
-          <div class="bg-slate-900/80 rounded-2xl border border-slate-800 p-4 shadow-lg">
-            <h2 class="text-sm font-semibold mb-2">Stok Hareketi</h2>
-            <form id="stockForm" class="space-y-2 text-xs">
-              <div class="space-y-1">
-                <label class="text-[11px] text-slate-300">Ürün</label>
-                <select
-                  id="stockProductSelect"
-                  class="w-full rounded-lg border border-slate-700 bg-slate-900 px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-sky-500">
-                  <!-- JS dolduracak -->
-                </select>
-              </div>
-              <div class="grid grid-cols-3 gap-2">
-                <div class="space-y-1">
-                  <label class="text-[11px] text-slate-300">Tür</label>
-                  <select
-                    id="stockType"
-                    class="w-full rounded-lg border border-slate-700 bg-slate-900 px-2 py-1.5 text-xs">
-                    <option value="in">Giriş</option>
-                    <option value="out">Çıkış</option>
-                    <option value="transfer">Transfer</option>
-                  </select>
-                </div>
-                <div class="space-y-1">
-                  <label class="text-[11px] text-slate-300">Miktar</label>
-                  <input
-                    id="stockQty"
-                    type="number"
-                    min="0"
-                    class="w-full rounded-lg border border-slate-700 bg-slate-900 px-2 py-1.5 text-xs" />
-                </div>
-                <div class="space-y-1">
-                  <label class="text-[11px] text-slate-300">Birim</label>
-                  <input
-                    id="stockUnit"
-                    type="text"
-                    class="w-full rounded-lg border border-slate-700 bg-slate-900 px-2 py-1.5 text-xs"
-                    placeholder="(boş bırakılabilir)" />
-                </div>
-              </div>
-              <div class="grid grid-cols-2 gap-2">
-                <div class="space-y-1">
-                  <label class="text-[11px] text-slate-300">Kaynak Lokasyon</label>
-                  <input
-                    id="stockSourceLocation"
-                    type="text"
-                    class="w-full rounded-lg border border-slate-700 bg-slate-900 px-2 py-1.5 text-xs"
-                    placeholder="Örn: A1-01-01" />
-                </div>
-                <div class="space-y-1">
-                  <label class="text-[11px] text-slate-300">Hedef Lokasyon</label>
-                  <input
-                    id="stockTargetLocation"
-                    type="text"
-                    class="w-full rounded-lg border border-slate-700 bg-slate-900 px-2 py-1.5 text-xs"
-                    placeholder="Örn: B2-03-02" />
-                </div>
-              </div>
-              <div class="space-y-1">
-                <label class="text-[11px] text-slate-300">Not</label>
-                <textarea
-                  id="stockNote"
-                  rows="2"
-                  class="w-full rounded-lg border border-slate-700 bg-slate-900 px-2 py-1.5 text-xs"></textarea>
-              </div>
-              <button
-                type="submit"
-                class="mt-2 inline-flex items-center rounded-full bg-emerald-500 px-3 py-1.5 text-xs font-medium shadow hover:bg-emerald-400">
-                Hareket Kaydet
-              </button>
-            </form>
-          </div>
-
-          <!-- Son stok hareketleri -->
-          <div class="bg-slate-900/80 rounded-2xl border border-slate-800 p-4 shadow-lg">
-            <h2 class="text-sm font-semibold mb-2">Son Stok Hareketleri</h2>
+      <!-- MAIN -->
+      <main class="app-main flex-1 max-w-6xl mx-auto w-full px-4 py-4 space-y-4">
+        <!-- PANEL -->
+        <section id="dashboardView" class="view">
+          <div
+            class="grid gap-4 md:grid-cols-2"
+          >
             <div
-              id="stockMovementsList"
-              class="space-y-2 text-xs max-h-80 overflow-y-auto">
-              <!-- JS dolduracak -->
+              class="card bg-slate-900/80 border border-slate-800 rounded-2xl p-4 shadow-2xl shadow-black/60"
+            >
+              <h2 class="text-sm font-semibold mb-3">Depo Özeti</h2>
+              <p class="text-[11px] text-slate-400 mb-4">
+                Toplam ürün, açık sipariş, toplanan sipariş gibi özetler.
+              </p>
+              <div class="grid grid-cols-2 gap-4">
+                <div>
+                  <div
+                    class="text-[11px] inline-flex items-center px-2 py-0.5 rounded-full border border-slate-700 text-slate-400"
+                  >
+                    Toplam Ürün
+                  </div>
+                  <div
+                    id="cardTotalProducts"
+                    class="mt-2 text-2xl font-semibold"
+                  >
+                    0
+                  </div>
+                </div>
+                <div>
+                  <div
+                    class="text-[11px] inline-flex items-center px-2 py-0.5 rounded-full border border-slate-700 text-slate-400"
+                  >
+                    Açık Sipariş
+                  </div>
+                  <div
+                    id="cardOpenOrders"
+                    class="mt-2 text-2xl font-semibold"
+                  >
+                    0
+                  </div>
+                </div>
+                <div>
+                  <div
+                    class="text-[11px] inline-flex items-center px-2 py-0.5 rounded-full border border-slate-700 text-slate-400"
+                  >
+                    Toplanıyor
+                  </div>
+                  <div
+                    id="cardPickingOrders"
+                    class="mt-2 text-xl font-semibold"
+                  >
+                    0
+                  </div>
+                </div>
+                <div>
+                  <div
+                    class="text-[11px] inline-flex items-center px-2 py-0.5 rounded-full border border-slate-700 text-slate-400"
+                  >
+                    Tamamlanan
+                  </div>
+                  <div
+                    id="cardCompletedOrders"
+                    class="mt-2 text-xl font-semibold"
+                  >
+                    0
+                  </div>
+                </div>
+              </div>
             </div>
-            <p
-              id="stockMovementsEmpty"
-              class="text-[11px] text-slate-400 mt-2">
-              Henüz stok hareketi yok.
-            </p>
-          </div>
-        </div>
-      </section>
 
-      <!-- ORDERS VIEW -->
-      <section id="ordersView" class="view hidden space-y-3">
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          <h2 class="text-sm font-semibold">Şube Siparişleri</h2>
+            <div
+              class="card bg-slate-900/80 border border-slate-800 rounded-2xl p-4 shadow-2xl shadow-black/60"
+            >
+              <div class="flex items-center justify-between mb-2">
+                <h2 class="text-sm font-semibold">
+                  Bugünkü Toplama Özeti
+                </h2>
+              </div>
+              <p
+                id="pickerStatsToday"
+                class="text-xs text-slate-300"
+              >
+                Bugün henüz tamamlanan toplama yok.
+              </p>
+              <p class="mt-4 text-[11px] text-slate-500">
+                Toplama tamamlandığında sistem otomatik olarak günlük
+                performansını burada özetler.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <!-- ÜRÜNLER -->
+        <section id="productsView" class="view hidden">
+          <div class="grid gap-4 md:grid-cols-2">
+            <div
+              class="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 shadow-2xl shadow-black/60"
+            >
+              <div class="flex items-center justify-between mb-3">
+                <h2 class="text-sm font-semibold">Ürün Yönetimi</h2>
+                <button
+                  id="openProductModalBtn"
+                  class="px-3 py-1 rounded-full bg-sky-500 text-[11px] font-medium hover:bg-sky-400 shadow-lg shadow-sky-500/40"
+                >
+                  + Yeni Ürün
+                </button>
+              </div>
+              <p class="text-[11px] text-slate-400">
+                Ürün ekleme / düzenleme için butona bas. Liste sağ tarafta.
+              </p>
+            </div>
+
+            <div
+              class="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 shadow-2xl shadow-black/60"
+            >
+              <h2 class="text-sm font-semibold mb-2">Ürün Listesi</h2>
+              <p class="text-[11px] text-slate-400 mb-2">
+                Firestore’daki <code>products</code> koleksiyonu burada
+                listelenir.
+              </p>
+              <div
+                id="productsTableBody"
+                class="nice-scroll max-h-[420px] overflow-y-auto space-y-1 text-xs"
+              ></div>
+              <p
+                id="productsEmpty"
+                class="text-[11px] text-slate-400 mt-2 hidden"
+              >
+                Henüz ürün eklenmemiş.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <!-- STOK HAREKETLERİ -->
+        <section id="stockView" class="view hidden">
+          <div class="grid gap-4 md:grid-cols-2">
+            <div
+              class="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 shadow-2xl shadow-black/60"
+            >
+              <h2 class="text-sm font-semibold mb-3">
+                Yeni Stok Hareketi
+              </h2>
+              <form id="stockForm" class="space-y-3 text-xs">
+                <div class="space-y-1">
+                  <label class="block text-slate-300">Ürün</label>
+                  <select
+                    id="stockProductSelect"
+                    class="w-full rounded-lg border border-slate-700 bg-slate-950/70 px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-sky-500"
+                  ></select>
+                </div>
+
+                <div
+                  class="grid grid-cols-3 gap-2"
+                >
+                  <div class="space-y-1">
+                    <label class="block text-slate-300">Tip</label>
+                    <select
+                      id="stockType"
+                      class="w-full rounded-lg border border-slate-700 bg-slate-950/70 px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-sky-500"
+                    >
+                      <option value="in">Giriş</option>
+                      <option value="out">Çıkış</option>
+                      <option value="transfer">Transfer</option>
+                    </select>
+                  </div>
+                  <div class="space-y-1">
+                    <label class="block text-slate-300">Miktar</label>
+                    <input
+                      id="stockQty"
+                      type="number"
+                      min="1"
+                      class="w-full rounded-lg border border-slate-700 bg-slate-950/70 px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-sky-500"
+                    />
+                  </div>
+                  <div class="space-y-1">
+                    <label class="block text-slate-300">Birim</label>
+                    <input
+                      id="stockUnit"
+                      type="text"
+                      placeholder="kg, adet..."
+                      class="w-full rounded-lg border border-slate-700 bg-slate-950/70 px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-sky-500"
+                    />
+                  </div>
+                </div>
+
+                <div
+                  class="grid grid-cols-2 gap-2"
+                >
+                  <div class="space-y-1">
+                    <label class="block text-slate-300">Kaynak Lokasyon</label>
+                    <input
+                      id="stockSourceLocation"
+                      type="text"
+                      placeholder="Depo-01 / Raf-01"
+                      class="w-full rounded-lg border border-slate-700 bg-slate-950/70 px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-sky-500"
+                    />
+                  </div>
+                  <div class="space-y-1">
+                    <label class="block text-slate-300">Hedef Lokasyon</label>
+                    <input
+                      id="stockTargetLocation"
+                      type="text"
+                      placeholder="Depo-02 / Raf-05"
+                      class="w-full rounded-lg border border-slate-700 bg-slate-950/70 px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-sky-500"
+                    />
+                  </div>
+                </div>
+
+                <div class="space-y-1">
+                  <label class="block text-slate-300">Açıklama</label>
+                  <textarea
+                    id="stockNote"
+                    rows="2"
+                    class="w-full rounded-lg border border-slate-700 bg-slate-950/70 px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-sky-500"
+                  ></textarea>
+                </div>
+
+                <button
+                  type="submit"
+                  class="w-full rounded-full bg-sky-500 py-1.5 text-[11px] font-medium hover:bg-sky-400 shadow-lg shadow-sky-500/40"
+                >
+                  Hareket Kaydet
+                </button>
+              </form>
+            </div>
+
+            <div
+              class="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 shadow-2xl shadow-black/60"
+            >
+              <h2 class="text-sm font-semibold mb-2">Son 10 Hareket</h2>
+              <div
+                id="stockMovementsList"
+                class="nice-scroll max-h-[420px] overflow-y-auto space-y-2 text-xs"
+              ></div>
+              <p
+                id="stockMovementsEmpty"
+                class="text-[11px] text-slate-400 mt-2 hidden"
+              >
+                Henüz hareket kaydı yok.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <!-- ŞUBE SİPARİŞLERİ -->
+        <section id="ordersView" class="view hidden">
+          <div class="grid gap-4 md:grid-cols-2">
+            <div
+              class="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 shadow-2xl shadow-black/60"
+            >
+              <div class="flex items-center justify-between mb-3">
+                <h2 class="text-sm font-semibold">Şube Siparişleri</h2>
+                <button
+                  id="openOrderModalBtn"
+                  class="px-3 py-1 rounded-full bg-emerald-500 text-[11px] font-medium hover:bg-emerald-400 shadow-lg shadow-emerald-500/40"
+                >
+                  + Yeni Sipariş
+                </button>
+              </div>
+              <p class="text-[11px] text-slate-400">
+                Şubeler yeni sipariş girer, depo yöneticisi bu ekrandan yönetir.
+              </p>
+            </div>
+
+            <div
+              class="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 shadow-2xl shadow-black/60"
+            >
+              <h2 class="text-sm font-semibold mb-2">Sipariş Listesi</h2>
+              <div
+                id="ordersTableBody"
+                class="nice-scroll max-h-[420px] overflow-y-auto space-y-2 text-xs"
+              ></div>
+              <p
+                id="ordersEmpty"
+                class="text-[11px] text-slate-400 mt-2 hidden"
+              >
+                Henüz sipariş girilmemiş.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <!-- TOPLAMA -->
+        <section id="pickingView" class="view hidden">
+          <div class="grid gap-4 md:grid-cols-2">
+            <div
+              class="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 shadow-2xl shadow-black/60"
+            >
+              <h2 class="text-sm font-semibold mb-2">
+                Toplayıcıya Atanmış Siparişler
+              </h2>
+              <p class="text-[11px] text-slate-400">
+                Toplayıcı rolü ile giriş yapıldığında sadece sana atanmış
+                siparişler listelenir.
+              </p>
+            </div>
+
+            <div
+              class="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 shadow-2xl shadow-black/60"
+            >
+              <h2 class="text-sm font-semibold mb-2">Toplama Listesi</h2>
+              <div
+                id="pickingTableBody"
+                class="nice-scroll max-h-[420px] overflow-y-auto space-y-2 text-xs"
+              ></div>
+              <p
+                id="pickingEmpty"
+                class="text-[11px] text-slate-400 mt-2 hidden"
+              >
+                Atanmış sipariş bulunmuyor.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <!-- ARAÇ YÜKLEME -->
+        <section id="loadingView" class="view hidden">
+          <div class="grid gap-4 md:grid-cols-2">
+            <div
+              class="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 shadow-2xl shadow-black/60"
+            >
+              <h2 class="text-sm font-semibold mb-3">
+                Araç Yükleme Özeti
+              </h2>
+              <div class="grid grid-cols-2 gap-3 text-xs">
+                <div>
+                  <div
+                    class="text-[11px] inline-flex items-center px-2 py-0.5 rounded-full border border-slate-700 text-slate-400"
+                  >
+                    Bugünkü Sevkiyatlar
+                  </div>
+                  <div
+                    id="loadingTodaySummary"
+                    class="mt-2 text-[13px]"
+                  >
+                    Yüklenmiş kayıt yok.
+                  </div>
+                </div>
+                <div>
+                  <div
+                    class="text-[11px] inline-flex items-center px-2 py-0.5 rounded-full border border-slate-700 text-slate-400"
+                  >
+                    Bekleyen Paletler
+                  </div>
+                  <div
+                    id="loadingWaitingSummary"
+                    class="mt-2 text-[13px]"
+                  >
+                    0 palet bekliyor.
+                  </div>
+                </div>
+              </div>
+              <p class="mt-3 text-[11px] text-slate-500">
+                Filtreleyerek sadece bekleyen / yüklenen paletleri görebilirsin.
+              </p>
+            </div>
+
+            <div
+              class="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 shadow-2xl shadow-black/60"
+            >
+              <div class="flex items-center justify-between mb-3">
+                <h2 class="text-sm font-semibold">
+                  Palet Yükleme Görevleri
+                </h2>
+                <div class="flex items-center gap-2 text-xs">
+                  <select
+                    id="loadingStatusFilter"
+                    class="rounded-full border border-slate-700 bg-slate-950/70 px-3 py-1 text-[11px]"
+                  >
+                    <option value="all">Tümü</option>
+                    <option value="waiting">Bekliyor</option>
+                    <option value="loading">Yükleniyor</option>
+                    <option value="loaded">Yüklendi</option>
+                  </select>
+                  <button
+                    id="reloadLoadingTasksBtn"
+                    class="px-3 py-1 rounded-full border border-slate-700 text-[11px] hover:bg-slate-800"
+                  >
+                    Yenile
+                  </button>
+                </div>
+              </div>
+              <div
+                id="loadingTasksTableBody"
+                class="nice-scroll max-h-[420px] overflow-y-auto space-y-2 text-xs"
+              ></div>
+              <p
+                id="loadingTasksEmpty"
+                class="text-[11px] text-slate-400 mt-2 hidden"
+              >
+                Kayıtlı yükleme görevi yok.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <!-- RAPORLAR -->
+        <section id="reportsView" class="view hidden">
+          <div class="grid gap-4 md:grid-cols-2">
+            <div
+              class="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 shadow-2xl shadow-black/60"
+            >
+              <h2 class="text-sm font-semibold mb-2">Genel Özet</h2>
+              <ul
+                class="text-[11px] text-slate-300 list-disc ml-5 space-y-1"
+              >
+                <li id="reportTotalProducts">Toplam ürün: -</li>
+                <li id="reportTotalOrders">Toplam sipariş: -</li>
+                <li id="reportCompletedOrders">Tamamlanan sipariş: -</li>
+              </ul>
+            </div>
+
+            <div
+              class="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 shadow-2xl shadow-black/60"
+            >
+              <h2 class="text-sm font-semibold mb-2">Not</h2>
+              <p class="text-[11px] text-slate-400">
+                Bu panel Firestore’dan canlı veri çekiyor. İleride buradan
+                Excel/PDF çıktısı alacak butonları ekleyebiliriz.
+              </p>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <!-- FOOTER -->
+      <footer
+        class="border-t border-slate-900 text-[10px] text-slate-500 py-2 text-center"
+      >
+        DepoOS • Gerçek zamanlı depo ve sipariş yönetimi
+      </footer>
+    </section>
+
+    <!-- PRODUCT MODAL -->
+    <div
+      id="productModal"
+      class="hidden fixed inset-0 z-40 flex items-center justify-center bg-slate-950/70 backdrop-blur"
+    >
+      <div
+        class="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl shadow-black/70 p-4 text-xs"
+      >
+        <div class="flex items-center justify-between mb-2">
+          <h2
+            id="productModalTitle"
+            class="text-sm font-semibold"
+          >
+            Ürün
+          </h2>
           <button
-            id="openOrderModalBtn"
-            class="inline-flex items-center rounded-full bg-sky-500 px-3 py-1.5 text-xs font-medium shadow hover:bg-sky-400">
-            + Yeni Sipariş
+            id="closeProductModalBtn"
+            class="text-slate-400 hover:text-slate-200 text-sm"
+          >
+            ✕
           </button>
         </div>
 
-        <div class="bg-slate-900/80 rounded-2xl border border-slate-800 shadow-lg overflow-hidden">
-          <table class="min-w-full text-xs">
-            <thead class="bg-slate-900/80 border-b border-slate-800 text-[11px] uppercase text-slate-400">
-              <tr>
-                <th class="px-3 py-2 text-left">No</th>
-                <th class="px-3 py-2 text-left">Şube</th>
-                <th class="px-3 py-2 text-left">Durum</th>
-                <th class="px-3 py-2 text-left">Toplayıcı</th>
-                <th class="px-3 py-2 text-left">Tarih</th>
-                <th class="px-3 py-2 text-right">İşlem</th>
-              </tr>
-            </thead>
-            <tbody id="ordersTableBody" class="divide-y divide-slate-800">
-              <!-- JS dolduracak -->
-            </tbody>
-          </table>
-          <p
-            id="ordersEmpty"
-            class="text-[11px] text-slate-400 px-3 py-3 border-t border-slate-800">
-            Henüz sipariş yok.
-          </p>
-        </div>
-      </section>
+        <form id="productForm" class="space-y-2">
+          <input id="productId" type="hidden" />
 
-      <!-- PICKING VIEW -->
-      <section id="pickingView" class="view hidden space-y-3">
-        <h2 class="text-sm font-semibold">Toplayıcı Ekranı</h2>
-        <div class="bg-slate-900/80 rounded-2xl border border-slate-800 shadow-lg overflow-hidden">
-          <table class="min-w-full text-xs">
-            <thead class="bg-slate-900/80 border-b border-slate-800 text-[11px] uppercase text-slate-400">
-              <tr>
-                <th class="px-3 py-2 text-left">No</th>
-                <th class="px-3 py-2 text-left">Şube</th>
-                <th class="px-3 py-2 text-left">Durum</th>
-                <th class="px-3 py-2 text-left">Toplayıcı</th>
-                <th class="px-3 py-2 text-right">İşlem</th>
-              </tr>
-            </thead>
-            <tbody id="pickingTableBody" class="divide-y divide-slate-800">
-              <!-- JS dolduracak -->
-            </tbody>
-          </table>
-          <p
-            id="pickingEmpty"
-            class="text-[11px] text-slate-400 px-3 py-3 border-t border-slate-800">
-            Üzerine atanan sipariş yok.
-          </p>
-        </div>
-      </section>
-
-      <!-- LOADING VIEW -->
-      <section id="loadingView" class="view hidden space-y-3">
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          <h2 class="text-sm font-semibold">Araç Yükleme Görevleri</h2>
-          <div class="flex items-center gap-2 text-xs">
-            <select
-              id="loadingStatusFilter"
-              class="rounded-full border border-slate-700 bg-slate-900 px-2 py-1.5 text-xs">
-              <option value="all">Tümü</option>
-              <option value="waiting">Bekliyor</option>
-              <option value="loading">Yükleniyor</option>
-              <option value="loaded">Yüklendi</option>
-            </select>
-            <button
-              id="reloadLoadingTasksBtn"
-              class="inline-flex items-center rounded-full border border-slate-700 px-3 py-1.5 text-[11px] hover:border-sky-500">
-              Yenile
-            </button>
-          </div>
-        </div>
-
-        <div class="bg-slate-900/80 rounded-2xl border border-slate-800 shadow-lg overflow-hidden">
-          <table class="min-w-full text-xs">
-            <thead class="bg-slate-900/80 border-b border-slate-800 text-[11px] uppercase text-slate-400">
-              <tr>
-                <th class="px-2 py-2 text-left">Sevk No</th>
-                <th class="px-2 py-2 text-left hidden sm:table-cell">Şube</th>
-                <th class="px-2 py-2 text-left">Palet</th>
-                <th class="px-2 py-2 text-left hidden md:table-cell">Peron</th>
-                <th class="px-2 py-2 text-left">Durum</th>
-                <th class="px-2 py-2 text-left hidden md:table-cell">Yükleyen</th>
-                <th class="px-2 py-2 text-left hidden md:table-cell">Saat</th>
-                <th class="px-2 py-2 text-right">İşlem</th>
-              </tr>
-            </thead>
-            <tbody id="loadingTasksTableBody" class="divide-y divide-slate-800">
-              <!-- JS dolduracak -->
-            </tbody>
-          </table>
-          <p
-            id="loadingTasksEmpty"
-            class="text-[11px] text-slate-400 px-3 py-3 border-t border-slate-800">
-            Yükleme görevi bulunmuyor.
-          </p>
-        </div>
-      </section>
-
-      <!-- REPORTS VIEW -->
-      <section id="reportsView" class="view hidden space-y-3">
-        <h2 class="text-sm font-semibold mb-2">Özet Raporlar</h2>
-        <div class="grid gap-3 md:grid-cols-3">
-          <div class="bg-slate-900/80 rounded-2xl border border-slate-800 p-3 text-xs shadow-lg">
-            <h3 class="text-[11px] text-slate-400 mb-1">Ürün Özeti</h3>
-            <p id="reportTotalProducts" class="text-slate-200">
-              Toplam ürün: 0
-            </p>
-          </div>
-          <div class="bg-slate-900/80 rounded-2xl border border-slate-800 p-3 text-xs shadow-lg">
-            <h3 class="text-[11px] text-slate-400 mb-1">Sipariş Özeti</h3>
-            <p id="reportTotalOrders" class="text-slate-200">
-              Toplam sipariş: 0
-            </p>
-          </div>
-          <div class="bg-slate-900/80 rounded-2xl border border-slate-800 p-3 text-xs shadow-lg">
-            <h3 class="text-[11px] text-slate-400 mb-1">Tamamlanan Siparişler</h3>
-            <p id="reportCompletedOrders" class="text-slate-200">
-              Tamamlanan sipariş: 0
-            </p>
-          </div>
-        </div>
-      </section>
-
-    </main>
-  </section>
-
-  <!-- PRODUCT MODAL -->
-  <div
-    id="productModal"
-    class="hidden fixed inset-0 z-40 flex items-center justify-center bg-slate-950/70 backdrop-blur">
-    <div class="w-full max-w-md bg-slate-900 rounded-2xl border border-slate-700 shadow-2xl p-4 text-xs">
-      <div class="flex items-center justify-between mb-2">
-        <h2 id="productModalTitle" class="text-sm font-semibold">
-          Ürün
-        </h2>
-        <button
-          id="closeProductModalBtn"
-          class="text-slate-400 hover:text-slate-100 text-sm">
-          ✕
-        </button>
-      </div>
-      <form id="productForm" class="space-y-2">
-        <input type="hidden" id="productId" />
-        <div class="grid grid-cols-2 gap-2">
           <div class="space-y-1">
-            <label class="text-[11px] text-slate-300">Kod</label>
+            <label class="block text-slate-300">Kod</label>
             <input
               id="productCode"
               type="text"
-              class="w-full rounded-lg border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs" />
+              class="w-full rounded-lg border border-slate-700 bg-slate-950/70 px-2 py-1.5 text-xs"
+            />
           </div>
           <div class="space-y-1">
-            <label class="text-[11px] text-slate-300">Birim</label>
+            <label class="block text-slate-300">Ad</label>
             <input
-              id="productUnit"
+              id="productName"
               type="text"
-              class="w-full rounded-lg border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs" />
+              class="w-full rounded-lg border border-slate-700 bg-slate-950/70 px-2 py-1.5 text-xs"
+            />
           </div>
-        </div>
-        <div class="space-y-1">
-          <label class="text-[11px] text-slate-300">Ürün Adı</label>
-          <input
-            id="productName"
-            type="text"
-            class="w-full rounded-lg border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs" />
-        </div>
-        <div class="grid grid-cols-2 gap-2">
+          <div class="grid grid-cols-3 gap-2">
+            <div class="space-y-1">
+              <label class="block text-slate-300">Birim</label>
+              <input
+                id="productUnit"
+                type="text"
+                placeholder="kg, adet..."
+                class="w-full rounded-lg border border-slate-700 bg-slate-950/70 px-2 py-1.5 text-xs"
+              />
+            </div>
+            <div class="space-y-1">
+              <label class="block text-slate-300">Raf / Lokasyon</label>
+              <input
+                id="productShelf"
+                type="text"
+                placeholder="A1-01-01"
+                class="w-full rounded-lg border border-slate-700 bg-slate-950/70 px-2 py-1.5 text-xs"
+              />
+            </div>
+            <div class="space-y-1">
+              <label class="block text-slate-300">Stok</label>
+              <input
+                id="productStock"
+                type="number"
+                min="0"
+                class="w-full rounded-lg border border-slate-700 bg-slate-950/70 px-2 py-1.5 text-xs"
+              />
+            </div>
+          </div>
           <div class="space-y-1">
-            <label class="text-[11px] text-slate-300">Raf</label>
-            <input
-              id="productShelf"
-              type="text"
-              class="w-full rounded-lg border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs" />
+            <label class="block text-slate-300">Not</label>
+            <textarea
+              id="productNote"
+              rows="2"
+              class="w-full rounded-lg border border-slate-700 bg-slate-950/70 px-2 py-1.5 text-xs"
+            ></textarea>
           </div>
-          <div class="space-y-1">
-            <label class="text-[11px] text-slate-300">Stok</label>
-            <input
-              id="productStock"
-              type="number"
-              class="w-full rounded-lg border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs" />
-          </div>
-        </div>
-        <div class="space-y-1">
-          <label class="text-[11px] text-slate-300">Not</label>
-          <textarea
-            id="productNote"
-            rows="2"
-            class="w-full rounded-lg border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs"></textarea>
-        </div>
-        <div class="flex justify-end gap-2 pt-2">
-          <button
-            type="button"
-            id="cancelProductBtn"
-            class="px-3 py-1.5 rounded-full border border-slate-600 text-[11px]">
-            İptal
-          </button>
-          <button
-            type="submit"
-            class="px-3 py-1.5 rounded-full bg-sky-500 text-[11px] font-medium">
-            Kaydet
-          </button>
-        </div>
-      </form>
-    </div>
-  </div>
 
-  <!-- ORDER MODAL -->
-  <div
-    id="orderModal"
-    class="hidden fixed inset-0 z-40 flex items-center justify-center bg-slate-950/70 backdrop-blur">
-    <div class="w-full max-w-2xl bg-slate-900 rounded-2xl border border-slate-700 shadow-2xl p-4 text-xs">
-      <div class="flex items-center justify-between mb-2">
-        <h2 class="text-sm font-semibold">Yeni Şube Siparişi</h2>
-        <button
-          id="closeOrderModalBtn"
-          class="text-slate-400 hover:text-slate-100 text-sm">
-          ✕
-        </button>
+          <div class="flex justify-between mt-3">
+            <button
+              type="button"
+              id="cancelProductBtn"
+              class="px-3 py-1 rounded-full border border-slate-600 text-[11px] hover:bg-slate-800"
+            >
+              İptal
+            </button>
+            <button
+              type="submit"
+              class="px-4 py-1 rounded-full bg-sky-500 text-[11px] font-medium hover:bg-sky-400 shadow-lg shadow-sky-500/40"
+            >
+              Kaydet
+            </button>
+          </div>
+        </form>
       </div>
+    </div>
 
-      <form id="orderForm" class="space-y-3">
-        <div class="grid grid-cols-3 gap-2">
-          <div class="space-y-1">
-            <label class="text-[11px] text-slate-300">Şube Adı</label>
-            <input
-              id="orderBranchName"
-              type="text"
-              class="w-full rounded-lg border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs" />
-          </div>
-          <div class="space-y-1">
-            <label class="text-[11px] text-slate-300">Belge No</label>
-            <input
-              id="orderDocumentNo"
-              type="text"
-              class="w-full rounded-lg border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs" />
-          </div>
-          <div class="space-y-1">
-            <label class="text-[11px] text-slate-300">Genel Not</label>
-            <input
-              id="orderNote"
-              type="text"
-              class="w-full rounded-lg border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs" />
-          </div>
+    <!-- ORDER MODAL -->
+    <div
+      id="orderModal"
+      class="hidden fixed inset-0 z-40 flex items-center justify-center bg-slate-950/70 backdrop-blur"
+    >
+      <div
+        class="w-full max-w-2xl bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl shadow-black/70 p-4 text-xs"
+      >
+        <div class="flex items-center justify-between mb-2">
+          <h2 class="text-sm font-semibold">Yeni Şube Siparişi</h2>
+          <button
+            id="closeOrderModalBtn"
+            class="text-slate-400 hover:text-slate-200 text-sm"
+          >
+            ✕
+          </button>
         </div>
 
-        <div class="border border-slate-700 rounded-xl p-3 space-y-2">
-          <div class="flex items-center justify-between mb-1">
-            <span class="text-[11px] text-slate-300">Sipariş Kalemleri</span>
+        <form id="orderForm" class="space-y-3">
+          <div class="grid grid-cols-3 gap-2">
+            <div class="space-y-1">
+              <label class="block text-slate-300">Şube Adı</label>
+              <input
+                id="orderBranchName"
+                type="text"
+                class="w-full rounded-lg border border-slate-700 bg-slate-950/70 px-2 py-1.5 text-xs"
+              />
+            </div>
+            <div class="space-y-1">
+              <label class="block text-slate-300">Belge No</label>
+              <input
+                id="orderDocumentNo"
+                type="text"
+                class="w-full rounded-lg border border-slate-700 bg-slate-950/70 px-2 py-1.5 text-xs"
+              />
+            </div>
+            <div class="space-y-1">
+              <label class="block text-slate-300">Not</label>
+              <input
+                id="orderNote"
+                type="text"
+                class="w-full rounded-lg border border-slate-700 bg-slate-950/70 px-2 py-1.5 text-xs"
+              />
+            </div>
+          </div>
+
+          <div class="flex items-center justify-between mt-2">
+            <h3 class="text-[11px] font-semibold text-slate-200">
+              Ürün Kalemleri
+            </h3>
             <button
               type="button"
               id="addOrderItemBtn"
-              class="px-2 py-1 rounded-full bg-sky-500 text-[11px]">
+              class="px-3 py-1 rounded-full border border-slate-600 text-[11px] hover:bg-slate-800"
+            >
               + Satır Ekle
             </button>
           </div>
+
+          <div
+            id="orderItemsEmpty"
+            class="mt-2 text-[11px] text-slate-400"
+          >
+            Henüz satır eklenmedi.
+          </div>
           <div
             id="orderItemsContainer"
-            class="space-y-1 max-h-64 overflow-y-auto">
-            <!-- JS satır ekleyecek -->
+            class="space-y-2 max-h-64 overflow-y-auto nice-scroll mt-1"
+          ></div>
+
+          <div class="flex justify-between mt-3">
+            <button
+              type="button"
+              id="cancelOrderBtn"
+              class="px-3 py-1 rounded-full border border-slate-600 text-[11px] hover:bg-slate-800"
+            >
+              İptal
+            </button>
+            <button
+              type="submit"
+              class="px-4 py-1 rounded-full bg-emerald-500 text-[11px] font-medium hover:bg-emerald-400 shadow-lg shadow-emerald-500/40"
+            >
+              Siparişi Kaydet
+            </button>
           </div>
-          <p
-            id="orderItemsEmpty"
-            class="text-[11px] text-slate-500">
-            Henüz satır eklenmedi.
+        </form>
+      </div>
+    </div>
+
+    <!-- PICKING DETAIL MODAL -->
+    <div
+      id="pickingDetailModal"
+      class="hidden fixed inset-0 z-40 flex items-center justify-center bg-slate-950/70 backdrop-blur"
+    >
+      <div
+        class="w-full max-w-4xl bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl shadow-black/70 p-4 text-xs"
+      >
+        <div class="flex items-center justify-between mb-2">
+          <h2 class="text-sm font-semibold">Toplama Detayı</h2>
+          <button
+            id="closePickingDetailModalBtn"
+            class="text-slate-400 hover:text-slate-200 text-sm"
+          >
+            ✕
+          </button>
+        </div>
+
+        <div
+          id="pickingDetailContent"
+          class="max-h-[450px] overflow-y-auto nice-scroll"
+        ></div>
+
+        <div class="flex justify-between mt-3">
+          <p class="text-[11px] text-slate-500">
+            Rota sırasına göre lokasyonlar listelenir. Kırmızı satırlar lokasyonda
+            eksik stok olduğunu gösterir.
           </p>
-        </div>
-
-        <div class="flex justify-end gap-2 pt-2">
           <button
-            type="button"
-            id="cancelOrderBtn"
-            class="px-3 py-1.5 rounded-full border border-slate-600 text-[11px]">
-            İptal
-          </button>
-          <button
-            type="submit"
-            class="px-3 py-1.5 rounded-full bg-emerald-500 text-[11px] font-medium">
-            Siparişi Kaydet
+            id="completePickingBtn"
+            class="px-4 py-1 rounded-full bg-emerald-500 text-[11px] font-medium hover:bg-emerald-400 shadow-lg shadow-emerald-500/40"
+          >
+            Toplamayı Tamamla
           </button>
         </div>
-      </form>
-    </div>
-  </div>
-
-  <!-- PICKING DETAIL MODAL -->
-  <div
-    id="pickingDetailModal"
-    class="hidden fixed inset-0 z-40 flex items-center justify-center bg-slate-950/70 backdrop-blur">
-    <div class="w-full max-w-3xl bg-slate-900 rounded-2xl border border-slate-700 shadow-2xl p-4 text-xs max-h-[85vh] overflow-y-auto">
-      <div class="flex items-center justify-between mb-2">
-        <h2 class="text-sm font-semibold">Toplama Detayı</h2>
-        <button
-          id="closePickingDetailModalBtn"
-          class="text-slate-400 hover:text-slate-100 text-sm">
-          ✕
-        </button>
-      </div>
-
-      <div id="pickingDetailContent" class="space-y-3">
-        <!-- JS dolduracak -->
-      </div>
-
-      <div class="flex justify-end gap-2 pt-3">
-        <button
-          id="completePickingBtn"
-          class="px-3 py-1.5 rounded-full bg-emerald-500 text-[11px] font-medium">
-          Toplamayı Tamamla
-        </button>
       </div>
     </div>
-  </div>
 
-  <!-- APP SCRIPT -->
-  <script type="module" src="app.js"></script>
-</body>
+    <!-- APP SCRIPT -->
+    <script type="module" src="app.js"></script>
+  </body>
 </html>
