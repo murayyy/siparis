@@ -1346,7 +1346,7 @@ async function openPickingDetailModal(orderId, fromPicking) {
         const shortageBadge = shortage
           ? `<span class="ml-1 inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-red-100 text-red-700">Eksik</span>`
           : "";
-        const rowClass = shortage ? "bg-red-50" : "";
+        const rowClass = shortage ? "bg-red-50 text-slate-800" : "text-slate-800";
         return `
         <tr class="border-b border-slate-100 ${rowClass}">
           <td class="px-2 py-1 text-xs">${index + 1}</td>
