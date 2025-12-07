@@ -242,25 +242,17 @@ async function applyPickingToLocationStocks(orderId, itemsWithPicked) {
 // --------------------------------------------------------
 // 3.2 Rol Bazlı UI
 // --------------------------------------------------------
-function setupRoleBasedUI(profile) {
-  const role = profile?.role || "";
 
-  const productsNavBtn = document.querySelector(
-    'button[data-view="productsView"]'
-  );
-  const stockNavBtn = document.querySelector('button[data-view="stockView"]');
-
-  if (productsNavBtn) {
-    productsNavBtn.classList.toggle("hidden", role === "branch");
-  }
-  if (stockNavBtn) {
-    stockNavBtn.classList.toggle("hidden", role === "branch");
-  }
+// Navbar menülerini role göre gizle/göster
 function applyRoleBasedMenu(role) {
   const menuButtons = document.querySelectorAll("nav button[data-role]");
+  if (!menuButtons) return;
 
-  menuButtons.forEach(btn => {
-    const allowedRoles = btn.dataset.role.split(",");
+  menuButtons.forEach((btn) => {
+    const allowedRoles = btn.dataset.role
+      ? btn.dataset.role.split(",")
+      : [];
+
     if (!allowedRoles.includes(role)) {
       btn.classList.add("hidden");
     } else {
@@ -268,8 +260,14 @@ function applyRoleBasedMenu(role) {
     }
   });
 }
-applyRoleBasedMenu(userRole);
 
+function setupRoleBasedUI(profile) {
+  const role = profile?.role || "";
+
+  // Menü görünürlüğü
+  applyRoleBasedMenu(role);
+
+  // Yeni sipariş butonu (şube + manager + admin görebilsin)
   const newOrderBtn = $("openOrderModalBtn");
   if (newOrderBtn) {
     const canCreateOrder =
