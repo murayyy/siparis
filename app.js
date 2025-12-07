@@ -1,5 +1,5 @@
 // app.js
-// Firebase + Depo Otomasyonu SPA (stabil sürüm)
+// Firebase + Depo Otomasyonu SPA
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
 import {
@@ -23,7 +23,7 @@ import {
   where,
   orderBy,
   serverTimestamp,
-  onSnapshot,
+  onSnapshot
 } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
 
 // --------------------------------------------------------
@@ -51,7 +51,8 @@ let currentUserProfile = null;
 let pickingDetailOrderId = null;
 let pickingDetailItems = [];
 let pickingDetailOrderDoc = null;
-let notificationsUnsub = null;
+let notificationsUnsub = null;   // bildirim dinleyici
+let productsCache = [];          // ürün listesi (arama için)
 
 // --------------------------------------------------------
 // 3. Helpers
@@ -111,8 +112,10 @@ function setCurrentUserInfo(user, profile) {
 }
 
 // --------------------------------------------------------
-// 3.1 Lokasyon helpers
+// 3.1 Toplama Rotası / Lokasyon Helpers
 // --------------------------------------------------------
+
+// "A1-01-01" → { zone: "A", aisle: 1, rack: 1, level: 1 }
 function parseLocationCode(code) {
   if (!code || typeof code !== "string") {
     return { zone: "", aisle: 0, rack: 0, level: 0 };
@@ -138,6 +141,7 @@ function parseLocationCode(code) {
   return { zone, aisle, rack, level };
 }
 
+// Lokasyon kodu sıralama (rota)
 function compareLocationCode(a, b) {
   const pa = parseLocationCode(a || "");
   const pb = parseLocationCode(b || "");
@@ -153,6 +157,7 @@ function compareLocationCode(a, b) {
   return 0;
 }
 
+// Sipariş kalemlerini locationStocks ile zenginleştirir (rota + stok kontrol)
 async function enrichItemsWithLocation(items) {
   const result = [];
 
@@ -198,6 +203,7 @@ async function enrichItemsWithLocation(items) {
   return result;
 }
 
+// Toplama tamamlandığında locationStocks qty güncelle
 async function applyPickingToLocationStocks(orderId, itemsWithPicked) {
   for (const it of itemsWithPicked) {
     if (!it.productId || !it.locationId) continue;
@@ -225,9 +231,8 @@ async function applyPickingToLocationStocks(orderId, itemsWithPicked) {
 function setupRoleBasedUI(profile) {
   const role = profile?.role || "";
 
-  const productsNavBtn = document.querySelector(
-    'button[data-view="productsView"]'
-  );
+  // Şube kullanıcıları için: ürün / stok ekranlarını gizle
+  const productsNavBtn = document.querySelector('button[data-view="productsView"]');
   const stockNavBtn = document.querySelector('button[data-view="stockView"]');
 
   if (productsNavBtn) {
@@ -237,6 +242,7 @@ function setupRoleBasedUI(profile) {
     stockNavBtn.classList.toggle("hidden", role === "branch");
   }
 
+  // Yeni sipariş butonu: şube, manager, admin görebilsin
   const newOrderBtn = $("openOrderModalBtn");
   if (newOrderBtn) {
     const canCreateOrder =
@@ -246,16 +252,9 @@ function setupRoleBasedUI(profile) {
 }
 
 // --------------------------------------------------------
-// 3.3 Bildirimler
+// 3.3 Bildirimler (notifications)
 // --------------------------------------------------------
-async function createNotification({
-  userId,
-  type,
-  title,
-  message,
-  orderId,
-  extra,
-}) {
+async function createNotification({ userId, type, title, message, orderId, extra }) {
   if (!userId) return;
   try {
     await addDoc(collection(db, "notifications"), {
@@ -273,34 +272,13 @@ async function createNotification({
   }
 }
 
-function formatTimeValue(ts) {
-  if (!ts || !ts.toDate) return "";
-  try {
-    return ts
-      .toDate()
-      .toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
-  } catch (e) {
-    return "";
-  }
-}
-
-function formatDateTimeValue(ts) {
-  if (!ts || !ts.toDate) return "";
-  try {
-    return ts.toDate().toLocaleString("tr-TR");
-  } catch (e) {
-    return "";
-  }
-}
-
 function startNotificationListener() {
   const listEl = $("notificationsList");
-  const fullListEl = $("notificationsListFull");
   const badgeEl = $("notificationsUnread");
-  const emptyFullEl = $("notificationsEmpty");
 
-  if (!currentUser) return;
+  if (!currentUser || !listEl) return;
 
+  // Eski listener varsa kapat
   if (notificationsUnsub) {
     notificationsUnsub();
     notificationsUnsub = null;
@@ -313,64 +291,42 @@ function startNotificationListener() {
   );
 
   notificationsUnsub = onSnapshot(qRef, (snap) => {
-    if (listEl) listEl.innerHTML = "";
-    if (fullListEl) fullListEl.innerHTML = "";
+    listEl.innerHTML = "";
     let unread = 0;
 
     if (snap.empty) {
-      if (listEl) {
-        listEl.innerHTML =
-          '<li class="text-[11px] text-slate-400">Henüz bildirim yok.</li>';
-      }
-      if (emptyFullEl) {
-        emptyFullEl.classList.remove("hidden");
-      }
+      listEl.innerHTML =
+        `<li class="text-[11px] text-slate-400">Henüz bildirim yok.</li>`;
     } else {
-      if (emptyFullEl) emptyFullEl.classList.add("hidden");
-
       snap.forEach((docSnap) => {
         const d = docSnap.data();
         if (!d.read) unread++;
 
-        const timeStr = formatTimeValue(d.createdAt);
-        const lineId = d.orderId ? d.orderId.slice(-6) : "";
-
-        if (listEl) {
-          const li = document.createElement("li");
-          li.className =
-            "flex justify-between items-start text-xs border-b border-slate-100 py-1";
-          li.innerHTML =
-            '<div class="pr-2">' +
-            `<p class="font-semibold text-slate-700">${d.title || "-"}</p>` +
-            `<p class="text-[11px] text-slate-500">${d.message || ""}</p>` +
-            "</div>" +
-            `<span class="text-[10px] text-slate-400">${timeStr}</span>`;
-          listEl.appendChild(li);
-        }
-
-        if (fullListEl) {
-          const wrap = document.createElement("div");
-          wrap.className =
-            "border border-slate-200 rounded-lg px-3 py-2 flex justify-between items-start";
-          let extraLine = "";
-          if (lineId) {
-            extraLine = `<p class="text-[10px] text-slate-500 mt-1">Sipariş: ${lineId}</p>`;
-          }
-          wrap.innerHTML =
-            '<div class="pr-3">' +
-            `<p class="text-xs font-semibold text-slate-200">${d.title || "-"}</p>` +
-            `<p class="text-[11px] text-slate-400 mt-1">${d.message || ""}</p>` +
-            extraLine +
-            "</div>" +
-            `<span class="text-[10px] text-slate-500">${timeStr}</span>`;
-          fullListEl.appendChild(wrap);
-        }
+        const li = document.createElement("li");
+        li.className =
+          "flex justify-between items-start text-xs border-b border-slate-100 py-1";
+        li.innerHTML = `
+          <div class="pr-2">
+            <p class="font-semibold text-slate-700">${d.title || "-"}</p>
+            <p class="text-[11px] text-slate-500">${d.message || ""}</p>
+          </div>
+          <span class="text-[10px] text-slate-400">
+            ${
+              d.createdAt?.toDate
+                ? d.createdAt
+                    .toDate()
+                    .toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })
+                : ""
+            }
+          </span>
+        `;
+        listEl.appendChild(li);
       });
     }
 
     if (badgeEl) {
       if (unread > 0) {
-        badgeEl.textContent = String(unread);
+        badgeEl.textContent = unread;
         badgeEl.classList.remove("hidden");
       } else {
         badgeEl.classList.add("hidden");
@@ -379,6 +335,7 @@ function startNotificationListener() {
   });
 }
 
+// Bildirimleri okundu işaretle (isteğe bağlı)
 async function markNotificationsAsRead() {
   if (!currentUser) return;
   try {
@@ -432,59 +389,53 @@ function switchAuthTab(tab) {
 function showView(viewId) {
   const views = document.querySelectorAll(".view");
   views.forEach((v) => {
-    const isTarget = v.id === viewId;
-    v.classList.toggle("hidden", !isTarget);
-    v.classList.toggle("active", isTarget);
+    v.classList.toggle("hidden", v.id !== viewId);
   });
 
-  document.querySelectorAll(".nav-btn[data-view]").forEach((btn) => {
+  document.querySelectorAll(".nav-btn").forEach((btn) => {
     const target = btn.getAttribute("data-view");
-    btn.classList.toggle("active", target === viewId);
+    btn.classList.toggle("bg-slate-800", target === viewId);
   });
-
-  if (viewId === "notificationsView") {
-    markNotificationsAsRead();
-  }
 }
 
 // --------------------------------------------------------
-// 6. Products
+// 6. Products (search destekli)
 // --------------------------------------------------------
-async function loadProducts() {
+function renderProductsTable(list) {
   const tbody = $("productsTableBody");
   const emptyMsg = $("productsEmpty");
-  const productSelect = $("stockProductSelect");
-  if (!tbody || !productSelect) return;
+  if (!tbody || !emptyMsg) return;
 
   tbody.innerHTML = "";
-  productSelect.innerHTML = "";
 
-  const snapshot = await getDocs(collection(db, "products"));
+  if (!list || list.length === 0) {
+    emptyMsg.classList.remove("hidden");
+    return;
+  }
 
-  if (snapshot.empty) emptyMsg.classList.remove("hidden");
-  else emptyMsg.classList.add("hidden");
+  emptyMsg.classList.add("hidden");
 
-  snapshot.forEach((docSnap) => {
-    const data = docSnap.data();
+  list.forEach((p) => {
     const tr = document.createElement("tr");
-    tr.innerHTML =
-      `<td class="px-3 py-2">${data.code || ""}</td>` +
-      `<td class="px-3 py-2">${data.name || ""}</td>` +
-      `<td class="px-3 py-2">${data.unit || ""}</td>` +
-      `<td class="px-3 py-2">${data.shelf || ""}</td>` +
-      `<td class="px-3 py-2">${data.stock ?? 0}</td>` +
-      `<td class="px-3 py-2 text-right space-x-1">
-        <button class="text-xs px-2 py-1 rounded bg-sky-100 text-sky-700 hover:bg-sky-200" data-edit="${docSnap.id}">Düzenle</button>
-        <button class="text-xs px-2 py-1 rounded bg-red-100 text-red-700 hover:bg-red-200" data-delete="${docSnap.id}">Sil</button>
-      </td>`;
+    tr.innerHTML = `
+      <td class="px-3 py-2">${p.code || ""}</td>
+      <td class="px-3 py-2">${p.name || ""}</td>
+      <td class="px-3 py-2">${p.unit || ""}</td>
+      <td class="px-3 py-2">${p.shelf || ""}</td>
+      <td class="px-3 py-2">${p.stock ?? 0}</td>
+      <td class="px-3 py-2 text-right space-x-1">
+        <button class="text-xs px-2 py-1 rounded bg-sky-100 text-sky-700 hover:bg-sky-200" data-edit="${p.id}">
+          Düzenle
+        </button>
+        <button class="text-xs px-2 py-1 rounded bg-red-100 text-red-700 hover:bg-red-200" data-delete="${p.id}">
+          Sil
+        </button>
+      </td>
+    `;
     tbody.appendChild(tr);
-
-    const opt = document.createElement("option");
-    opt.value = docSnap.id;
-    opt.textContent = `${data.code || ""} - ${data.name || ""}`;
-    productSelect.appendChild(opt);
   });
 
+  // Edit / Delete eventleri
   tbody.querySelectorAll("button[data-edit]").forEach((btn) => {
     btn.addEventListener("click", () =>
       openProductModal(btn.getAttribute("data-edit"))
@@ -495,6 +446,28 @@ async function loadProducts() {
       deleteProduct(btn.getAttribute("data-delete"))
     );
   });
+}
+
+async function loadProducts() {
+  const productSelect = $("stockProductSelect");
+  if (!productSelect) return;
+
+  const snapshot = await getDocs(collection(db, "products"));
+  productsCache = [];
+  snapshot.forEach((docSnap) => {
+    productsCache.push({ id: docSnap.id, ...docSnap.data() });
+  });
+
+  // Stok hareketi için ürün select
+  productSelect.innerHTML = "";
+  productsCache.forEach((p) => {
+    const opt = document.createElement("option");
+    opt.value = p.id;
+    opt.textContent = `${p.code || ""} - ${p.name || ""}`;
+    productSelect.appendChild(opt);
+  });
+
+  renderProductsTable(productsCache);
 }
 
 async function openProductModal(productId = null) {
@@ -551,14 +524,14 @@ async function saveProduct(evt) {
 
   closeProductModal();
   showGlobalAlert("Ürün kaydedildi.", "success");
-  loadProducts();
+  await loadProducts();
 }
 
 async function deleteProduct(id) {
   if (!confirm("Bu ürünü silmek istediğine emin misin?")) return;
   await deleteDoc(doc(db, "products", id));
   showGlobalAlert("Ürün silindi.", "success");
-  loadProducts();
+  await loadProducts();
 }
 
 // --------------------------------------------------------
@@ -581,19 +554,26 @@ async function loadStockMovements() {
     const typeLabel =
       d.type === "in" ? "Giriş" : d.type === "out" ? "Çıkış" : "Transfer";
 
-    const dateStr = formatDateTimeValue(d.createdAt);
-
     const div = document.createElement("div");
     div.className =
       "border border-slate-100 rounded-lg px-3 py-2 flex justify-between items-center";
-    div.innerHTML =
-      `<div>
+    div.innerHTML = `
+      <div>
         <p class="font-semibold text-slate-700 text-xs">${d.productName || "-"}</p>
         <p class="text-[11px] text-slate-500">
-          ${typeLabel} • ${d.qty} ${d.unit || ""} • ${d.sourceLocation || "-"} ➜ ${d.targetLocation || "-"}
+          ${typeLabel} • ${d.qty} ${d.unit || ""} • ${d.sourceLocation || "-"} ➜ ${
+      d.targetLocation || "-"
+    }
         </p>
       </div>
-      <span class="text-[11px] text-slate-400">${dateStr}</span>`;
+      <span class="text-[11px] text-slate-400">
+        ${
+          d.createdAt?.toDate
+            ? d.createdAt.toDate().toLocaleString("tr-TR")
+            : ""
+        }
+      </span>
+    `;
     container.appendChild(div);
     count++;
   });
@@ -602,6 +582,7 @@ async function loadStockMovements() {
   else empty.classList.add("hidden");
 }
 
+// locationStocks güncelleme helper’ı
 async function adjustLocationStock({
   productId,
   productData,
@@ -752,13 +733,13 @@ async function saveStockMovement(evt) {
   }
 
   $("stockForm").reset();
-  loadProducts();
-  loadStockMovements();
+  await loadProducts();
+  await loadStockMovements();
   showGlobalAlert("Stok hareketi kaydedildi.", "success");
 }
 
 // --------------------------------------------------------
-// 8. Orders
+// 8. Orders (Şube Siparişleri)
 // --------------------------------------------------------
 function createOrderItemRow(productsMap) {
   const row = document.createElement("div");
@@ -769,8 +750,8 @@ function createOrderItemRow(productsMap) {
   select.className =
     "col-span-2 rounded-lg border border-slate-300 px-2 py-1 text-xs";
   select.required = true;
-  select.innerHTML = '<option value="">Ürün seç</option>';
 
+  select.innerHTML = `<option value="">Ürün seç</option>`;
   productsMap.forEach((p, id) => {
     const opt = document.createElement("option");
     opt.value = id;
@@ -895,7 +876,7 @@ async function saveOrder(evt) {
     branchName,
     documentNo: documentNo || null,
     note: note || null,
-    status: "open",
+    status: "open", // open, assigned, picking, completed
     createdAt: serverTimestamp(),
     createdBy: currentUser?.uid || null,
     createdByEmail: currentUser?.email || null,
@@ -915,13 +896,8 @@ async function saveOrder(evt) {
   showGlobalAlert("Sipariş kaydedildi.", "success");
   await loadOrders();
   await loadPickingOrders();
-  await updateDashboardCounts();
-  await updateReportSummary();
 }
 
-// --------------------------------------------------------
-// 8.1 Orders list
-// --------------------------------------------------------
 async function loadOrders() {
   const tbody = $("ordersTableBody");
   const empty = $("ordersEmpty");
@@ -934,7 +910,7 @@ async function loadOrders() {
 
   let hasAny = false;
 
-  qSnap.forEach((docSnap) => {
+  for (const docSnap of qSnap.docs) {
     hasAny = true;
     const d = docSnap.data();
     const statusLabel =
@@ -946,26 +922,35 @@ async function loadOrders() {
         ? "Toplanıyor"
         : "Tamamlandı";
 
-    const createdStr = formatDateTimeValue(d.createdAt);
-
     const tr = document.createElement("tr");
-    tr.innerHTML =
-      `<td class="px-3 py-2">${docSnap.id.slice(-6)}</td>` +
-      `<td class="px-3 py-2">${d.branchName || "-"}</td>` +
-      `<td class="px-3 py-2">${statusLabel}</td>` +
-      `<td class="px-3 py-2 text-xs">${d.assignedToEmail || "-"}</td>` +
-      `<td class="px-3 py-2 text-xs">${createdStr}</td>` +
-      `<td class="px-3 py-2 text-right space-x-1">
-        <button class="text-xs px-2 py-1 rounded bg-sky-100 text-sky-700 hover:bg-sky-200" data-detail="${docSnap.id}">Detay</button>
+    tr.innerHTML = `
+      <td class="px-3 py-2">${docSnap.id.slice(-6)}</td>
+      <td class="px-3 py-2">${d.branchName || "-"}</td>
+      <td class="px-3 py-2">${statusLabel}</td>
+      <td class="px-3 py-2 text-xs">${d.assignedToEmail || "-"}</td>
+      <td class="px-3 py-2 text-xs">
+        ${
+          d.createdAt?.toDate
+            ? d.createdAt.toDate().toLocaleString("tr-TR")
+            : ""
+        }
+      </td>
+      <td class="px-3 py-2 text-right space-x-1">
+        <button class="text-xs px-2 py-1 rounded bg-sky-100 text-sky-700 hover:bg-sky-200" data-detail="${
+          docSnap.id
+        }">Detay</button>
         ${
           currentUserProfile?.role === "manager" ||
           currentUserProfile?.role === "admin"
-            ? `<button class="text-xs px-2 py-1 rounded bg-emerald-100 text-emerald-700 hover:bg-emerald-200" data-assign="${docSnap.id}">Toplayıcı Ata</button>`
+            ? `<button class="text-xs px-2 py-1 rounded bg-emerald-100 text-emerald-700 hover:bg-emerald-200" data-assign="${docSnap.id}">
+                Toplayıcı Ata
+              </button>`
             : ""
         }
-      </td>`;
+      </td>
+    `;
     tbody.appendChild(tr);
-  });
+  }
 
   if (!hasAny) empty.classList.remove("hidden");
   else empty.classList.add("hidden");
@@ -1019,14 +1004,12 @@ async function assignOrderToPicker(orderId) {
     status: "assigned",
   });
 
-  const orderShort = orderId.slice(-6);
-
   await createNotification({
     userId: picker.id,
     type: "orderAssigned",
     orderId,
     title: "Yeni sipariş atandı",
-    message: `${orderShort} no'lu (${orderData.branchName || "-"}) siparişi sana atandı.`,
+    message: `${orderId.slice(-6)} no'lu (${orderData.branchName || "-"}) siparişi sana atandı.`,
   });
 
   if (orderData.createdBy) {
@@ -1035,7 +1018,7 @@ async function assignOrderToPicker(orderId) {
       type: "orderStatus",
       orderId,
       title: "Sipariş durumu güncellendi",
-      message: `${orderShort} no'lu sipariş toplayıcıya atandı.`,
+      message: `${orderId.slice(-6)} no'lu sipariş toplayıcıya atandı.`,
     });
   }
 
@@ -1045,7 +1028,7 @@ async function assignOrderToPicker(orderId) {
 }
 
 // --------------------------------------------------------
-// 9. Picking
+// 9. Picking (Toplayıcı Ekranı + Rota)
 // --------------------------------------------------------
 async function loadPickingOrders() {
   const tbody = $("pickingTableBody");
@@ -1076,7 +1059,7 @@ async function loadPickingOrders() {
   const qSnap = await getDocs(qRef);
   let hasAny = false;
 
-  qSnap.forEach((docSnap) => {
+  for (const docSnap of qSnap.docs) {
     const d = docSnap.data();
     const statusLabel =
       d.status === "open"
@@ -1089,16 +1072,19 @@ async function loadPickingOrders() {
 
     hasAny = true;
     const tr = document.createElement("tr");
-    tr.innerHTML =
-      `<td class="px-3 py-2">${docSnap.id.slice(-6)}</td>` +
-      `<td class="px-3 py-2">${d.branchName || "-"}</td>` +
-      `<td class="px-3 py-2">${statusLabel}</td>` +
-      `<td class="px-3 py-2 text-xs">${d.assignedToEmail || "-"}</td>` +
-      `<td class="px-3 py-2 text-right">
-        <button class="text-xs px-2 py-1 rounded bg-sky-100 text-sky-700 hover:bg-sky-200" data-pick="${docSnap.id}">Topla</button>
-      </td>`;
+    tr.innerHTML = `
+      <td class="px-3 py-2">${docSnap.id.slice(-6)}</td>
+      <td class="px-3 py-2">${d.branchName || "-"}</td>
+      <td class="px-3 py-2">${statusLabel}</td>
+      <td class="px-3 py-2 text-xs">${d.assignedToEmail || "-"}</td>
+      <td class="px-3 py-2 text-right">
+        <button class="text-xs px-2 py-1 rounded bg-sky-100 text-sky-700 hover:bg-sky-200" data-pick="${
+          docSnap.id
+        }">Topla</button>
+      </td>
+    `;
     tbody.appendChild(tr);
-  });
+  }
 
   if (!hasAny) empty.classList.remove("hidden");
   else empty.classList.add("hidden");
@@ -1158,89 +1144,90 @@ async function openPickingDetailModal(orderId, fromPicking) {
     itemsWithLoc.map((it) => it.locationCode || "Lokasyon yok")
   ).size;
 
-  const orderStatus = orderData.status || "-";
-  const orderPicker = orderData.assignedToEmail || "-";
-  const orderDocNo = orderData.documentNo || "-";
-  const orderBranch = orderData.branchName || "-";
-
-  const hasShortage = itemsWithLoc.some((it) => it.locationShortage);
-
-  let shortageText = "";
-  if (hasShortage) {
-    shortageText =
-      "⚠ Bazı lokasyonlarda istenen miktardan az stok var (kırmızı satırlar).";
-  }
-
-  const headerHtml =
-    '<div class="border border-slate-200 rounded-lg p-3 text-xs">' +
-    `<p><span class="font-semibold">Şube:</span> ${orderBranch}</p>` +
-    `<p><span class="font-semibold">Belge No:</span> ${orderDocNo}</p>` +
-    `<p><span class="font-semibold">Durum:</span> ${orderStatus}</p>` +
-    `<p><span class="font-semibold">Toplayıcı:</span> ${orderPicker}</p>` +
-    `<p class="mt-1 text-[11px] text-slate-600">🔁 Toplama rotası: ${uniqueLocations} lokasyonda ${totalLines} kalem, toplam ${totalQty} birim.</p>` +
-    `<p class="mt-1 text-[11px] text-amber-700">${shortageText}</p>` +
-    "</div>";
+  const headerHtml = `
+    <div class="border border-slate-200 rounded-lg p-3 text-xs">
+      <p><span class="font-semibold">Şube:</span> ${orderData.branchName || "-"}</p>
+      <p><span class="font-semibold">Belge No:</span> ${
+        orderData.documentNo || "-"
+      }</p>
+      <p><span class="font-semibold">Durum:</span> ${orderData.status || "-"}</p>
+      <p><span class="font-semibold">Toplayıcı:</span> ${
+        orderData.assignedToEmail || "-"
+      }</p>
+      <p class="mt-1 text-[11px] text-slate-600">
+        🔁 Toplama rotası: ${uniqueLocations} lokasyonda ${totalLines} kalem, toplam ${totalQty} birim.
+      </p>
+      <p class="mt-1 text-[11px] text-amber-700">
+        ${
+          itemsWithLoc.some((it) => it.locationShortage)
+            ? "⚠ Bazı lokasyonlarda istenen miktardan az stok var (kırmızı satırlar)."
+            : ""
+        }
+      </p>
+    </div>
+  `;
 
   const rowsHtml = itemsWithLoc
     .map((it, index) => {
       const shortage = it.locationShortage;
-      const rowClass = shortage ? "bg-red-50" : "";
       const shortageBadge = shortage
-        ? '<span class="ml-1 inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-red-100 text-red-700">Eksik</span>'
+        ? `<span class="ml-1 inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-red-100 text-red-700">Eksik</span>`
         : "";
-      const availableStr =
-        it.locationAvailableQty === null || it.locationAvailableQty === undefined
-          ? "-"
-          : String(it.locationAvailableQty);
-
-      const pickedInput = fromPicking
-        ? `<input type="number" min="0" value="${
-            it.pickedQty ?? it.qty
-          }" data-item="${
-            it.id
-          }" class="w-20 border border-slate-300 rounded px-1 py-0.5 text-xs" />`
-        : `${it.pickedQty ?? 0}`;
-
-      return (
-        `<tr class="border-b border-slate-100 ${rowClass}">` +
-        `<td class="px-2 py-1 text-xs">${index + 1}</td>` +
-        `<td class="px-2 py-1 text-xs">${it.locationCode || "-"}</td>` +
-        `<td class="px-2 py-1 text-xs">${it.productCode || ""}</td>` +
-        `<td class="px-2 py-1 text-xs">${it.productName || ""}</td>` +
-        `<td class="px-2 py-1 text-xs">${it.qty} ${
-          it.unit || ""
-        } <span class="text-[10px] text-slate-500">(Lokasyondaki: ${availableStr})</span>${shortageBadge}</td>` +
-        `<td class="px-2 py-1 text-xs">${pickedInput}</td>` +
-        `<td class="px-2 py-1 text-xs">${it.note || ""}</td>` +
-        "</tr>"
-      );
+      const rowClass = shortage ? "bg-red-50" : "";
+      return `
+      <tr class="border-b border-slate-100 ${rowClass}">
+        <td class="px-2 py-1 text-xs">${index + 1}</td>
+        <td class="px-2 py-1 text-xs">${it.locationCode || "-"}</td>
+        <td class="px-2 py-1 text-xs">${it.productCode || ""}</td>
+        <td class="px-2 py-1 text-xs">${it.productName || ""}</td>
+        <td class="px-2 py-1 text-xs">
+          ${it.qty} ${it.unit || ""} 
+          <span class="text-[10px] text-slate-500">(Lokasyondaki: ${
+            it.locationAvailableQty ?? "-"
+          })</span>
+          ${shortageBadge}
+        </td>
+        <td class="px-2 py-1 text-xs">
+          ${
+            fromPicking
+              ? `<input type="number" min="0" value="${
+                  it.pickedQty ?? it.qty
+                }" data-item="${it.id}" class="w-20 border border-slate-300 rounded px-1 py-0.5 text-xs" />`
+              : `${it.pickedQty ?? 0}`
+          }
+        </td>
+        <td class="px-2 py-1 text-xs">${it.note || ""}</td>
+      </tr>
+    `;
     })
     .join("");
 
-  const tableHtml =
-    '<div class="mt-3 border border-slate-200 rounded-lg overflow-hidden">' +
-    '<table class="min-w-full text-xs">' +
-    "<thead class=\"bg-slate-50\">" +
-    "<tr>" +
-    '<th class="px-2 py-1 text-left">#</th>' +
-    '<th class="px-2 py-1 text-left">Lokasyon</th>' +
-    '<th class="px-2 py-1 text-left">Kod</th>' +
-    '<th class="px-2 py-1 text-left">Ürün</th>' +
-    '<th class="px-2 py-1 text-left">İstenen</th>' +
-    '<th class="px-2 py-1 text-left">Toplanan</th>' +
-    '<th class="px-2 py-1 text-left">Not</th>' +
-    "</tr>" +
-    "</thead>" +
-    "<tbody>" +
-    (rowsHtml ||
-      '<tr><td colspan="7" class="px-2 py-2 text-center text-slate-400">Kalem yok.</td></tr>') +
-    "</tbody>" +
-    "</table>" +
-    "</div>";
+  const tableHtml = `
+    <div class="mt-3 border border-slate-200 rounded-lg overflow-hidden">
+      <table class="min-w-full text-xs">
+        <thead class="bg-slate-50">
+          <tr>
+            <th class="px-2 py-1 text-left">#</th>
+            <th class="px-2 py-1 text-left">Lokasyon</th>
+            <th class="px-2 py-1 text-left">Kod</th>
+            <th class="px-2 py-1 text-left">Ürün</th>
+            <th class="px-2 py-1 text-left">İstenen</th>
+            <th class="px-2 py-1 text-left">Toplanan</th>
+            <th class="px-2 py-1 text-left">Not</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${
+            rowsHtml ||
+            `<tr><td colspan="7" class="px-2 py-2 text-center text-slate-400">Kalem yok.</td></tr>`
+          }
+        </tbody>
+      </table>
+    </div>
+  `;
 
   container.innerHTML = headerHtml + tableHtml;
-  const modal = $("pickingDetailModal");
-  if (modal) modal.classList.remove("hidden");
+  $("pickingDetailModal")?.classList.remove("hidden");
 
   const completeBtn = $("completePickingBtn");
   if (completeBtn) {
@@ -1319,19 +1306,27 @@ async function completePicking() {
       totalQty,
       completedAt: serverTimestamp(),
     });
+  } catch (err) {
+    console.error("pickingLogs yazılırken hata:", err);
+  }
 
-    const orderShort = pickingDetailOrderId.slice(-6);
+  try {
+    const orderData =
+      pickingDetailOrderDoc && pickingDetailOrderDoc.data
+        ? pickingDetailOrderDoc.data()
+        : {};
+
     if (orderData.createdBy) {
       await createNotification({
         userId: orderData.createdBy,
         type: "orderCompleted",
         orderId: pickingDetailOrderId,
         title: "Sipariş tamamlandı",
-        message: `${orderShort} no'lu siparişin toplanması tamamlandı.`,
+        message: `${pickingDetailOrderId.slice(-6)} no'lu siparişin toplanması tamamlandı.`,
       });
     }
   } catch (err) {
-    console.error("Sipariş tamamlandı bildirimi / pickingLogs hata:", err);
+    console.error("Sipariş tamamlandı bildirimi hata:", err);
   }
 
   closePickingDetailModal();
@@ -1342,7 +1337,7 @@ async function completePicking() {
 }
 
 // --------------------------------------------------------
-// 9.1 Araç Yükleme (pallets)
+// 9.1 Araç Yükleme & Sevk (pallets üzerinden)
 // --------------------------------------------------------
 async function loadLoadingTasks() {
   const tbody = $("loadingTasksTableBody");
@@ -1362,7 +1357,9 @@ async function loadLoadingTasks() {
     );
   }
 
-  const snap = await getDocs(query(qRef, orderBy("createdAt", "desc")));
+  const snap = await getDocs(
+    query(qRef, orderBy("createdAt", "desc"))
+  );
 
   let hasAny = false;
   let waitingCount = 0;
@@ -1392,24 +1389,42 @@ async function loadLoadingTasks() {
         ? "Yükleniyor"
         : "Yüklendi";
 
-    const loadedTime = d.loadedAt ? formatTimeValue(d.loadedAt) : "-";
-
     const tr = document.createElement("tr");
-    tr.innerHTML =
-      `<td class="px-2 py-1">${d.shipmentNo || d.shipmentId || "-"}</td>` +
-      `<td class="px-2 py-1 hidden sm:table-cell">${d.branchName || "-"}</td>` +
-      `<td class="px-2 py-1">${d.palletNo || "-"}</td>` +
-      `<td class="px-2 py-1 hidden md:table-cell">${d.dockLocationId || "-"}</td>` +
-      `<td class="px-2 py-1">${statusLabel}</td>` +
-      `<td class="px-2 py-1 hidden md:table-cell">${d.loadedByEmail || "-"}</td>` +
-      `<td class="px-2 py-1 hidden md:table-cell">${loadedTime}</td>` +
-      `<td class="px-2 py-1 text-right space-x-1">${
-        d.status !== "loaded"
-          ? `
-          <button class="text-[11px] px-2 py-1 rounded bg-amber-100 text-amber-800 hover:bg-amber-200" data-loading-start="${docSnap.id}">Yüklemeye Başla</button>
-          <button class="text-[11px] px-2 py-1 rounded bg-emerald-100 text-emerald-800 hover:bg-emerald-200" data-loading-complete="${docSnap.id}">Yüklendi</button>`
-          : ""
-      }</td>`;
+    tr.innerHTML = `
+      <td class="px-2 py-1">${d.shipmentNo || d.shipmentId || "-"}</td>
+      <td class="px-2 py-1 hidden sm:table-cell">${d.branchName || "-"}</td>
+      <td class="px-2 py-1">${d.palletNo || "-"}</td>
+      <td class="px-2 py-1 hidden md:table-cell">${d.dockLocationId || "-"}</td>
+      <td class="px-2 py-1">${statusLabel}</td>
+      <td class="px-2 py-1 hidden md:table-cell">${d.loadedByEmail || "-"}</td>
+      <td class="px-2 py-1 hidden md:table-cell">
+        ${
+          d.loadedAt?.toDate
+            ? d.loadedAt
+                .toDate()
+                .toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })
+            : "-"
+        }
+      </td>
+      <td class="px-2 py-1 text-right space-x-1">
+        ${
+          d.status !== "loaded"
+            ? `
+          <button
+            class="text-[11px] px-2 py-1 rounded bg-amber-100 text-amber-800 hover:bg-amber-200"
+            data-loading-start="${docSnap.id}">
+            Yüklemeye Başla
+          </button>
+          <button
+            class="text-[11px] px-2 py-1 rounded bg-emerald-100 text-emerald-800 hover:bg-emerald-200"
+            data-loading-complete="${docSnap.id}">
+            Yüklendi
+          </button>
+          `
+            : ""
+        }
+      </td>
+    `;
     tbody.appendChild(tr);
   });
 
@@ -1444,7 +1459,6 @@ async function setLoadingTaskStatus(taskId, newStatus) {
 
     await updateDoc(ref, payload);
     showGlobalAlert("Yükleme durumu güncellendi.", "success");
-
     await loadLoadingTasks();
   } catch (err) {
     console.error("Yükleme durumu güncellenirken hata:", err);
@@ -1471,10 +1485,10 @@ async function updateDashboardCounts() {
   const productsSnap = await getDocs(collection(db, "products"));
   const totalProducts = productsSnap.size;
 
-  $("cardTotalProducts").textContent = String(totalProducts);
-  $("cardOpenOrders").textContent = String(open);
-  $("cardPickingOrders").textContent = String(picking);
-  $("cardCompletedOrders").textContent = String(completed);
+  $("cardTotalProducts").textContent = totalProducts;
+  $("cardOpenOrders").textContent = open;
+  $("cardPickingOrders").textContent = picking;
+  $("cardCompletedOrders").textContent = completed;
 }
 
 async function updateReportSummary() {
@@ -1494,6 +1508,9 @@ async function updateReportSummary() {
   $("reportCompletedOrders").textContent = `Tamamlanan sipariş: ${completedOrders}`;
 }
 
+// --------------------------------------------------------
+// 10.1 Picker günlük performans özeti
+// --------------------------------------------------------
 async function updatePickerDashboardStats() {
   if (!currentUser) return;
 
@@ -1502,10 +1519,7 @@ async function updatePickerDashboardStats() {
 
   try {
     const snap = await getDocs(
-      query(
-        collection(db, "pickingLogs"),
-        where("pickerId", "==", currentUser.uid)
-      )
+      query(collection(db, "pickingLogs"), where("pickerId", "==", currentUser.uid))
     );
 
     const today = new Date();
@@ -1539,7 +1553,7 @@ async function updatePickerDashboardStats() {
 }
 
 // --------------------------------------------------------
-// 11. Auth Handlers + State
+// 11. Auth Handlers
 // --------------------------------------------------------
 async function handleRegister(evt) {
   evt.preventDefault();
@@ -1621,16 +1635,16 @@ onAuthStateChanged(auth, async (user) => {
   $("appSection").classList.remove("hidden");
   showView("dashboardView");
 
-  startNotificationListener();
-
   await loadProducts();
   await loadStockMovements();
   await loadOrders();
   await loadPickingOrders();
   await loadLoadingTasks();
+  await updatePickerDashboardStats();
   await updateDashboardCounts();
   await updateReportSummary();
-  await updatePickerDashboardStats();
+
+  startNotificationListener();
 });
 
 // --------------------------------------------------------
@@ -1644,9 +1658,11 @@ document.addEventListener("DOMContentLoaded", () => {
   $("loginForm").addEventListener("submit", handleLogin);
   $("logoutBtn").addEventListener("click", handleLogout);
 
-  document.querySelectorAll(".nav-btn[data-view]").forEach((btn) => {
+  // Navbar
+  document.querySelectorAll(".nav-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
       const viewId = btn.getAttribute("data-view");
+      if (!viewId) return;
       showView(viewId);
 
       if (viewId === "productsView") loadProducts();
@@ -1658,20 +1674,37 @@ document.addEventListener("DOMContentLoaded", () => {
       if (viewId === "pickingView") loadPickingOrders();
       if (viewId === "reportsView") updateReportSummary();
       if (viewId === "loadingView") loadLoadingTasks();
-      if (viewId === "dashboardView") {
-        updateDashboardCounts();
-        updatePickerDashboardStats();
-      }
     });
   });
 
+  // Ürün arama (kod / isim)
+  const productSearchInput = $("productSearch");
+  if (productSearchInput) {
+    productSearchInput.addEventListener("input", () => {
+      const term = productSearchInput.value.trim().toLowerCase();
+      if (!term) {
+        renderProductsTable(productsCache);
+        return;
+      }
+      const filtered = productsCache.filter((p) => {
+        const code = (p.code || "").toLowerCase();
+        const name = (p.name || "").toLowerCase();
+        return code.includes(term) || name.includes(term);
+      });
+      renderProductsTable(filtered);
+    });
+  }
+
+  // Ürün modal
   $("openProductModalBtn").addEventListener("click", () => openProductModal());
   $("closeProductModalBtn").addEventListener("click", closeProductModal);
   $("cancelProductBtn").addEventListener("click", closeProductModal);
   $("productForm").addEventListener("submit", saveProduct);
 
+  // Stok hareket formu
   $("stockForm").addEventListener("submit", saveStockMovement);
 
+  // Sipariş modal
   $("openOrderModalBtn").addEventListener("click", async () => {
     await prepareOrderModal();
     openOrderModal();
@@ -1680,6 +1713,7 @@ document.addEventListener("DOMContentLoaded", () => {
   $("cancelOrderBtn").addEventListener("click", closeOrderModal);
   $("orderForm").addEventListener("submit", saveOrder);
 
+  // Sipariş tablo click
   const ordersTableBody = $("ordersTableBody");
   if (ordersTableBody) {
     ordersTableBody.addEventListener("click", (e) => {
@@ -1697,6 +1731,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
+  // Picking tablo click
   const pickingTableBody = $("pickingTableBody");
   if (pickingTableBody) {
     pickingTableBody.addEventListener("click", (e) => {
@@ -1714,21 +1749,12 @@ document.addEventListener("DOMContentLoaded", () => {
   );
   $("completePickingBtn").addEventListener("click", completePicking);
 
-  const reloadLoadingTasksBtn = $("reloadLoadingTasksBtn");
-  if (reloadLoadingTasksBtn) {
-    reloadLoadingTasksBtn.addEventListener("click", loadLoadingTasks);
-  }
-  const loadingStatusFilter = $("loadingStatusFilter");
-  if (loadingStatusFilter) {
-    loadingStatusFilter.addEventListener("change", loadLoadingTasks);
-  }
+  // Araç yükleme butonları
   const loadingTasksTableBody = $("loadingTasksTableBody");
   if (loadingTasksTableBody) {
     loadingTasksTableBody.addEventListener("click", (e) => {
       const startBtn = e.target.closest("button[data-loading-start]");
-      const completeBtn = e.target.closest(
-        "button[data-loading-complete]"
-      );
+      const completeBtn = e.target.closest("button[data-loading-complete]");
 
       if (startBtn) {
         const id = startBtn.getAttribute("data-loading-start");
@@ -1738,8 +1764,16 @@ document.addEventListener("DOMContentLoaded", () => {
       if (completeBtn) {
         const id = completeBtn.getAttribute("data-loading-complete");
         setLoadingTaskStatus(id, "loaded");
-        return;
       }
     });
+  }
+
+  const reloadLoadingTasksBtn = $("reloadLoadingTasksBtn");
+  if (reloadLoadingTasksBtn) {
+    reloadLoadingTasksBtn.addEventListener("click", loadLoadingTasks);
+  }
+  const loadingStatusFilter = $("loadingStatusFilter");
+  if (loadingStatusFilter) {
+    loadingStatusFilter.addEventListener("change", loadLoadingTasks);
   }
 });
