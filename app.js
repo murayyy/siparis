@@ -1,5 +1,5 @@
 // app.js
-// Firebase + Depo Otomasyonu SPA – “uçurulmuş” modern versiyon
+// Firebase + Depo Otomasyonu SPA (stabil sürüm)
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
 import {
@@ -26,9 +26,9 @@ import {
   onSnapshot,
 } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
 
-/* --------------------------------------------------------
- * 1. Firebase Config
- * ------------------------------------------------------ */
+// --------------------------------------------------------
+// 1. Firebase Config
+// --------------------------------------------------------
 const firebaseConfig = {
   apiKey: "AIzaSyDcLQB4UggXlYA9x8AKw-XybJjcF6U_KA4",
   authDomain: "depo1-4668f.firebaseapp.com",
@@ -43,22 +43,19 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-/* --------------------------------------------------------
- * 2. Global State
- * ------------------------------------------------------ */
+// --------------------------------------------------------
+// 2. Global State
+// --------------------------------------------------------
 let currentUser = null;
 let currentUserProfile = null;
-
 let pickingDetailOrderId = null;
 let pickingDetailItems = [];
 let pickingDetailOrderDoc = null;
-
 let notificationsUnsub = null;
-let loadingViewEventsBound = false;
 
-/* --------------------------------------------------------
- * 3. Helpers
- * ------------------------------------------------------ */
+// --------------------------------------------------------
+// 3. Helpers
+// --------------------------------------------------------
 function $(id) {
   return document.getElementById(id);
 }
@@ -74,32 +71,27 @@ function showAuthMessage(msg, isError = true) {
 function showGlobalAlert(msg, type = "info") {
   const el = $("globalAlert");
   if (!el) return;
-
   if (!msg) {
     el.classList.add("hidden");
     el.textContent = "";
     return;
   }
-
   el.classList.remove("hidden");
   el.textContent = msg;
-
-  el.className =
-    "rounded-lg border px-4 py-2 text-sm mt-2"; // reset basic
-
+  el.classList.remove(
+    "bg-amber-50",
+    "border-amber-300",
+    "text-amber-800",
+    "bg-emerald-50",
+    "border-emerald-300",
+    "text-emerald-800"
+  );
   if (type === "success") {
-    el.classList.add(
-      "bg-emerald-50",
-      "border-emerald-300",
-      "text-emerald-800"
-    );
+    el.classList.add("bg-emerald-50", "border-emerald-300", "text-emerald-800");
   } else {
     el.classList.add("bg-amber-50", "border-amber-300", "text-amber-800");
   }
-
-  setTimeout(() => {
-    el.classList.add("hidden");
-  }, 4000);
+  setTimeout(() => el.classList.add("hidden"), 4000);
 }
 
 function setRoleBadge(role) {
@@ -115,16 +107,12 @@ function setCurrentUserInfo(user, profile) {
     el.textContent = "";
     return;
   }
-  el.textContent = `${profile.fullName || user.email} • ${
-    profile.role || "?"
-  }`;
+  el.textContent = `${profile.fullName || user.email} • ${profile.role || "?"}`;
 }
 
-/* --------------------------------------------------------
- * 3.1 Toplama Rotası / Lokasyon Helpers
- * ------------------------------------------------------ */
-
-// "A1-01-01" → { zone: "A", aisle: 1, rack: 1, level: 1 }
+// --------------------------------------------------------
+// 3.1 Lokasyon helpers
+// --------------------------------------------------------
 function parseLocationCode(code) {
   if (!code || typeof code !== "string") {
     return { zone: "", aisle: 0, rack: 0, level: 0 };
@@ -150,7 +138,6 @@ function parseLocationCode(code) {
   return { zone, aisle, rack, level };
 }
 
-// Lokasyon kodu sıralama (rota)
 function compareLocationCode(a, b) {
   const pa = parseLocationCode(a || "");
   const pb = parseLocationCode(b || "");
@@ -166,7 +153,6 @@ function compareLocationCode(a, b) {
   return 0;
 }
 
-// Sipariş kalemlerini locationStocks ile zenginleştirir (rota + stok kontrol)
 async function enrichItemsWithLocation(items) {
   const result = [];
 
@@ -212,7 +198,6 @@ async function enrichItemsWithLocation(items) {
   return result;
 }
 
-// Toplama tamamlandığında locationStocks qty güncelle
 async function applyPickingToLocationStocks(orderId, itemsWithPicked) {
   for (const it of itemsWithPicked) {
     if (!it.productId || !it.locationId) continue;
@@ -234,18 +219,16 @@ async function applyPickingToLocationStocks(orderId, itemsWithPicked) {
   }
 }
 
-/* --------------------------------------------------------
- * 3.2 Rol Bazlı UI
- * ------------------------------------------------------ */
+// --------------------------------------------------------
+// 3.2 Rol Bazlı UI
+// --------------------------------------------------------
 function setupRoleBasedUI(profile) {
   const role = profile?.role || "";
 
   const productsNavBtn = document.querySelector(
     'button[data-view="productsView"]'
   );
-  const stockNavBtn = document.querySelector(
-    'button[data-view="stockView"]'
-  );
+  const stockNavBtn = document.querySelector('button[data-view="stockView"]');
 
   if (productsNavBtn) {
     productsNavBtn.classList.toggle("hidden", role === "branch");
@@ -262,9 +245,9 @@ function setupRoleBasedUI(profile) {
   }
 }
 
-/* --------------------------------------------------------
- * 3.3 Bildirimler
- * ------------------------------------------------------ */
+// --------------------------------------------------------
+// 3.3 Bildirimler
+// --------------------------------------------------------
 async function createNotification({
   userId,
   type,
@@ -290,10 +273,33 @@ async function createNotification({
   }
 }
 
+function formatTimeValue(ts) {
+  if (!ts || !ts.toDate) return "";
+  try {
+    return ts
+      .toDate()
+      .toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
+  } catch (e) {
+    return "";
+  }
+}
+
+function formatDateTimeValue(ts) {
+  if (!ts || !ts.toDate) return "";
+  try {
+    return ts.toDate().toLocaleString("tr-TR");
+  } catch (e) {
+    return "";
+  }
+}
+
 function startNotificationListener() {
   const listEl = $("notificationsList");
+  const fullListEl = $("notificationsListFull");
   const badgeEl = $("notificationsUnread");
-  if (!currentUser || !listEl) return;
+  const emptyFullEl = $("notificationsEmpty");
+
+  if (!currentUser) return;
 
   if (notificationsUnsub) {
     notificationsUnsub();
@@ -307,45 +313,64 @@ function startNotificationListener() {
   );
 
   notificationsUnsub = onSnapshot(qRef, (snap) => {
-    listEl.innerHTML = "";
+    if (listEl) listEl.innerHTML = "";
+    if (fullListEl) fullListEl.innerHTML = "";
     let unread = 0;
 
     if (snap.empty) {
-      listEl.innerHTML =
-        `<li class="text-[11px] text-slate-400">Henüz bildirim yok.</li>`;
+      if (listEl) {
+        listEl.innerHTML =
+          '<li class="text-[11px] text-slate-400">Henüz bildirim yok.</li>';
+      }
+      if (emptyFullEl) {
+        emptyFullEl.classList.remove("hidden");
+      }
     } else {
+      if (emptyFullEl) emptyFullEl.classList.add("hidden");
+
       snap.forEach((docSnap) => {
         const d = docSnap.data();
         if (!d.read) unread++;
 
-        const li = document.createElement("li");
-        li.className =
-          "flex justify-between items-start text-xs border-b border-slate-100 py-1";
-        li.innerHTML = `
-          <div class="pr-2">
-            <p class="font-semibold text-slate-700">${d.title || "-"}</p>
-            <p class="text-[11px] text-slate-500">${d.message || ""}</p>
-          </div>
-          <span class="text-[10px] text-slate-400">
-            ${
-              d.createdAt?.toDate
-                ? d.createdAt
-                    .toDate()
-                    .toLocaleTimeString("tr-TR", {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })
-                : ""
-            }
-          </span>
-        `;
-        listEl.appendChild(li);
+        const timeStr = formatTimeValue(d.createdAt);
+        const lineId = d.orderId ? d.orderId.slice(-6) : "";
+
+        if (listEl) {
+          const li = document.createElement("li");
+          li.className =
+            "flex justify-between items-start text-xs border-b border-slate-100 py-1";
+          li.innerHTML =
+            '<div class="pr-2">' +
+            `<p class="font-semibold text-slate-700">${d.title || "-"}</p>` +
+            `<p class="text-[11px] text-slate-500">${d.message || ""}</p>` +
+            "</div>" +
+            `<span class="text-[10px] text-slate-400">${timeStr}</span>`;
+          listEl.appendChild(li);
+        }
+
+        if (fullListEl) {
+          const wrap = document.createElement("div");
+          wrap.className =
+            "border border-slate-200 rounded-lg px-3 py-2 flex justify-between items-start";
+          let extraLine = "";
+          if (lineId) {
+            extraLine = `<p class="text-[10px] text-slate-500 mt-1">Sipariş: ${lineId}</p>`;
+          }
+          wrap.innerHTML =
+            '<div class="pr-3">' +
+            `<p class="text-xs font-semibold text-slate-200">${d.title || "-"}</p>` +
+            `<p class="text-[11px] text-slate-400 mt-1">${d.message || ""}</p>` +
+            extraLine +
+            "</div>" +
+            `<span class="text-[10px] text-slate-500">${timeStr}</span>`;
+          fullListEl.appendChild(wrap);
+        }
       });
     }
 
     if (badgeEl) {
       if (unread > 0) {
-        badgeEl.textContent = unread;
+        badgeEl.textContent = String(unread);
         badgeEl.classList.remove("hidden");
       } else {
         badgeEl.classList.add("hidden");
@@ -354,7 +379,6 @@ function startNotificationListener() {
   });
 }
 
-// Bildirimleri okundu işaretle
 async function markNotificationsAsRead() {
   if (!currentUser) return;
   try {
@@ -378,68 +402,14 @@ async function markNotificationsAsRead() {
   }
 }
 
-async function loadNotificationsFull() {
-  const container = $("notificationsListFull");
-  const empty = $("notificationsEmpty");
-  if (!container) return;
-
-  container.innerHTML = "";
-
-  if (!currentUser) {
-    empty.classList.remove("hidden");
-    return;
-  }
-
-  const qRef = query(
-    collection(db, "notifications"),
-    where("userId", "==", currentUser.uid),
-    orderBy("createdAt", "desc")
-  );
-  const snap = await getDocs(qRef);
-
-  if (snap.empty) {
-    empty.classList.remove("hidden");
-    return;
-  }
-  empty.classList.add("hidden");
-
-  snap.forEach((docSnap) => {
-    const d = docSnap.data();
-    const div = document.createElement("div");
-    div.className =
-      "border border-slate-200 rounded-lg px-3 py-2 flex justify-between items-start";
-    div.innerHTML = `
-      <div class="pr-2">
-        <p class="text-xs font-semibold text-slate-200">${d.title || "-"}</p>
-        <p class="text-[11px] text-slate-400 mt-0.5">${d.message || ""}</p>
-      </div>
-      <span class="text-[10px] text-slate-500">
-        ${
-          d.createdAt?.toDate
-            ? d.createdAt
-                .toDate()
-                .toLocaleString("tr-TR", {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })
-            : ""
-        }
-      </span>
-    `;
-    container.appendChild(div);
-  });
-}
-
-/* --------------------------------------------------------
- * 4. Auth UI
- * ------------------------------------------------------ */
+// --------------------------------------------------------
+// 4. Auth UI
+// --------------------------------------------------------
 function switchAuthTab(tab) {
   const loginTab = $("loginTab");
   const registerTab = $("registerTab");
   const loginForm = $("loginForm");
   const registerForm = $("registerForm");
-
-  if (!loginTab || !registerTab || !loginForm || !registerForm) return;
 
   if (tab === "login") {
     loginTab.classList.add("bg-white", "shadow", "text-slate-900");
@@ -456,31 +426,30 @@ function switchAuthTab(tab) {
   }
 }
 
-/* --------------------------------------------------------
- * 5. View Routing (yeni: .view.active + .nav-btn.active)
- * ------------------------------------------------------ */
+// --------------------------------------------------------
+// 5. View Routing
+// --------------------------------------------------------
 function showView(viewId) {
   const views = document.querySelectorAll(".view");
   views.forEach((v) => {
-    if (v.id === viewId) {
-      v.classList.add("active");
-      v.classList.remove("hidden");
-    } else {
-      v.classList.remove("active");
-      v.classList.add("hidden");
-    }
+    const isTarget = v.id === viewId;
+    v.classList.toggle("hidden", !isTarget);
+    v.classList.toggle("active", isTarget);
   });
 
-  const navButtons = document.querySelectorAll(".nav-btn[data-view]");
-  navButtons.forEach((btn) => {
+  document.querySelectorAll(".nav-btn[data-view]").forEach((btn) => {
     const target = btn.getAttribute("data-view");
     btn.classList.toggle("active", target === viewId);
   });
+
+  if (viewId === "notificationsView") {
+    markNotificationsAsRead();
+  }
 }
 
-/* --------------------------------------------------------
- * 6. Products
- * ------------------------------------------------------ */
+// --------------------------------------------------------
+// 6. Products
+// --------------------------------------------------------
 async function loadProducts() {
   const tbody = $("productsTableBody");
   const emptyMsg = $("productsEmpty");
@@ -492,27 +461,22 @@ async function loadProducts() {
 
   const snapshot = await getDocs(collection(db, "products"));
 
-  if (snapshot.empty) emptyMsg?.classList.remove("hidden");
-  else emptyMsg?.classList.add("hidden");
+  if (snapshot.empty) emptyMsg.classList.remove("hidden");
+  else emptyMsg.classList.add("hidden");
 
   snapshot.forEach((docSnap) => {
     const data = docSnap.data();
     const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td class="px-3 py-2">${data.code || ""}</td>
-      <td class="px-3 py-2">${data.name || ""}</td>
-      <td class="px-3 py-2">${data.unit || ""}</td>
-      <td class="px-3 py-2">${data.shelf || ""}</td>
-      <td class="px-3 py-2">${data.stock ?? 0}</td>
-      <td class="px-3 py-2 text-right space-x-1">
-        <button class="text-xs px-2 py-1 rounded bg-sky-100 text-sky-700 hover:bg-sky-200" data-edit="${docSnap.id}">
-          Düzenle
-        </button>
-        <button class="text-xs px-2 py-1 rounded bg-red-100 text-red-700 hover:bg-red-200" data-delete="${docSnap.id}">
-          Sil
-        </button>
-      </td>
-    `;
+    tr.innerHTML =
+      `<td class="px-3 py-2">${data.code || ""}</td>` +
+      `<td class="px-3 py-2">${data.name || ""}</td>` +
+      `<td class="px-3 py-2">${data.unit || ""}</td>` +
+      `<td class="px-3 py-2">${data.shelf || ""}</td>` +
+      `<td class="px-3 py-2">${data.stock ?? 0}</td>` +
+      `<td class="px-3 py-2 text-right space-x-1">
+        <button class="text-xs px-2 py-1 rounded bg-sky-100 text-sky-700 hover:bg-sky-200" data-edit="${docSnap.id}">Düzenle</button>
+        <button class="text-xs px-2 py-1 rounded bg-red-100 text-red-700 hover:bg-red-200" data-delete="${docSnap.id}">Sil</button>
+      </td>`;
     tbody.appendChild(tr);
 
     const opt = document.createElement("option");
@@ -534,8 +498,8 @@ async function loadProducts() {
 }
 
 async function openProductModal(productId = null) {
-  $("productModal")?.classList.remove("hidden");
-  $("productForm")?.reset();
+  $("productModal").classList.remove("hidden");
+  $("productForm").reset();
   $("productId").value = productId || "";
   $("productModalTitle").textContent = productId ? "Ürün Düzenle" : "Yeni Ürün";
 
@@ -555,7 +519,7 @@ async function openProductModal(productId = null) {
 }
 
 function closeProductModal() {
-  $("productModal")?.classList.add("hidden");
+  $("productModal").classList.add("hidden");
 }
 
 async function saveProduct(evt) {
@@ -597,9 +561,9 @@ async function deleteProduct(id) {
   loadProducts();
 }
 
-/* --------------------------------------------------------
- * 7. Stock Movements + locationStocks
- * ------------------------------------------------------ */
+// --------------------------------------------------------
+// 7. Stock Movements
+// --------------------------------------------------------
 async function loadStockMovements() {
   const container = $("stockMovementsList");
   const empty = $("stockMovementsEmpty");
@@ -617,35 +581,27 @@ async function loadStockMovements() {
     const typeLabel =
       d.type === "in" ? "Giriş" : d.type === "out" ? "Çıkış" : "Transfer";
 
+    const dateStr = formatDateTimeValue(d.createdAt);
+
     const div = document.createElement("div");
     div.className =
       "border border-slate-100 rounded-lg px-3 py-2 flex justify-between items-center";
-    div.innerHTML = `
-      <div>
+    div.innerHTML =
+      `<div>
         <p class="font-semibold text-slate-700 text-xs">${d.productName || "-"}</p>
         <p class="text-[11px] text-slate-500">
-          ${typeLabel} • ${d.qty} ${d.unit || ""} • ${d.sourceLocation || "-"} ➜ ${
-      d.targetLocation || "-"
-    }
+          ${typeLabel} • ${d.qty} ${d.unit || ""} • ${d.sourceLocation || "-"} ➜ ${d.targetLocation || "-"}
         </p>
       </div>
-      <span class="text-[11px] text-slate-400">
-        ${
-          d.createdAt?.toDate
-            ? d.createdAt.toDate().toLocaleString("tr-TR")
-            : ""
-        }
-      </span>
-    `;
+      <span class="text-[11px] text-slate-400">${dateStr}</span>`;
     container.appendChild(div);
     count++;
   });
 
-  if (count === 0) empty?.classList.remove("hidden");
-  else empty?.classList.add("hidden");
+  if (count === 0) empty.classList.remove("hidden");
+  else empty.classList.add("hidden");
 }
 
-// locationStocks helper
 async function adjustLocationStock({
   productId,
   productData,
@@ -796,14 +752,14 @@ async function saveStockMovement(evt) {
   }
 
   $("stockForm").reset();
-  await loadProducts();
-  await loadStockMovements();
+  loadProducts();
+  loadStockMovements();
   showGlobalAlert("Stok hareketi kaydedildi.", "success");
 }
 
-/* --------------------------------------------------------
- * 8. Orders (Şube Siparişleri)
- * ------------------------------------------------------ */
+// --------------------------------------------------------
+// 8. Orders
+// --------------------------------------------------------
 function createOrderItemRow(productsMap) {
   const row = document.createElement("div");
   row.className =
@@ -813,7 +769,8 @@ function createOrderItemRow(productsMap) {
   select.className =
     "col-span-2 rounded-lg border border-slate-300 px-2 py-1 text-xs";
   select.required = true;
-  select.innerHTML = `<option value="">Ürün seç</option>`;
+  select.innerHTML = '<option value="">Ürün seç</option>';
+
   productsMap.forEach((p, id) => {
     const opt = document.createElement("option");
     opt.value = id;
@@ -857,11 +814,10 @@ function createOrderItemRow(productsMap) {
 }
 
 async function prepareOrderModal() {
-  $("orderForm")?.reset();
+  $("orderForm").reset();
   const container = $("orderItemsContainer");
-  if (!container) return;
   container.innerHTML = "";
-  $("orderItemsEmpty")?.classList.remove("hidden");
+  $("orderItemsEmpty").classList.remove("hidden");
 
   const productsSnap = await getDocs(collection(db, "products"));
   const productsMap = new Map();
@@ -872,16 +828,16 @@ async function prepareOrderModal() {
   $("addOrderItemBtn").onclick = () => {
     const row = createOrderItemRow(productsMap);
     container.appendChild(row);
-    $("orderItemsEmpty")?.classList.add("hidden");
+    $("orderItemsEmpty").classList.add("hidden");
   };
 }
 
 function openOrderModal() {
-  $("orderModal")?.classList.remove("hidden");
+  $("orderModal").classList.remove("hidden");
 }
 
 function closeOrderModal() {
-  $("orderModal")?.classList.add("hidden");
+  $("orderModal").classList.add("hidden");
 }
 
 async function saveOrder(evt) {
@@ -895,7 +851,7 @@ async function saveOrder(evt) {
     showGlobalAlert("Şube adı zorunludur.");
     return;
   }
-  if (!container || container.children.length === 0) {
+  if (container.children.length === 0) {
     showGlobalAlert("En az bir ürün satırı eklemelisin.");
     return;
   }
@@ -944,7 +900,6 @@ async function saveOrder(evt) {
     createdBy: currentUser?.uid || null,
     createdByEmail: currentUser?.email || null,
     assignedTo: null,
-    assignedToEmail: null,
   };
 
   const orderRef = await addDoc(collection(db, "orders"), orderPayload);
@@ -960,8 +915,13 @@ async function saveOrder(evt) {
   showGlobalAlert("Sipariş kaydedildi.", "success");
   await loadOrders();
   await loadPickingOrders();
+  await updateDashboardCounts();
+  await updateReportSummary();
 }
 
+// --------------------------------------------------------
+// 8.1 Orders list
+// --------------------------------------------------------
 async function loadOrders() {
   const tbody = $("ordersTableBody");
   const empty = $("ordersEmpty");
@@ -974,7 +934,7 @@ async function loadOrders() {
 
   let hasAny = false;
 
-  for (const docSnap of qSnap.docs) {
+  qSnap.forEach((docSnap) => {
     hasAny = true;
     const d = docSnap.data();
     const statusLabel =
@@ -986,38 +946,29 @@ async function loadOrders() {
         ? "Toplanıyor"
         : "Tamamlandı";
 
+    const createdStr = formatDateTimeValue(d.createdAt);
+
     const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td class="px-3 py-2">${docSnap.id.slice(-6)}</td>
-      <td class="px-3 py-2">${d.branchName || "-"}</td>
-      <td class="px-3 py-2">${statusLabel}</td>
-      <td class="px-3 py-2 text-xs">${d.assignedToEmail || "-"}</td>
-      <td class="px-3 py-2 text-xs">
-        ${
-          d.createdAt?.toDate
-            ? d.createdAt.toDate().toLocaleString("tr-TR")
-            : ""
-        }
-      </td>
-      <td class="px-3 py-2 text-right space-x-1">
-        <button class="text-xs px-2 py-1 rounded bg-sky-100 text-sky-700 hover:bg-sky-200" data-detail="${
-          docSnap.id
-        }">Detay</button>
+    tr.innerHTML =
+      `<td class="px-3 py-2">${docSnap.id.slice(-6)}</td>` +
+      `<td class="px-3 py-2">${d.branchName || "-"}</td>` +
+      `<td class="px-3 py-2">${statusLabel}</td>` +
+      `<td class="px-3 py-2 text-xs">${d.assignedToEmail || "-"}</td>` +
+      `<td class="px-3 py-2 text-xs">${createdStr}</td>` +
+      `<td class="px-3 py-2 text-right space-x-1">
+        <button class="text-xs px-2 py-1 rounded bg-sky-100 text-sky-700 hover:bg-sky-200" data-detail="${docSnap.id}">Detay</button>
         ${
           currentUserProfile?.role === "manager" ||
           currentUserProfile?.role === "admin"
-            ? `<button class="text-xs px-2 py-1 rounded bg-emerald-100 text-emerald-700 hover:bg-emerald-200" data-assign="${docSnap.id}">
-                Toplayıcı Ata
-              </button>`
+            ? `<button class="text-xs px-2 py-1 rounded bg-emerald-100 text-emerald-700 hover:bg-emerald-200" data-assign="${docSnap.id}">Toplayıcı Ata</button>`
             : ""
         }
-      </td>
-    `;
+      </td>`;
     tbody.appendChild(tr);
-  }
+  });
 
-  if (!hasAny) empty?.classList.remove("hidden");
-  else empty?.classList.add("hidden");
+  if (!hasAny) empty.classList.remove("hidden");
+  else empty.classList.add("hidden");
 
   await updateDashboardCounts();
   await updateReportSummary();
@@ -1068,14 +1019,14 @@ async function assignOrderToPicker(orderId) {
     status: "assigned",
   });
 
+  const orderShort = orderId.slice(-6);
+
   await createNotification({
     userId: picker.id,
     type: "orderAssigned",
     orderId,
     title: "Yeni sipariş atandı",
-    message: `${orderId.slice(-6)} no'lu (${
-      orderData.branchName || "-"
-    }) siparişi sana atandı.`,
+    message: `${orderShort} no'lu (${orderData.branchName || "-"}) siparişi sana atandı.`,
   });
 
   if (orderData.createdBy) {
@@ -1084,7 +1035,7 @@ async function assignOrderToPicker(orderId) {
       type: "orderStatus",
       orderId,
       title: "Sipariş durumu güncellendi",
-      message: `${orderId.slice(-6)} no'lu sipariş toplayıcıya atandı.`,
+      message: `${orderShort} no'lu sipariş toplayıcıya atandı.`,
     });
   }
 
@@ -1093,24 +1044,26 @@ async function assignOrderToPicker(orderId) {
   await loadPickingOrders();
 }
 
-/* --------------------------------------------------------
- * 9. Picking (Toplayıcı Ekranı + Rota)
- * ------------------------------------------------------ */
+// --------------------------------------------------------
+// 9. Picking
+// --------------------------------------------------------
 async function loadPickingOrders() {
   const tbody = $("pickingTableBody");
   const empty = $("pickingEmpty");
-  if (!tbody || !currentUser) return;
+  if (!tbody) return;
   tbody.innerHTML = "";
 
+  if (!currentUser || !currentUserProfile) return;
+
   let qRef;
-  if (currentUserProfile?.role === "picker") {
+  if (currentUserProfile.role === "picker") {
     qRef = query(
       collection(db, "orders"),
       where("assignedTo", "==", currentUser.uid)
     );
   } else if (
-    currentUserProfile?.role === "manager" ||
-    currentUserProfile?.role === "admin"
+    currentUserProfile.role === "manager" ||
+    currentUserProfile.role === "admin"
   ) {
     qRef = collection(db, "orders");
   } else {
@@ -1123,7 +1076,7 @@ async function loadPickingOrders() {
   const qSnap = await getDocs(qRef);
   let hasAny = false;
 
-  for (const docSnap of qSnap.docs) {
+  qSnap.forEach((docSnap) => {
     const d = docSnap.data();
     const statusLabel =
       d.status === "open"
@@ -1136,22 +1089,19 @@ async function loadPickingOrders() {
 
     hasAny = true;
     const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td class="px-3 py-2">${docSnap.id.slice(-6)}</td>
-      <td class="px-3 py-2">${d.branchName || "-"}</td>
-      <td class="px-3 py-2">${statusLabel}</td>
-      <td class="px-3 py-2 text-xs">${d.assignedToEmail || "-"}</td>
-      <td class="px-3 py-2 text-right">
-        <button class="text-xs px-2 py-1 rounded bg-sky-100 text-sky-700 hover:bg-sky-200" data-pick="${
-          docSnap.id
-        }">Topla</button>
-      </td>
-    `;
+    tr.innerHTML =
+      `<td class="px-3 py-2">${docSnap.id.slice(-6)}</td>` +
+      `<td class="px-3 py-2">${d.branchName || "-"}</td>` +
+      `<td class="px-3 py-2">${statusLabel}</td>` +
+      `<td class="px-3 py-2 text-xs">${d.assignedToEmail || "-"}</td>` +
+      `<td class="px-3 py-2 text-right">
+        <button class="text-xs px-2 py-1 rounded bg-sky-100 text-sky-700 hover:bg-sky-200" data-pick="${docSnap.id}">Topla</button>
+      </td>`;
     tbody.appendChild(tr);
-  }
+  });
 
-  if (!hasAny) empty?.classList.remove("hidden");
-  else empty?.classList.add("hidden");
+  if (!hasAny) empty.classList.remove("hidden");
+  else empty.classList.add("hidden");
 }
 
 async function openPickingDetailModal(orderId, fromPicking) {
@@ -1208,90 +1158,89 @@ async function openPickingDetailModal(orderId, fromPicking) {
     itemsWithLoc.map((it) => it.locationCode || "Lokasyon yok")
   ).size;
 
-  const headerHtml = `
-    <div class="border border-slate-200 rounded-lg p-3 text-xs">
-      <p><span class="font-semibold">Şube:</span> ${orderData.branchName || "-"}</p>
-      <p><span class="font-semibold">Belge No:</span> ${
-        orderData.documentNo || "-"
-      }</p>
-      <p><span class="font-semibold">Durum:</span> ${orderData.status || "-"}</p>
-      <p><span class="font-semibold">Toplayıcı:</span> ${
-        orderData.assignedToEmail || "-"
-      }</p>
-      <p class="mt-1 text-[11px] text-slate-600">
-        🔁 Toplama rotası: ${uniqueLocations} lokasyonda ${totalLines} kalem, toplam ${totalQty} birim.
-      </p>
-      <p class="mt-1 text-[11px] text-amber-700">
-        ${
-          itemsWithLoc.some((it) => it.locationShortage)
-            ? "⚠ Bazı lokasyonlarda istenen miktardan az stok var (kırmızı satırlar)."
-            : ""
-        }
-      </p>
-    </div>
-  `;
+  const orderStatus = orderData.status || "-";
+  const orderPicker = orderData.assignedToEmail || "-";
+  const orderDocNo = orderData.documentNo || "-";
+  const orderBranch = orderData.branchName || "-";
+
+  const hasShortage = itemsWithLoc.some((it) => it.locationShortage);
+
+  let shortageText = "";
+  if (hasShortage) {
+    shortageText =
+      "⚠ Bazı lokasyonlarda istenen miktardan az stok var (kırmızı satırlar).";
+  }
+
+  const headerHtml =
+    '<div class="border border-slate-200 rounded-lg p-3 text-xs">' +
+    `<p><span class="font-semibold">Şube:</span> ${orderBranch}</p>` +
+    `<p><span class="font-semibold">Belge No:</span> ${orderDocNo}</p>` +
+    `<p><span class="font-semibold">Durum:</span> ${orderStatus}</p>` +
+    `<p><span class="font-semibold">Toplayıcı:</span> ${orderPicker}</p>` +
+    `<p class="mt-1 text-[11px] text-slate-600">🔁 Toplama rotası: ${uniqueLocations} lokasyonda ${totalLines} kalem, toplam ${totalQty} birim.</p>` +
+    `<p class="mt-1 text-[11px] text-amber-700">${shortageText}</p>` +
+    "</div>";
 
   const rowsHtml = itemsWithLoc
     .map((it, index) => {
       const shortage = it.locationShortage;
-      const shortageBadge = shortage
-        ? `<span class="ml-1 inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-red-100 text-red-700">Eksik</span>`
-        : "";
       const rowClass = shortage ? "bg-red-50" : "";
-      return `
-      <tr class="border-b border-slate-100 ${rowClass}">
-        <td class="px-2 py-1 text-xs">${index + 1}</td>
-        <td class="px-2 py-1 text-xs">${it.locationCode || "-"}</td>
-        <td class="px-2 py-1 text-xs">${it.productCode || ""}</td>
-        <td class="px-2 py-1 text-xs">${it.productName || ""}</td>
-        <td class="px-2 py-1 text-xs">
-          ${it.qty} ${it.unit || ""} 
-          <span class="text-[10px] text-slate-500">(Lokasyondaki: ${
-            it.locationAvailableQty ?? "-"
-          })</span>
-          ${shortageBadge}
-        </td>
-        <td class="px-2 py-1 text-xs">
-          ${
-            fromPicking
-              ? `<input type="number" min="0" value="${
-                  it.pickedQty ?? it.qty
-                }" data-item="${it.id}" class="w-20 border border-slate-300 rounded px-1 py-0.5 text-xs" />`
-              : `${it.pickedQty ?? 0}`
-          }
-        </td>
-        <td class="px-2 py-1 text-xs">${it.note || ""}</td>
-      </tr>
-    `;
+      const shortageBadge = shortage
+        ? '<span class="ml-1 inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-red-100 text-red-700">Eksik</span>'
+        : "";
+      const availableStr =
+        it.locationAvailableQty === null || it.locationAvailableQty === undefined
+          ? "-"
+          : String(it.locationAvailableQty);
+
+      const pickedInput = fromPicking
+        ? `<input type="number" min="0" value="${
+            it.pickedQty ?? it.qty
+          }" data-item="${
+            it.id
+          }" class="w-20 border border-slate-300 rounded px-1 py-0.5 text-xs" />`
+        : `${it.pickedQty ?? 0}`;
+
+      return (
+        `<tr class="border-b border-slate-100 ${rowClass}">` +
+        `<td class="px-2 py-1 text-xs">${index + 1}</td>` +
+        `<td class="px-2 py-1 text-xs">${it.locationCode || "-"}</td>` +
+        `<td class="px-2 py-1 text-xs">${it.productCode || ""}</td>` +
+        `<td class="px-2 py-1 text-xs">${it.productName || ""}</td>` +
+        `<td class="px-2 py-1 text-xs">${it.qty} ${
+          it.unit || ""
+        } <span class="text-[10px] text-slate-500">(Lokasyondaki: ${availableStr})</span>${shortageBadge}</td>` +
+        `<td class="px-2 py-1 text-xs">${pickedInput}</td>` +
+        `<td class="px-2 py-1 text-xs">${it.note || ""}</td>` +
+        "</tr>"
+      );
     })
     .join("");
 
-  const tableHtml = `
-    <div class="mt-3 border border-slate-200 rounded-lg overflow-hidden">
-      <table class="min-w-full text-xs">
-        <thead class="bg-slate-50">
-          <tr>
-            <th class="px-2 py-1 text-left">#</th>
-            <th class="px-2 py-1 text-left">Lokasyon</th>
-            <th class="px-2 py-1 text-left">Kod</th>
-            <th class="px-2 py-1 text-left">Ürün</th>
-            <th class="px-2 py-1 text-left">İstenen</th>
-            <th class="px-2 py-1 text-left">Toplanan</th>
-            <th class="px-2 py-1 text-left">Not</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${
-            rowsHtml ||
-            `<tr><td colspan="7" class="px-2 py-2 text-center text-slate-400">Kalem yok.</td></tr>`
-          }
-        </tbody>
-      </table>
-    </div>
-  `;
+  const tableHtml =
+    '<div class="mt-3 border border-slate-200 rounded-lg overflow-hidden">' +
+    '<table class="min-w-full text-xs">' +
+    "<thead class=\"bg-slate-50\">" +
+    "<tr>" +
+    '<th class="px-2 py-1 text-left">#</th>' +
+    '<th class="px-2 py-1 text-left">Lokasyon</th>' +
+    '<th class="px-2 py-1 text-left">Kod</th>' +
+    '<th class="px-2 py-1 text-left">Ürün</th>' +
+    '<th class="px-2 py-1 text-left">İstenen</th>' +
+    '<th class="px-2 py-1 text-left">Toplanan</th>' +
+    '<th class="px-2 py-1 text-left">Not</th>' +
+    "</tr>" +
+    "</thead>" +
+    "<tbody>" +
+    (rowsHtml ||
+      '<tr><td colspan="7" class="px-2 py-2 text-center text-slate-400">Kalem yok.</td></tr>') +
+    "</tbody>" +
+    "</table>" +
+    "</div>";
 
   container.innerHTML = headerHtml + tableHtml;
-  $("pickingDetailModal")?.classList.remove("hidden");
+  const modal = $("pickingDetailModal");
+  if (modal) modal.classList.remove("hidden");
 
   const completeBtn = $("completePickingBtn");
   if (completeBtn) {
@@ -1302,7 +1251,8 @@ async function openPickingDetailModal(orderId, fromPicking) {
 }
 
 function closePickingDetailModal() {
-  $("pickingDetailModal")?.classList.add("hidden");
+  const modal = $("pickingDetailModal");
+  if (modal) modal.classList.add("hidden");
   pickingDetailOrderId = null;
   pickingDetailItems = [];
   pickingDetailOrderDoc = null;
@@ -1369,29 +1319,19 @@ async function completePicking() {
       totalQty,
       completedAt: serverTimestamp(),
     });
-  } catch (err) {
-    console.error("pickingLogs yazılırken hata:", err);
-  }
 
-  try {
-    const orderData =
-      pickingDetailOrderDoc && pickingDetailOrderDoc.data
-        ? pickingDetailOrderDoc.data()
-        : {};
-
+    const orderShort = pickingDetailOrderId.slice(-6);
     if (orderData.createdBy) {
       await createNotification({
         userId: orderData.createdBy,
         type: "orderCompleted",
         orderId: pickingDetailOrderId,
         title: "Sipariş tamamlandı",
-        message: `${pickingDetailOrderId.slice(
-          -6
-        )} no'lu siparişin toplanması tamamlandı.`,
+        message: `${orderShort} no'lu siparişin toplanması tamamlandı.`,
       });
     }
   } catch (err) {
-    console.error("Sipariş tamamlandı bildirimi hata:", err);
+    console.error("Sipariş tamamlandı bildirimi / pickingLogs hata:", err);
   }
 
   closePickingDetailModal();
@@ -1401,9 +1341,9 @@ async function completePicking() {
   await updatePickerDashboardStats();
 }
 
-/* --------------------------------------------------------
- * 9.1 Araç Yükleme & Sevk (pallets)
- * ------------------------------------------------------ */
+// --------------------------------------------------------
+// 9.1 Araç Yükleme (pallets)
+// --------------------------------------------------------
 async function loadLoadingTasks() {
   const tbody = $("loadingTasksTableBody");
   const empty = $("loadingTasksEmpty");
@@ -1413,20 +1353,16 @@ async function loadLoadingTasks() {
 
   tbody.innerHTML = "";
 
-  let baseRef = collection(db, "pallets");
+  let qRef = collection(db, "pallets");
 
-  let qRef;
   if (statusFilter && statusFilter.value && statusFilter.value !== "all") {
     qRef = query(
-      baseRef,
-      where("status", "==", statusFilter.value),
-      orderBy("createdAt", "desc")
+      collection(db, "pallets"),
+      where("status", "==", statusFilter.value)
     );
-  } else {
-    qRef = query(baseRef, orderBy("createdAt", "desc"));
   }
 
-  const snap = await getDocs(qRef);
+  const snap = await getDocs(query(qRef, orderBy("createdAt", "desc")));
 
   let hasAny = false;
   let waitingCount = 0;
@@ -1456,56 +1392,34 @@ async function loadLoadingTasks() {
         ? "Yükleniyor"
         : "Yüklendi";
 
+    const loadedTime = d.loadedAt ? formatTimeValue(d.loadedAt) : "-";
+
     const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td class="px-2 py-1">${d.shipmentNo || d.shipmentId || "-"}</td>
-      <td class="px-2 py-1 hidden sm:table-cell">${d.branchName || "-"}</td>
-      <td class="px-2 py-1">${d.palletNo || "-"}</td>
-      <td class="px-2 py-1 hidden md:table-cell">${d.dockLocationId || "-"}</td>
-      <td class="px-2 py-1">${statusLabel}</td>
-      <td class="px-2 py-1 hidden md:table-cell">${d.loadedByEmail || "-"}</td>
-      <td class="px-2 py-1 hidden md:table-cell">
-        ${
-          d.loadedAt?.toDate
-            ? d.loadedAt
-                .toDate()
-                .toLocaleTimeString("tr-TR", {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })
-            : "-"
-        }
-      </td>
-      <td class="px-2 py-1 text-right space-x-1">
-        ${
-          d.status !== "loaded"
-            ? `
-          <button
-            class="text-[11px] px-2 py-1 rounded bg-amber-100 text-amber-800 hover:bg-amber-200"
-            data-loading-start="${docSnap.id}">
-            Yüklemeye Başla
-          </button>
-          <button
-            class="text-[11px] px-2 py-1 rounded bg-emerald-100 text-emerald-800 hover:bg-emerald-200"
-            data-loading-complete="${docSnap.id}">
-            Yüklendi
-          </button>
-          `
-            : ""
-        }
-      </td>
-    `;
+    tr.innerHTML =
+      `<td class="px-2 py-1">${d.shipmentNo || d.shipmentId || "-"}</td>` +
+      `<td class="px-2 py-1 hidden sm:table-cell">${d.branchName || "-"}</td>` +
+      `<td class="px-2 py-1">${d.palletNo || "-"}</td>` +
+      `<td class="px-2 py-1 hidden md:table-cell">${d.dockLocationId || "-"}</td>` +
+      `<td class="px-2 py-1">${statusLabel}</td>` +
+      `<td class="px-2 py-1 hidden md:table-cell">${d.loadedByEmail || "-"}</td>` +
+      `<td class="px-2 py-1 hidden md:table-cell">${loadedTime}</td>` +
+      `<td class="px-2 py-1 text-right space-x-1">${
+        d.status !== "loaded"
+          ? `
+          <button class="text-[11px] px-2 py-1 rounded bg-amber-100 text-amber-800 hover:bg-amber-200" data-loading-start="${docSnap.id}">Yüklemeye Başla</button>
+          <button class="text-[11px] px-2 py-1 rounded bg-emerald-100 text-emerald-800 hover:bg-emerald-200" data-loading-complete="${docSnap.id}">Yüklendi</button>`
+          : ""
+      }</td>`;
     tbody.appendChild(tr);
   });
 
-  if (!hasAny) empty?.classList.remove("hidden");
-  else empty?.classList.add("hidden");
+  if (!hasAny) empty.classList.remove("hidden");
+  else empty.classList.add("hidden");
 
   const waitingEl = $("loadingWaitingSummary");
   const todayEl = $("loadingTodaySummary");
   if (waitingEl) waitingEl.textContent = `${waitingCount} palet bekliyor.`;
-  if (todayEl)
-    todayEl.textContent = `Bugün ${todayLoadedCount} palet yüklendi.`;
+  if (todayEl) todayEl.textContent = `Bugün ${todayLoadedCount} palet yüklendi.`;
 }
 
 async function setLoadingTaskStatus(taskId, newStatus) {
@@ -1538,56 +1452,9 @@ async function setLoadingTaskStatus(taskId, newStatus) {
   }
 }
 
-/* --------------------------------------------------------
- * 9.2 Shipments (sevkiyat listesi – basit)
- * ------------------------------------------------------ */
-async function loadShipments() {
-  const listEl = $("shipmentsList");
-  const emptyEl = $("shipmentsEmpty");
-  if (!listEl) return;
-
-  listEl.innerHTML = "";
-
-  const snap = await getDocs(
-    query(collection(db, "shipments"), orderBy("createdAt", "desc"))
-  );
-  if (snap.empty) {
-    emptyEl?.classList.remove("hidden");
-    return;
-  }
-  emptyEl?.classList.add("hidden");
-
-  snap.forEach((docSnap) => {
-    const d = docSnap.data();
-    const li = document.createElement("li");
-    li.className =
-      "text-[11px] border border-slate-200 rounded-lg px-2 py-1 flex justify-between items-center";
-    li.innerHTML = `
-      <span>
-        <span class="font-semibold text-slate-200">${d.shipmentNo ||
-          docSnap.id.slice(-6)}</span>
-        <span class="text-slate-400 ml-1">• ${d.branchName || "-"}</span>
-      </span>
-      <span class="text-slate-500">
-        ${
-          d.status || "planlandı"
-        } • ${
-      d.createdAt?.toDate
-        ? d.createdAt.toDate().toLocaleString("tr-TR", {
-            hour: "2-digit",
-            minute: "2-digit",
-          })
-        : ""
-    }
-      </span>
-    `;
-    listEl.appendChild(li);
-  });
-}
-
-/* --------------------------------------------------------
- * 10. Dashboard & Reports
- * ------------------------------------------------------ */
+// --------------------------------------------------------
+// 10. Dashboard & Reports
+// --------------------------------------------------------
 async function updateDashboardCounts() {
   const ordersSnap = await getDocs(collection(db, "orders"));
   let open = 0;
@@ -1604,10 +1471,10 @@ async function updateDashboardCounts() {
   const productsSnap = await getDocs(collection(db, "products"));
   const totalProducts = productsSnap.size;
 
-  $("cardTotalProducts").textContent = totalProducts;
-  $("cardOpenOrders").textContent = open;
-  $("cardPickingOrders").textContent = picking;
-  $("cardCompletedOrders").textContent = completed;
+  $("cardTotalProducts").textContent = String(totalProducts);
+  $("cardOpenOrders").textContent = String(open);
+  $("cardPickingOrders").textContent = String(picking);
+  $("cardCompletedOrders").textContent = String(completed);
 }
 
 async function updateReportSummary() {
@@ -1627,7 +1494,6 @@ async function updateReportSummary() {
   $("reportCompletedOrders").textContent = `Tamamlanan sipariş: ${completedOrders}`;
 }
 
-// Picker günlük performans
 async function updatePickerDashboardStats() {
   if (!currentUser) return;
 
@@ -1672,309 +1538,9 @@ async function updatePickerDashboardStats() {
   }
 }
 
-/* --------------------------------------------------------
- * 11. Locations (Lokasyon Yönetimi)
- * ------------------------------------------------------ */
-async function loadLocations() {
-  const tbody = $("locationsTableBody");
-  const empty = $("locationsEmpty");
-  if (!tbody) return;
-  tbody.innerHTML = "";
-
-  const snap = await getDocs(
-    query(collection(db, "locations"), orderBy("code", "asc"))
-  );
-
-  if (snap.empty) {
-    empty?.classList.remove("hidden");
-    return;
-  }
-  empty?.classList.add("hidden");
-
-  snap.forEach((docSnap) => {
-    const d = docSnap.data();
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td class="px-3 py-2 text-xs">${d.code || ""}</td>
-      <td class="px-3 py-2 text-xs">${d.name || ""}</td>
-      <td class="px-3 py-2 text-xs">${d.area || ""}</td>
-      <td class="px-3 py-2 text-xs">${d.type || ""}</td>
-      <td class="px-3 py-2 text-xs">${d.capacity ?? "-"}</td>
-      <td class="px-3 py-2 text-right text-xs space-x-1">
-        <button class="px-2 py-1 rounded bg-sky-100 text-sky-700 hover:bg-sky-200" data-loc-edit="${docSnap.id}">
-          Düzenle
-        </button>
-        <button class="px-2 py-1 rounded bg-red-100 text-red-700 hover:bg-red-200" data-loc-del="${docSnap.id}">
-          Sil
-        </button>
-      </td>
-    `;
-    tbody.appendChild(tr);
-  });
-
-  tbody.querySelectorAll("button[data-loc-edit]").forEach((btn) => {
-    btn.addEventListener("click", () =>
-      openLocationModal(btn.getAttribute("data-loc-edit"))
-    );
-  });
-  tbody.querySelectorAll("button[data-loc-del]").forEach((btn) => {
-    btn.addEventListener("click", () =>
-      deleteLocation(btn.getAttribute("data-loc-del"))
-    );
-  });
-}
-
-async function openLocationModal(id = null) {
-  $("locationModal")?.classList.remove("hidden");
-  $("locationForm")?.reset();
-  $("locationId").value = id || "";
-  $("locationModalTitle").textContent = id ? "Lokasyon Düzenle" : "Yeni Lokasyon";
-
-  if (id) {
-    const ref = doc(db, "locations", id);
-    const snap = await getDoc(ref);
-    if (snap.exists()) {
-      const d = snap.data();
-      $("locationCode").value = d.code || "";
-      $("locationName").value = d.name || "";
-      $("locationArea").value = d.area || "";
-      $("locationType").value = d.type || "shelf";
-      $("locationCapacity").value = d.capacity ?? "";
-    }
-  }
-}
-
-function closeLocationModal() {
-  $("locationModal")?.classList.add("hidden");
-}
-
-async function saveLocation(evt) {
-  evt.preventDefault();
-  const id = $("locationId").value || null;
-  const code = $("locationCode").value.trim();
-  const name = $("locationName").value.trim();
-  const area = $("locationArea").value.trim();
-  const type = $("locationType").value;
-  const capacity = Number($("locationCapacity").value || 0);
-
-  if (!code) {
-    showGlobalAlert("Lokasyon kodu zorunludur.");
-    return;
-  }
-
-  const payload = {
-    code,
-    name,
-    area,
-    type,
-    capacity: capacity || null,
-    updatedAt: serverTimestamp(),
-  };
-
-  if (!id) {
-    payload.createdAt = serverTimestamp();
-    await addDoc(collection(db, "locations"), payload);
-  } else {
-    await updateDoc(doc(db, "locations", id), payload);
-  }
-
-  closeLocationModal();
-  showGlobalAlert("Lokasyon kaydedildi.", "success");
-  await loadLocations();
-}
-
-async function deleteLocation(id) {
-  if (!confirm("Bu lokasyonu silmek istediğine emin misin?")) return;
-  await deleteDoc(doc(db, "locations", id));
-  showGlobalAlert("Lokasyon silindi.", "success");
-  await loadLocations();
-}
-
-/* --------------------------------------------------------
- * 12. Inbound (Mal Kabul & QC)
- * ------------------------------------------------------ */
-async function loadInbound() {
-  const tbody = $("inboundTableBody");
-  const empty = $("inboundEmpty");
-  if (!tbody) return;
-  tbody.innerHTML = "";
-
-  const snap = await getDocs(
-    query(collection(db, "inbound"), orderBy("createdAt", "desc"))
-  );
-
-  if (snap.empty) {
-    empty?.classList.remove("hidden");
-    return;
-  }
-  empty?.classList.add("hidden");
-
-  snap.forEach((docSnap) => {
-    const d = docSnap.data();
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td class="px-3 py-2 text-xs">${docSnap.id.slice(-6)}</td>
-      <td class="px-3 py-2 text-xs">${
-        d.supplierName || d.branchName || "-"
-      }</td>
-      <td class="px-3 py-2 text-xs">${d.status || "Kayıt"}</td>
-      <td class="px-3 py-2 text-xs">
-        ${
-          d.createdAt?.toDate
-            ? d.createdAt.toDate().toLocaleString("tr-TR")
-            : ""
-        }
-      </td>
-      <td class="px-3 py-2 text-right text-xs">
-        <button class="px-2 py-1 rounded bg-sky-100 text-sky-700 hover:bg-sky-200" data-inb-detail="${docSnap.id}">
-          Detay
-        </button>
-      </td>
-    `;
-    tbody.appendChild(tr);
-  });
-
-  tbody.querySelectorAll("button[data-inb-detail]").forEach((btn) => {
-    btn.addEventListener("click", () =>
-      openInboundDetailModal(btn.getAttribute("data-inb-detail"))
-    );
-  });
-}
-
-async function saveInbound(evt) {
-  evt.preventDefault();
-
-  const supplierName = $("inboundSupplierName").value.trim();
-  const branchName = $("inboundBranchName").value.trim();
-  const receiptNo = $("inboundReceiptNo").value.trim();
-  const refType = $("inboundRefType").value;
-  const note = $("inboundNote").value.trim();
-
-  const payload = {
-    supplierName: supplierName || null,
-    branchName: branchName || null,
-    receiptNo: receiptNo || null,
-    refType,
-    note: note || null,
-    status: "created",
-    createdAt: serverTimestamp(),
-    createdBy: currentUser?.uid || null,
-    createdByEmail: currentUser?.email || null,
-  };
-
-  await addDoc(collection(db, "inbound"), payload);
-
-  $("inboundForm").reset();
-  $("inboundModal")?.classList.add("hidden");
-  showGlobalAlert("Mal kabul kaydedildi.", "success");
-  await loadInbound();
-}
-
-function openInboundModal() {
-  $("inboundForm")?.reset();
-  $("inboundModal")?.classList.remove("hidden");
-}
-
-function closeInboundModal() {
-  $("inboundModal")?.classList.add("hidden");
-}
-
-async function openInboundDetailModal(id) {
-  const container = $("inboundDetailContent");
-  if (!container) return;
-
-  const ref = doc(db, "inbound", id);
-  const snap = await getDoc(ref);
-  if (!snap.exists()) {
-    showGlobalAlert("Mal kabul kaydı bulunamadı.");
-    return;
-  }
-
-  const d = snap.data();
-  container.innerHTML = `
-    <div class="text-xs space-y-1">
-      <p><span class="font-semibold">Tedarikçi:</span> ${d.supplierName || "-"}</p>
-      <p><span class="font-semibold">Şube:</span> ${d.branchName || "-"}</p>
-      <p><span class="font-semibold">Belge No:</span> ${d.receiptNo || "-"}</p>
-      <p><span class="font-semibold">Tip:</span> ${d.refType || "-"}</p>
-      <p><span class="font-semibold">Durum:</span> ${d.status || "-"}</p>
-      <p><span class="font-semibold">Not:</span> ${d.note || "-"}</p>
-      <p class="text-[11px] text-slate-500 mt-1">
-        ${
-          d.createdAt?.toDate
-            ? "Oluşturma: " +
-              d.createdAt.toDate().toLocaleString("tr-TR")
-            : ""
-        }
-      </p>
-    </div>
-  `;
-
-  $("inboundDetailModal")?.classList.remove("hidden");
-}
-
-function closeInboundDetailModal() {
-  $("inboundDetailModal")?.classList.add("hidden");
-}
-
-/* --------------------------------------------------------
- * 13. Work Orders View (okuma)
- * ------------------------------------------------------ */
-async function loadWorkOrders() {
-  const tbody = $("workOrdersTableBody");
-  if (!tbody) return;
-
-  tbody.innerHTML = `
-    <tr>
-      <td colspan="6" class="px-3 py-3 text-center text-[11px] text-slate-400">
-        Yükleniyor...
-      </td>
-    </tr>
-  `;
-
-  const snap = await getDocs(
-    query(collection(db, "workOrders"), orderBy("createdAt", "desc"))
-  );
-
-  if (snap.empty) {
-    tbody.innerHTML = `
-      <tr>
-        <td colspan="6" class="px-3 py-3 text-center text-[11px] text-slate-400">
-          Work order bulunamadı.
-        </td>
-      </tr>
-    `;
-    return;
-  }
-
-  tbody.innerHTML = "";
-  snap.forEach((docSnap) => {
-    const d = docSnap.data();
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td class="px-3 py-2 text-[11px]">${docSnap.id.slice(-6)}</td>
-      <td class="px-3 py-2 text-[11px]">${d.type || "-"}</td>
-      <td class="px-3 py-2 text-[11px]">${d.status || "-"}</td>
-      <td class="px-3 py-2 text-[11px]">${d.branchName || "-"}</td>
-      <td class="px-3 py-2 text-[11px]">${d.assignedToEmail || "-"}</td>
-      <td class="px-3 py-2 text-[11px]">
-        ${
-          d.createdAt?.toDate
-            ? d.createdAt.toDate().toLocaleString("tr-TR", {
-                hour: "2-digit",
-                minute: "2-digit",
-              })
-            : ""
-        }
-      </td>
-    `;
-    tbody.appendChild(tr);
-  });
-}
-
-/* --------------------------------------------------------
- * 14. Auth Handlers
- * ------------------------------------------------------ */
+// --------------------------------------------------------
+// 11. Auth Handlers + State
+// --------------------------------------------------------
 async function handleRegister(evt) {
   evt.preventDefault();
   const fullName = $("registerName").value.trim();
@@ -2015,9 +1581,6 @@ async function handleLogout() {
   await signOut(auth);
 }
 
-/* --------------------------------------------------------
- * 15. Auth State
- * ------------------------------------------------------ */
 onAuthStateChanged(auth, async (user) => {
   currentUser = user;
 
@@ -2027,8 +1590,8 @@ onAuthStateChanged(auth, async (user) => {
       notificationsUnsub = null;
     }
 
-    $("authSection")?.classList.remove("hidden");
-    $("appSection")?.classList.add("hidden");
+    $("authSection").classList.remove("hidden");
+    $("appSection").classList.add("hidden");
     showAuthMessage("");
     currentUserProfile = null;
     setCurrentUserInfo(null, null);
@@ -2054,10 +1617,10 @@ onAuthStateChanged(auth, async (user) => {
   setRoleBadge(currentUserProfile.role);
   setupRoleBasedUI(currentUserProfile);
 
-  $("authSection")?.classList.add("hidden");
-  $("appSection")?.classList.remove("hidden");
-
+  $("authSection").classList.add("hidden");
+  $("appSection").classList.remove("hidden");
   showView("dashboardView");
+
   startNotificationListener();
 
   await loadProducts();
@@ -2065,31 +1628,25 @@ onAuthStateChanged(auth, async (user) => {
   await loadOrders();
   await loadPickingOrders();
   await loadLoadingTasks();
-  await loadLocations();
-  await loadInbound();
-  await loadShipments();
-  await loadWorkOrders();
   await updateDashboardCounts();
   await updateReportSummary();
   await updatePickerDashboardStats();
 });
 
-/* --------------------------------------------------------
- * 16. DOM Ready & Events
- * ------------------------------------------------------ */
+// --------------------------------------------------------
+// 12. DOM Ready & Events
+// --------------------------------------------------------
 document.addEventListener("DOMContentLoaded", () => {
-  $("loginTab")?.addEventListener("click", () => switchAuthTab("login"));
-  $("registerTab")?.addEventListener("click", () => switchAuthTab("register"));
+  $("loginTab").addEventListener("click", () => switchAuthTab("login"));
+  $("registerTab").addEventListener("click", () => switchAuthTab("register"));
 
-  $("registerForm")?.addEventListener("submit", handleRegister);
-  $("loginForm")?.addEventListener("submit", handleLogin);
-  $("logoutBtn")?.addEventListener("click", handleLogout);
+  $("registerForm").addEventListener("submit", handleRegister);
+  $("loginForm").addEventListener("submit", handleLogin);
+  $("logoutBtn").addEventListener("click", handleLogout);
 
-  // NAV
   document.querySelectorAll(".nav-btn[data-view]").forEach((btn) => {
     btn.addEventListener("click", () => {
       const viewId = btn.getAttribute("data-view");
-      if (!viewId) return;
       showView(viewId);
 
       if (viewId === "productsView") loadProducts();
@@ -2099,120 +1656,90 @@ document.addEventListener("DOMContentLoaded", () => {
       }
       if (viewId === "ordersView") loadOrders();
       if (viewId === "pickingView") loadPickingOrders();
-      if (viewId === "reportsView") {
-        updateReportSummary();
+      if (viewId === "reportsView") updateReportSummary();
+      if (viewId === "loadingView") loadLoadingTasks();
+      if (viewId === "dashboardView") {
         updateDashboardCounts();
-      }
-      if (viewId === "locationsView") loadLocations();
-      if (viewId === "inboundView") loadInbound();
-      if (viewId === "shipmentsView") loadShipments();
-      if (viewId === "workOrdersView") loadWorkOrders();
-      if (viewId === "notificationsView") {
-        markNotificationsAsRead();
-        loadNotificationsFull();
-      }
-      if (viewId === "loadingView") {
-        loadLoadingTasks();
-        if (!loadingViewEventsBound) {
-          loadingViewEventsBound = true;
-
-          const reloadLoadingTasksBtn = $("reloadLoadingTasksBtn");
-          const loadingStatusFilter = $("loadingStatusFilter");
-          const loadingTasksTableBody = $("loadingTasksTableBody");
-
-          reloadLoadingTasksBtn?.addEventListener(
-            "click",
-            loadLoadingTasks
-          );
-          loadingStatusFilter?.addEventListener("change", loadLoadingTasks);
-
-          loadingTasksTableBody?.addEventListener("click", (e) => {
-            const startBtn = e.target.closest("button[data-loading-start]");
-            const completeBtn = e.target.closest(
-              "button[data-loading-complete"]"
-            );
-
-            if (startBtn) {
-              const id = startBtn.getAttribute("data-loading-start");
-              setLoadingTaskStatus(id, "loading");
-              return;
-            }
-            if (completeBtn) {
-              const id = completeBtn.getAttribute("data-loading-complete");
-              setLoadingTaskStatus(id, "loaded");
-              return;
-            }
-          });
-        }
+        updatePickerDashboardStats();
       }
     });
   });
 
-  // Product modal
-  $("openProductModalBtn")?.addEventListener("click", () =>
-    openProductModal()
-  );
-  $("closeProductModalBtn")?.addEventListener("click", closeProductModal);
-  $("cancelProductBtn")?.addEventListener("click", closeProductModal);
-  $("productForm")?.addEventListener("submit", saveProduct);
+  $("openProductModalBtn").addEventListener("click", () => openProductModal());
+  $("closeProductModalBtn").addEventListener("click", closeProductModal);
+  $("cancelProductBtn").addEventListener("click", closeProductModal);
+  $("productForm").addEventListener("submit", saveProduct);
 
-  // Stock form
-  $("stockForm")?.addEventListener("submit", saveStockMovement);
+  $("stockForm").addEventListener("submit", saveStockMovement);
 
-  // Order modal
-  $("openOrderModalBtn")?.addEventListener("click", async () => {
+  $("openOrderModalBtn").addEventListener("click", async () => {
     await prepareOrderModal();
     openOrderModal();
   });
-  $("closeOrderModalBtn")?.addEventListener("click", closeOrderModal);
-  $("cancelOrderBtn")?.addEventListener("click", closeOrderModal);
-  $("orderForm")?.addEventListener("submit", saveOrder);
+  $("closeOrderModalBtn").addEventListener("click", closeOrderModal);
+  $("cancelOrderBtn").addEventListener("click", closeOrderModal);
+  $("orderForm").addEventListener("submit", saveOrder);
 
-  // Orders table – detay + assign
-  $("ordersTableBody")?.addEventListener("click", (e) => {
-    const detailBtn = e.target.closest("button[data-detail]");
-    if (detailBtn) {
-      const id = detailBtn.getAttribute("data-detail");
-      openPickingDetailModal(id, false);
-      return;
-    }
-    const assignBtn = e.target.closest("button[data-assign]");
-    if (assignBtn) {
-      const id = assignBtn.getAttribute("data-assign");
-      assignOrderToPicker(id);
-    }
-  });
+  const ordersTableBody = $("ordersTableBody");
+  if (ordersTableBody) {
+    ordersTableBody.addEventListener("click", (e) => {
+      const detailBtn = e.target.closest("button[data-detail]");
+      if (detailBtn) {
+        const id = detailBtn.getAttribute("data-detail");
+        openPickingDetailModal(id, false);
+        return;
+      }
+      const assignBtn = e.target.closest("button[data-assign]");
+      if (assignBtn) {
+        const id = assignBtn.getAttribute("data-assign");
+        assignOrderToPicker(id);
+      }
+    });
+  }
 
-  // Picking table – topla
-  $("pickingTableBody")?.addEventListener("click", (e) => {
-    const pickBtn = e.target.closest("button[data-pick]");
-    if (pickBtn) {
-      const id = pickBtn.getAttribute("data-pick");
-      openPickingDetailModal(id, true);
-    }
-  });
+  const pickingTableBody = $("pickingTableBody");
+  if (pickingTableBody) {
+    pickingTableBody.addEventListener("click", (e) => {
+      const pickBtn = e.target.closest("button[data-pick]");
+      if (pickBtn) {
+        const id = pickBtn.getAttribute("data-pick");
+        openPickingDetailModal(id, true);
+      }
+    });
+  }
 
-  $("closePickingDetailModalBtn")?.addEventListener(
+  $("closePickingDetailModalBtn").addEventListener(
     "click",
     closePickingDetailModal
   );
-  $("completePickingBtn")?.addEventListener("click", completePicking);
+  $("completePickingBtn").addEventListener("click", completePicking);
 
-  // Location modal
-  $("openLocationModalBtn")?.addEventListener("click", () =>
-    openLocationModal()
-  );
-  $("closeLocationModalBtn")?.addEventListener("click", closeLocationModal);
-  $("cancelLocationBtn")?.addEventListener("click", closeLocationModal);
-  $("locationForm")?.addEventListener("submit", saveLocation);
+  const reloadLoadingTasksBtn = $("reloadLoadingTasksBtn");
+  if (reloadLoadingTasksBtn) {
+    reloadLoadingTasksBtn.addEventListener("click", loadLoadingTasks);
+  }
+  const loadingStatusFilter = $("loadingStatusFilter");
+  if (loadingStatusFilter) {
+    loadingStatusFilter.addEventListener("change", loadLoadingTasks);
+  }
+  const loadingTasksTableBody = $("loadingTasksTableBody");
+  if (loadingTasksTableBody) {
+    loadingTasksTableBody.addEventListener("click", (e) => {
+      const startBtn = e.target.closest("button[data-loading-start]");
+      const completeBtn = e.target.closest(
+        "button[data-loading-complete]"
+      );
 
-  // Inbound modal & detail
-  $("openInboundModalBtn")?.addEventListener("click", openInboundModal);
-  $("closeInboundModalBtn")?.addEventListener("click", closeInboundModal);
-  $("cancelInboundBtn")?.addEventListener("click", closeInboundModal);
-  $("inboundForm")?.addEventListener("submit", saveInbound);
-  $("closeInboundDetailModalBtn")?.addEventListener(
-    "click",
-    closeInboundDetailModal
-  );
+      if (startBtn) {
+        const id = startBtn.getAttribute("data-loading-start");
+        setLoadingTaskStatus(id, "loading");
+        return;
+      }
+      if (completeBtn) {
+        const id = completeBtn.getAttribute("data-loading-complete");
+        setLoadingTaskStatus(id, "loaded");
+        return;
+      }
+    });
+  }
 });
