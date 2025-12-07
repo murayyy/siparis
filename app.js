@@ -1251,7 +1251,124 @@ async function openPickingDetailModal(orderId, fromPicking) {
     const uniqueLocations = new Set(
       itemsWithLoc.map((it) => it.locationCode || "Lokasyon yok")
     ).size;
-// ... openPickingDetailModal(orderId, fromPicking) { ... } fonksiyonunun bitişi
+
+    const headerHtml = `
+      <div class="border border-slate-700/80 rounded-2xl p-4 text-xs bg-slate-900/80 text-slate-100 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+        <div class="space-y-1">
+          <p><span class="font-semibold text-slate-300">Şube:</span> ${orderData.branchName || "-"}</p>
+          <p><span class="font-semibold text-slate-300">Belge No:</span> ${orderData.documentNo || "-"}</p>
+          <p><span class="font-semibold text-slate-300">Durum:</span> 
+            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold
+              ${
+                orderData.status === "completed"
+                  ? "bg-emerald-500/10 text-emerald-300 border border-emerald-500/40"
+                  : orderData.status === "picking"
+                  ? "bg-sky-500/10 text-sky-300 border border-sky-500/40"
+                  : "bg-amber-500/10 text-amber-300 border border-amber-500/40"
+              }">
+              ${orderData.status || "-"}
+            </span>
+          </p>
+          <p><span class="font-semibold text-slate-300">Toplayıcı:</span> ${orderData.assignedToEmail || "-"}</p>
+        </div>
+        <div class="space-y-1 text-[11px] text-slate-300 md:text-right">
+          <p class="flex items-center gap-1 md:justify-end">
+            <span class="text-sky-400 text-sm">📦</span>
+            Toplama rotası: <span class="font-semibold text-slate-100">${uniqueLocations}</span> lokasyonda 
+            <span class="font-semibold text-slate-100">${totalLines}</span> kalem, 
+            toplam <span class="font-semibold text-slate-100">${totalQty}</span> birim.
+          </p>
+          ${
+            itemsWithLoc.some((it) => it.locationShortage)
+              ? `<p class="flex items-center gap-1 text-amber-300">
+                  <span class="text-amber-400 text-sm">⚠</span>
+                  Bazı lokasyonlarda istenen miktardan az stok var 
+                  <span class="font-semibold text-amber-200">(kırmızı satırlar).</span>
+                </p>`
+              : `<p class="flex items-center gap-1 text-emerald-300">
+                  <span class="text-emerald-400 text-sm">✅</span>
+                  Tüm lokasyonlarda istenen miktar karşılanabiliyor.
+                </p>`
+          }
+        </div>
+      </div>
+    `;
+
+    const rowsHtml = itemsWithLoc
+      .map((it, index) => {
+        const shortage = it.locationShortage;
+        const shortageBadge = shortage
+          ? `<span class="ml-1 inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-red-500/15 text-red-200 border border-red-500/40">Eksik</span>`
+          : "";
+        const rowClass = shortage
+          ? "bg-red-500/5 hover:bg-red-500/10"
+          : "hover:bg-slate-800/60";
+        return `
+        <tr class="border-b border-slate-800/80 ${rowClass}">
+          <td class="px-2 py-2 text-xs text-slate-400">${index + 1}</td>
+          <td class="px-2 py-2 text-xs font-mono text-slate-200">${it.locationCode || "-"}</td>
+          <td class="px-2 py-2 text-xs font-mono text-slate-200">${it.productCode || ""}</td>
+          <td class="px-2 py-2 text-xs text-slate-100">${it.productName || ""}</td>
+          <td class="px-2 py-2 text-xs text-slate-100">
+            ${it.qty} ${it.unit || ""} 
+            <span class="text-[10px] text-slate-400">(Lokasyondaki: ${
+              it.locationAvailableQty ?? "-"
+            })</span>
+            ${shortageBadge}
+          </td>
+          <td class="px-2 py-2 text-xs text-slate-100">
+            ${
+              fromPicking
+                ? `<input type="number" min="0" value="${
+                    it.pickedQty ?? it.qty
+                  }" data-item="${it.id}" class="w-20 border border-slate-700 rounded-lg px-1.5 py-1 text-xs bg-slate-900/80 text-slate-100 focus:outline-none focus:ring-1 focus:ring-emerald-500/60" />`
+                : `${it.pickedQty ?? 0}`
+            }
+          </td>
+          <td class="px-2 py-2 text-xs text-slate-300">${it.note || ""}</td>
+        </tr>
+      `;
+      })
+      .join("");
+
+    const tableHtml = `
+      <div class="mt-4 border border-slate-800/80 rounded-2xl overflow-hidden bg-slate-950/60">
+        <table class="min-w-full text-xs">
+          <thead class="bg-slate-900/80">
+            <tr>
+              <th class="px-2 py-2 text-left text-[11px] font-semibold text-slate-400">#</th>
+              <th class="px-2 py-2 text-left text-[11px] font-semibold text-slate-400">Lokasyon</th>
+              <th class="px-2 py-2 text-left text-[11px] font-semibold text-slate-400">Kod</th>
+              <th class="px-2 py-2 text-left text-[11px] font-semibold text-slate-400">Ürün</th>
+              <th class="px-2 py-2 text-left text-[11px] font-semibold text-slate-400">İstenen</th>
+              <th class="px-2 py-2 text-left text-[11px] font-semibold text-slate-400">Toplanan</th>
+              <th class="px-2 py-2 text-left text-[11px] font-semibold text-slate-400">Not</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${
+              rowsHtml ||
+              `<tr><td colspan="7" class="px-2 py-3 text-center text-slate-500">Kalem yok.</td></tr>`
+            }
+          </tbody>
+        </table>
+      </div>
+    `;
+
+    container.innerHTML = headerHtml + tableHtml;
+    modal.classList.remove("hidden");
+
+    const completeBtn = $("completePickingBtn");
+    if (completeBtn) {
+      completeBtn.disabled = !fromPicking;
+      completeBtn.classList.toggle("opacity-40", !fromPicking);
+      completeBtn.classList.toggle("cursor-not-allowed", !fromPicking);
+    }
+  } catch (err) {
+    console.error("openPickingDetailModal hata:", err);
+    showGlobalAlert("Sipariş detayları yüklenemedi: " + err.message);
+  }
+}
 
 function closePickingDetailModal() {
   const modal = $("pickingDetailModal");
