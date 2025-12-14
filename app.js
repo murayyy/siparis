@@ -1018,6 +1018,98 @@ async function saveStockMovement(evt) {
     showGlobalAlert("Stok hareketi kaydedilemedi: " + err.message);
   }
 }
+function openOrderModal() {
+  $("orderModal")?.classList.remove("hidden");
+}
+
+function closeOrderModal() {
+  $("orderModal")?.classList.add("hidden");
+}
+
+async function prepareOrderModal() {
+  // Form reset
+  $("orderForm")?.reset();
+
+  // satırları temizle
+  const container = $("orderItemsContainer");
+  const empty = $("orderItemsEmpty");
+  if (container) container.innerHTML = "";
+  if (empty) empty.classList.remove("hidden");
+
+  // Excel alanını resetle (HTML'de varsa)
+  if ($("orderExcelFile")) $("orderExcelFile").value = "";
+  setExcelImportResult("");
+
+  // ürünleri çek (satır ekleme dropdown'u için)
+  const productsSnap = await getDocs(collection(db, "products"));
+  const productsMap = new Map();
+  productsSnap.forEach((docSnap) => productsMap.set(docSnap.id, docSnap.data()));
+
+  $("addOrderItemBtn").onclick = () => {
+    const row = createOrderItemRow(productsMap);
+    container.appendChild(row);
+    empty.classList.add("hidden");
+  };
+}
+function setExcelImportResult(msg, type = "info") {
+  const el = $("orderExcelImportResult");
+  if (!el) return;
+  el.textContent = msg || "";
+  el.className = "text-[11px] " + (type === "error" ? "text-rose-400" : type === "success" ? "text-emerald-300" : "text-slate-300");
+}
+async function loadOrders() {
+  const tbody = $("ordersTableBody");
+  const empty = $("ordersEmpty");
+  if (!tbody || !empty) return;
+
+  tbody.innerHTML = "";
+
+  try {
+    const qSnap = await getDocs(query(collection(db, "orders"), orderBy("createdAt", "desc")));
+    let hasAny = false;
+
+    for (const docSnap of qSnap.docs) {
+      hasAny = true;
+      const d = docSnap.data();
+
+      const statusLabel =
+        d.status === "open" ? "Açık"
+        : d.status === "assigned" ? "Atandı"
+        : d.status === "picking" ? "Toplanıyor"
+        : d.status === "completed" ? "Tamamlandı"
+        : (d.status || "-");
+
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td class="px-3 py-2 text-xs">${docSnap.id.slice(-6)}</td>
+        <td class="px-3 py-2 text-xs">${d.branchName || "-"}</td>
+        <td class="px-3 py-2 text-xs">${statusLabel}</td>
+        <td class="px-3 py-2 text-[11px]">${d.assignedToEmail || "-"}</td>
+        <td class="px-3 py-2 text-[11px]">${d.createdAt?.toDate ? d.createdAt.toDate().toLocaleString("tr-TR") : ""}</td>
+        <td class="px-3 py-2 text-right space-x-1">
+          <button class="text-[11px] px-2 py-1 rounded-full bg-sky-100 text-sky-700 hover:bg-sky-200" data-detail="${docSnap.id}">Detay</button>
+          ${
+            normalizeRole(currentUserProfile?.role) === "manager" || normalizeRole(currentUserProfile?.role) === "admin"
+              ? `<button class="text-[11px] px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 hover:bg-emerald-200" data-assign="${docSnap.id}">Toplayıcı Ata</button>`
+              : ""
+          }
+        </td>
+      `;
+      tbody.appendChild(tr);
+    }
+
+    if (!hasAny) empty.classList.remove("hidden");
+    else empty.classList.add("hidden");
+  } catch (err) {
+    console.error("loadOrders hata:", err);
+    showGlobalAlert("Siparişler okunamadı: " + err.message);
+  }
+}
+$("openOrderModalBtn").addEventListener("click", async () => {
+  await prepareOrderModal();
+  openOrderModal();
+});
+
 
   
 
