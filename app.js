@@ -1525,7 +1525,6 @@ function closePickingDetailModal() {
  
     console.error("openPickingDetailModal hata:", err);
     showGlobalAlert("Sipariş detayları yüklenemedi: " + err.message);
-  }
 }
 
 // --------------------------------------------------------
