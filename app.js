@@ -1019,8 +1019,6 @@ async function saveStockMovement(evt) {
   }
 }
 
-<div class="mt-2 p-3 rounded-2xl border border-slate-800 bg-slate-950/40">
-  <p class="text-[11px] text-slate-300 font-semibold mb-2">Excel’den Yükle</p>
 
   <div class="flex flex-col md:flex-row gap-2 items-start md:items-center">
     <input
