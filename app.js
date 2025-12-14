@@ -1019,299 +1019,33 @@ async function saveStockMovement(evt) {
   }
 }
 
-// --------------------------------------------------------
-// 8. Orders (Şube Siparişleri)
-// --------------------------------------------------------
-function createOrderItemRow(productsMap) {
-  const row = document.createElement("div");
-  row.className =
-    "grid grid-cols-5 gap-2 items-center border border-slate-200 rounded-xl px-2 py-1 bg-white/60";
+<div class="mt-2 p-3 rounded-2xl border border-slate-800 bg-slate-950/40">
+  <p class="text-[11px] text-slate-300 font-semibold mb-2">Excel’den Yükle</p>
 
-  const select = document.createElement("select");
-  select.className =
-    "col-span-2 rounded-lg border border-slate-300 px-2 py-1 text-xs bg-white";
-  select.required = true;
-  select.innerHTML = `<option value="">Ürün seç</option>`;
-  productsMap.forEach((p, id) => {
-    const opt = document.createElement("option");
-    opt.value = id;
-    opt.textContent = `${p.code} - ${p.name}`;
-    select.appendChild(opt);
-  });
+  <div class="flex flex-col md:flex-row gap-2 items-start md:items-center">
+    <input
+      id="orderExcelFile"
+      type="file"
+      accept=".xlsx,.xls"
+      class="block w-full md:w-auto text-[11px] text-slate-300"
+    />
 
-  const qtyInput = document.createElement("input");
-  qtyInput.type = "number";
-  qtyInput.min = "1";
-  qtyInput.value = "1";
-  qtyInput.className =
-    "col-span-1 rounded-lg border border-slate-300 px-2 py-1 text-xs bg-white";
-  qtyInput.required = true;
+    <button
+      type="button"
+      id="importOrderFromExcelBtn"
+      class="px-3 py-1.5 rounded-full bg-slate-800 text-[11px] text-slate-100 hover:bg-slate-700"
+    >
+      Excel’den Satırları Al
+    </button>
+  </div>
 
-  const noteInput = document.createElement("input");
-  noteInput.type = "text";
-  noteInput.placeholder = "Not";
-  noteInput.className =
-    "col-span-1 rounded-lg border border-slate-300 px-2 py-1 text-xs bg-white";
+  <p id="orderExcelImportResult" class="text-[11px] text-slate-400 mt-2"></p>
 
-  const removeBtn = document.createElement("button");
-  removeBtn.type = "button";
-  removeBtn.textContent = "Sil";
-  removeBtn.className =
-    "col-span-1 text-[11px] px-2 py-1 rounded-full bg-red-100 text-red-700 hover:bg-red-200";
-
-  removeBtn.addEventListener("click", () => {
-    row.remove();
-    const container = $("orderItemsContainer");
-    if (container && container.children.length === 0) {
-      $("orderItemsEmpty")?.classList.remove("hidden");
-    }
-  });
-
-  row.appendChild(select);
-  row.appendChild(qtyInput);
-  row.appendChild(noteInput);
-  row.appendChild(removeBtn);
-  return row;
-}
-
-async function prepareOrderModal() {
-  $("orderForm")?.reset();
-  const container = $("orderItemsContainer");
-  const empty = $("orderItemsEmpty");
-  if (!container || !empty) return;
-
-  container.innerHTML = "";
-  empty.classList.remove("hidden");
-
-  const productsSnap = await getDocs(collection(db, "products"));
-  const productsMap = new Map();
-  productsSnap.forEach((docSnap) => {
-    productsMap.set(docSnap.id, docSnap.data());
-  });
-
-  $("addOrderItemBtn").onclick = () => {
-    const row = createOrderItemRow(productsMap);
-    container.appendChild(row);
-    empty.classList.add("hidden");
-  };
-
-  // Excel UI reset
-  if ($("orderExcelFile")) $("orderExcelFile").value = "";
-  setExcelImportResult("");
-}
-
-function openOrderModal() {
-  $("orderModal")?.classList.remove("hidden");
-}
-
-function closeOrderModal() {
-  $("orderModal")?.classList.add("hidden");
-}
-
-// Manuel kaydet (duruyor — eksiltmedim)
-async function saveOrder(evt) {
-  evt.preventDefault();
-
-  const branchName = $("orderBranchName").value.trim();
-  const documentNo = $("orderDocumentNo").value.trim();
-  const note = $("orderNote").value.trim();
-  const container = $("orderItemsContainer");
-
-  if (!branchName) {
-    showGlobalAlert("Şube adı zorunludur.");
-    return;
-  }
-  if (!container || container.children.length === 0) {
-    showGlobalAlert("En az bir ürün satırı eklemelisin.");
-    return;
-  }
-
-  try {
-    const items = [];
-    const productsMap = new Map();
-    const productsSnap = await getDocs(collection(db, "products"));
-    productsSnap.forEach((docSnap) => productsMap.set(docSnap.id, docSnap.data()));
-
-    for (const row of container.children) {
-      const selects = row.getElementsByTagName("select");
-      const inputs = row.getElementsByTagName("input");
-      if (selects.length === 0 || inputs.length < 2) continue;
-
-      const productId = selects[0].value;
-      const qty = Number(inputs[0].value || 0);
-      const itemNote = inputs[1].value || "";
-      if (!productId || qty <= 0) continue;
-
-      const p = productsMap.get(productId);
-      items.push({
-        productId,
-        productCode: p?.code || "",
-        productName: p?.name || "",
-        qty,
-        unit: p?.unit || "",
-        note: itemNote,
-        pickedQty: 0,
-        status: "open",
-      });
-    }
-
-    if (items.length === 0) {
-      showGlobalAlert("Geçerli satır yok. Ürün ve miktar girilmelidir.");
-      return;
-    }
-
-    const orderPayload = {
-      branchName,
-      documentNo: documentNo || null,
-      note: note || null,
-      status: "open",
-      createdAt: serverTimestamp(),
-      createdBy: currentUser?.uid || null,
-      createdByEmail: currentUser?.email || null,
-      assignedTo: null,
-      assignedToEmail: null,
-      source: "manual",
-    };
-
-    const orderRef = await addDoc(collection(db, "orders"), orderPayload);
-
-    for (const item of items) {
-      await addDoc(collection(db, "orders", orderRef.id, "items"), {
-        ...item,
-        createdAt: serverTimestamp(),
-      });
-    }
-
-    closeOrderModal();
-    showGlobalAlert("Sipariş kaydedildi.", "success");
-    await loadOrders();
-    await loadPickingOrders();
-  } catch (err) {
-    console.error("saveOrder hata:", err);
-    showGlobalAlert("Sipariş kaydedilemedi: " + err.message);
-  }
-}
-
-async function loadOrders() {
-  const tbody = $("ordersTableBody");
-  const empty = $("ordersEmpty");
-  if (!tbody || !empty) return;
-
-  tbody.innerHTML = "";
-
-  try {
-    const qSnap = await getDocs(query(collection(db, "orders"), orderBy("createdAt", "desc")));
-    let hasAny = false;
-
-    for (const docSnap of qSnap.docs) {
-      hasAny = true;
-      const d = docSnap.data();
-
-      const statusLabel =
-        d.status === "open"
-          ? "Açık"
-          : d.status === "assigned"
-          ? "Atandı"
-          : d.status === "picking"
-          ? "Toplanıyor"
-          : "Tamamlandı";
-
-      const tr = document.createElement("tr");
-      tr.innerHTML = `
-        <td class="px-3 py-2 text-xs">${docSnap.id.slice(-6)}</td>
-        <td class="px-3 py-2 text-xs">${d.branchName || "-"}</td>
-        <td class="px-3 py-2 text-xs">${statusLabel}</td>
-        <td class="px-3 py-2 text-[11px]">${d.assignedToEmail || "-"}</td>
-        <td class="px-3 py-2 text-[11px]">${d.createdAt?.toDate ? d.createdAt.toDate().toLocaleString("tr-TR") : ""}</td>
-        <td class="px-3 py-2 text-right space-x-1">
-          <button class="text-[11px] px-2 py-1 rounded-full bg-sky-100 text-sky-700 hover:bg-sky-200" data-detail="${docSnap.id}">Detay</button>
-          ${
-            currentUserProfile?.role === "manager" || currentUserProfile?.role === "admin"
-              ? `<button class="text-[11px] px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 hover:bg-emerald-200" data-assign="${docSnap.id}">Toplayıcı Ata</button>`
-              : ""
-          }
-        </td>
-      `;
-      tbody.appendChild(tr);
-    }
-
-    if (!hasAny) empty.classList.remove("hidden");
-    else empty.classList.add("hidden");
-
-    await updateDashboardCounts();
-    await updateReportSummary();
-  } catch (err) {
-    console.error("loadOrders hata:", err);
-    showGlobalAlert("Siparişler okunamadı: " + err.message);
-  }
-}
-
-async function assignOrderToPicker(orderId) {
-  if (
-    normalizeRole(currentUserProfile?.role) !== "manager" &&
-    normalizeRole(currentUserProfile?.role) !== "admin"
-  ) {
-    showGlobalAlert("Bu işlem için yetkin yok.");
-    return;
-  }
-
-  try {
-    const orderRef = doc(db, "orders", orderId);
-    const orderSnap = await getDoc(orderRef);
-    const orderData = orderSnap.exists() ? orderSnap.data() : {};
-
-    const usersSnap = await getDocs(query(collection(db, "users"), where("role", "==", "picker")));
-    if (usersSnap.empty) {
-      showGlobalAlert("Kayıtlı toplayıcı yok.");
-      return;
-    }
-
-    const pickers = [];
-    usersSnap.forEach((docSnap) => pickers.push({ id: docSnap.id, ...docSnap.data() }));
-
-    const pickerEmailList = pickers.map((p, idx) => `${idx + 1}) ${p.fullName} - ${p.email}`).join("\n");
-    const input = prompt("Toplayıcı seç (numara ile):\n" + pickerEmailList);
-    if (!input) return;
-    const index = Number(input) - 1;
-    if (index < 0 || index >= pickers.length) {
-      showGlobalAlert("Geçersiz seçim.");
-      return;
-    }
-
-    const picker = pickers[index];
-
-    await updateDoc(orderRef, {
-      assignedTo: picker.id,
-      assignedToEmail: picker.email,
-      status: "assigned",
-    });
-
-    await createNotification({
-      userId: picker.id,
-      type: "orderAssigned",
-      orderId,
-      title: "Yeni sipariş atandı",
-      message: `${orderId.slice(-6)} no'lu (${orderData.branchName || "-"}) siparişi sana atandı.`,
-    });
-
-    if (orderData.createdBy) {
-      await createNotification({
-        userId: orderData.createdBy,
-        type: "orderStatus",
-        orderId,
-        title: "Sipariş durumu güncellendi",
-        message: `${orderId.slice(-6)} no'lu sipariş toplayıcıya atandı.`,
-      });
-    }
-
-    showGlobalAlert("Sipariş toplayıcıya atandı.", "success");
-    await loadOrders();
-    await loadPickingOrders();
-  } catch (err) {
-    console.error("assignOrderToPicker hata:", err);
-    showGlobalAlert("Toplayıcı atanamadı: " + err.message);
-  }
-}
+  <p class="text-[11px] text-slate-500 mt-2">
+    Başlıklar aynen şu olmalı:
+    <span class="font-mono text-slate-300">Ürün Kodu, Ürün Adı, Miktar, Açıklama, Reyon, Barkod</span>
+  </p>
+</div>
 
 // --------------------------------------------------------
 // 9. Picking (Toplayıcı Ekranı + Rota) – PROFESYONEL UI (FIXED)
