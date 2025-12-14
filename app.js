@@ -1516,21 +1516,16 @@ function closePickingDetailModal() {
     container.innerHTML = headerHtml + tableHtml;
     modal.classList.remove("hidden");
 
-    const completeBtn = $("completePickingBtn");
+   const completeBtn = $("completePickingBtn");
     if (completeBtn) {
       completeBtn.disabled = !fromPicking;
       completeBtn.classList.toggle("opacity-50", !fromPicking);
       completeBtn.classList.toggle("cursor-not-allowed", !fromPicking);
     }
-  }
-      
-   catch (err) {
+  } catch (err) {
     console.error("openPickingDetailModal hata:", err);
     showGlobalAlert("Sipariş detayları yüklenemedi: " + err.message);
   }
-}
-
-
 // --------------------------------------------------------
 // 10. Dashboard & Reports
 // --------------------------------------------------------
