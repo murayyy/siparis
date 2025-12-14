@@ -1522,7 +1522,7 @@ function closePickingDetailModal() {
       completeBtn.classList.toggle("opacity-50", !fromPicking);
       completeBtn.classList.toggle("cursor-not-allowed", !fromPicking);
     }
-  } catch (err) {
+ 
     console.error("openPickingDetailModal hata:", err);
     showGlobalAlert("Sipariş detayları yüklenemedi: " + err.message);
   }
