@@ -1051,12 +1051,7 @@ async function prepareOrderModal() {
     empty.classList.add("hidden");
   };
 }
-function setExcelImportResult(msg, type = "info") {
-  const el = $("orderExcelImportResult");
-  if (!el) return;
-  el.textContent = msg || "";
-  el.className = "text-[11px] " + (type === "error" ? "text-rose-400" : type === "success" ? "text-emerald-300" : "text-slate-300");
-}
+
 async function loadOrders() {
   const tbody = $("ordersTableBody");
   const empty = $("ordersEmpty");
