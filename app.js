@@ -1019,22 +1019,7 @@ async function saveStockMovement(evt) {
   }
 }
 
-    <button
-      type="button"
-      id="importOrderFromExcelBtn"
-      class="px-3 py-1.5 rounded-full bg-slate-800 text-[11px] text-slate-100 hover:bg-slate-700"
-    >
-      Excel’den Satırları Al
-    </button>
-  </div>
-
-  <p id="orderExcelImportResult" class="text-[11px] text-slate-400 mt-2"></p>
-
-  <p class="text-[11px] text-slate-500 mt-2">
-    Başlıklar aynen şu olmalı:
-    <span class="font-mono text-slate-300">Ürün Kodu, Ürün Adı, Miktar, Açıklama, Reyon, Barkod</span>
-  </p>
-</div>
+  
 
 // --------------------------------------------------------
 // 9. Picking (Toplayıcı Ekranı + Rota) – PROFESYONEL UI (FIXED)
