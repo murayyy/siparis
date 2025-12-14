@@ -718,6 +718,7 @@
             </div>
           </div>
         </section>
+
       </div>
     </main>
   </div>
@@ -851,13 +852,13 @@
         />
       </div>
 
-      <!-- Excel Import BLOĞU (eksiltmeden eklendi) -->
+      <!-- Excel Import BLOĞU (GÜNCEL: başlıklar ZORUNLU ve sabit) -->
       <div class="bg-slate-950/40 border border-slate-800 rounded-2xl p-3">
         <div class="flex items-start justify-between gap-3">
           <div>
             <p class="text-[11px] font-semibold text-slate-200">Excel’den Sipariş Yükle</p>
             <p class="text-[11px] text-slate-400">
-              .xlsx seç, sistem satırları okuyup sipariş + kalemleri otomatik oluşturur.
+              Şube Adı ve Belge No’yu yukarıdan giriyorsun. Excel sadece satırları içe aktarır.
             </p>
           </div>
           <div class="flex gap-2">
@@ -893,8 +894,13 @@
         </div>
 
         <div class="mt-2 text-[11px] text-slate-400">
-          Beklenen kolonlar (esnek): <span class="font-mono">sube/şube</span>, <span class="font-mono">belgeNo</span>,
-          <span class="font-mono">stokKodu</span>, <span class="font-mono">stokAdi</span>, <span class="font-mono">miktar</span>, <span class="font-mono">aciklama</span>
+          Beklenen kolon başlıkları (birebir): 
+          <span class="font-mono text-slate-200">Ürün Kodu</span>, 
+          <span class="font-mono text-slate-200">Ürün Adı</span>, 
+          <span class="font-mono text-slate-200">Miktar</span>, 
+          <span class="font-mono text-slate-200">Açıklama</span>, 
+          <span class="font-mono text-slate-200">Reyon</span>, 
+          <span class="font-mono text-slate-200">Barkod</span>
         </div>
       </div>
 
@@ -967,7 +973,6 @@
   (function () {
     const btn = document.getElementById("notificationsBtn");
     const panel = document.getElementById("notificationsPanel");
-    const markRead = document.getElementById("notificationsMarkReadBtn");
 
     function togglePanel() {
       if (!panel) return;
@@ -999,15 +1004,8 @@
     document.addEventListener("keydown", (e) => {
       if (e.key === "Escape") hidePanel();
     });
-
-    // "Hepsini okundu yap" butonu: app.js içinde markNotificationsAsRead var,
-    // bu HTML script sadece paneli kapatsın, asıl işi app.js yapar.
-    if (markRead) {
-      markRead.addEventListener("click", () => {
-        // panel açık kalsın istersen silersin
-      });
-    }
   })();
 </script>
+
 </body>
 </html>
