@@ -403,6 +403,8 @@ async function markNotificationsAsRead() {
 
 // --------------------------------------------------------
 // 3.4 Excel Import (XLSX) -> Firestore Orders + Items
+// Başlıklar: Ürün Kodu, Ürün Adı, Miktar, Açıklama, Reyon, Barkod
+// Şube adı ve Belge No'yu siz formdan giriyorsunuz (Excel'de varsa alır, yoksa formdan alır)
 // --------------------------------------------------------
 function normKey(s) {
   return String(s || "")
@@ -452,6 +454,7 @@ function mapExcelRowsToOrder(rows) {
 
   const first = mapped[0];
 
+  // Excel'de varsa alır, yoksa formdan gireceksiniz
   const branchName =
     first["sube"] ||
     first["şube"] ||
@@ -471,22 +474,23 @@ function mapExcelRowsToOrder(rows) {
 
   const items = mapped
     .map((r, idx) => {
+      // Yeni zorunlu başlıklar
       const productCode =
+        r["urun kodu"] ||
+        r["urunkodu"] ||
         r["stok kodu"] ||
         r["stokkodu"] ||
         r["productcode"] ||
         r["kod"] ||
-        r["urun kodu"] ||
-        r["urunkodu"] ||
         "";
 
       const productName =
+        r["urun adi"] ||
+        r["urunadi"] ||
         r["stok adi"] ||
         r["stokadi"] ||
         r["productname"] ||
         r["urun"] ||
-        r["urun adi"] ||
-        r["urunadi"] ||
         "";
 
       const qtyRaw = r["miktar"] || r["adet"] || r["qty"] || r["mikt"] || "";
@@ -500,12 +504,25 @@ function mapExcelRowsToOrder(rows) {
         r["acik"] ||
         "";
 
+      const shelf =
+        r["reyon"] ||
+        r["raf"] ||
+        r["lokasyon"] ||
+        r["lokasyon kodu"] ||
+        r["location"] ||
+        "";
+
+      const barcode =
+        r["barkod"] ||
+        r["barcode"] ||
+        "";
+
       if (!productCode && !productName) return null;
 
       if (!qty || qty <= 0) {
         return {
           _row: idx + 2,
-          _error: "Miktar (qty) 0 veya boş",
+          _error: "Miktar 0 veya boş",
           productCode,
           productName,
         };
@@ -516,6 +533,8 @@ function mapExcelRowsToOrder(rows) {
         productName: String(productName).trim(),
         qty,
         note: String(note || "").trim(),
+        shelf: String(shelf || "").trim(),
+        barcode: String(barcode || "").trim(),
       };
     })
     .filter(Boolean);
@@ -535,10 +554,18 @@ async function importOrderFromExcel() {
     const file = $("orderExcelFile")?.files?.[0];
     if (!file) throw new Error("Excel dosyası seçmelisin.");
 
+    // Şube ve belge no siz gireceksiniz (Excel'de yoksa buradan alınır)
+    const formBranchName = $("orderBranchName")?.value?.trim() || "";
+    const formDocumentNo = $("orderDocumentNo")?.value?.trim() || "";
+
+    if (!formBranchName) {
+      throw new Error("Şube adı zorunlu. (Excel’den yüklesen bile şube adını formdan gir)");
+    }
+
     setExcelImportResult("Excel okunuyor...", true);
 
     const rows = await readExcelFileToRows(file);
-    const { branchName, documentNo, items } = mapExcelRowsToOrder(rows);
+    const { branchName: excelBranch, documentNo: excelDoc, items } = mapExcelRowsToOrder(rows);
 
     const rowErrors = items.filter((x) => x && x._error);
     if (rowErrors.length > 0) {
@@ -552,9 +579,6 @@ async function importOrderFromExcel() {
       throw new Error("Excel’de hatalı satırlar var:<br/>" + msg);
     }
 
-    if (!branchName) {
-      throw new Error("Excel’de Şube adı yok (sube/şube/branchName kolonunu kontrol et).");
-    }
     if (!items.length) throw new Error("Excel’den hiç kalem alınamadı.");
 
     // products koleksiyonu ile eşleştir (kod -> product)
@@ -566,8 +590,8 @@ async function importOrderFromExcel() {
     });
 
     const orderPayload = {
-      branchName,
-      documentNo: documentNo || null,
+      branchName: formBranchName || excelBranch || "",
+      documentNo: formDocumentNo || excelDoc || null,
       note: null,
       status: "open",
       createdAt: serverTimestamp(),
@@ -591,6 +615,8 @@ async function importOrderFromExcel() {
         qty: Number(it.qty || 0),
         unit: hit?.unit || "",
         note: it.note || "",
+        shelf: it.shelf || hit?.shelf || "",   // Reyon/Raf bilgisi
+        barcode: it.barcode || hit?.barcode || "",
         pickedQty: 0,
         status: "open",
         createdAt: serverTimestamp(),
@@ -615,10 +641,10 @@ async function importOrderFromExcel() {
 
 // Basit şablon indir (TSV) — Excel açar
 function downloadExcelTemplate() {
-  const headers = ["sube", "belgeNo", "stokKodu", "stokAdi", "miktar", "aciklama"];
+  const headers = ["Ürün Kodu", "Ürün Adı", "Miktar", "Açıklama", "Reyon", "Barkod"];
   const sample = [
-    ["Emek", "2025-001", "0003", "FINDIK İÇİ", 120, ""],
-    ["Emek", "2025-001", "0012", "SARI LEBLEBİ", 1100, ""],
+    ["0003", "FINDIK İÇİ", 120, "", "A1-01-01", "8690000000001"],
+    ["0012", "SARI LEBLEBİ", 1100, "", "A1-01-02", "8690000000002"],
   ];
   const lines = [headers.join("\t"), ...sample.map((r) => r.join("\t"))].join("\n");
 
@@ -1018,12 +1044,69 @@ async function saveStockMovement(evt) {
     showGlobalAlert("Stok hareketi kaydedilemedi: " + err.message);
   }
 }
+
+// --------------------------------------------------------
+// 8. Orders (Şube Siparişleri) - EKSİKLER TAMAMLANDI
+// createOrderItemRow + saveOrder + assignOrderToPicker
+// --------------------------------------------------------
 function openOrderModal() {
   $("orderModal")?.classList.remove("hidden");
 }
 
 function closeOrderModal() {
   $("orderModal")?.classList.add("hidden");
+}
+
+function createOrderItemRow(productsMap) {
+  const row = document.createElement("div");
+  row.className =
+    "grid grid-cols-5 gap-2 items-center border border-slate-200 rounded-xl px-2 py-1 bg-white/60";
+
+  const select = document.createElement("select");
+  select.className =
+    "col-span-2 rounded-lg border border-slate-300 px-2 py-1 text-xs bg-white";
+  select.required = true;
+  select.innerHTML = `<option value="">Ürün seç</option>`;
+  productsMap.forEach((p, id) => {
+    const opt = document.createElement("option");
+    opt.value = id;
+    opt.textContent = `${p.code} - ${p.name}`;
+    select.appendChild(opt);
+  });
+
+  const qtyInput = document.createElement("input");
+  qtyInput.type = "number";
+  qtyInput.min = "1";
+  qtyInput.value = "1";
+  qtyInput.className =
+    "col-span-1 rounded-lg border border-slate-300 px-2 py-1 text-xs bg-white";
+  qtyInput.required = true;
+
+  const noteInput = document.createElement("input");
+  noteInput.type = "text";
+  noteInput.placeholder = "Not";
+  noteInput.className =
+    "col-span-1 rounded-lg border border-slate-300 px-2 py-1 text-xs bg-white";
+
+  const removeBtn = document.createElement("button");
+  removeBtn.type = "button";
+  removeBtn.textContent = "Sil";
+  removeBtn.className =
+    "col-span-1 text-[11px] px-2 py-1 rounded-full bg-red-100 text-red-700 hover:bg-red-200";
+
+  removeBtn.addEventListener("click", () => {
+    row.remove();
+    const container = $("orderItemsContainer");
+    if (container && container.children.length === 0) {
+      $("orderItemsEmpty")?.classList.remove("hidden");
+    }
+  });
+
+  row.appendChild(select);
+  row.appendChild(qtyInput);
+  row.appendChild(noteInput);
+  row.appendChild(removeBtn);
+  return row;
 }
 
 async function prepareOrderModal() {
@@ -1036,7 +1119,7 @@ async function prepareOrderModal() {
   if (container) container.innerHTML = "";
   if (empty) empty.classList.remove("hidden");
 
-  // Excel alanını resetle (HTML'de varsa)
+  // Excel alanını resetle
   if ($("orderExcelFile")) $("orderExcelFile").value = "";
   setExcelImportResult("");
 
@@ -1050,6 +1133,93 @@ async function prepareOrderModal() {
     container.appendChild(row);
     empty.classList.add("hidden");
   };
+}
+
+// Manuel sipariş kaydet (Excel'den yükleme ayrı)
+async function saveOrder(evt) {
+  evt.preventDefault();
+
+  const branchName = $("orderBranchName")?.value?.trim() || "";
+  const documentNo = $("orderDocumentNo")?.value?.trim() || "";
+  const note = $("orderNote")?.value?.trim() || "";
+  const container = $("orderItemsContainer");
+
+  if (!branchName) {
+    showGlobalAlert("Şube adı zorunludur.");
+    return;
+  }
+  if (!container || container.children.length === 0) {
+    showGlobalAlert("En az bir ürün satırı eklemelisin.");
+    return;
+  }
+
+  try {
+    const items = [];
+
+    const productsMap = new Map();
+    const productsSnap = await getDocs(collection(db, "products"));
+    productsSnap.forEach((docSnap) => productsMap.set(docSnap.id, docSnap.data()));
+
+    for (const row of container.children) {
+      const selects = row.getElementsByTagName("select");
+      const inputs = row.getElementsByTagName("input");
+      if (selects.length === 0 || inputs.length < 2) continue;
+
+      const productId = selects[0].value;
+      const qty = Number(inputs[0].value || 0);
+      const itemNote = inputs[1].value || "";
+      if (!productId || qty <= 0) continue;
+
+      const p = productsMap.get(productId);
+      items.push({
+        productId,
+        productCode: p?.code || "",
+        productName: p?.name || "",
+        qty,
+        unit: p?.unit || "",
+        note: itemNote,
+        shelf: p?.shelf || "",
+        barcode: p?.barcode || "",
+        pickedQty: 0,
+        status: "open",
+      });
+    }
+
+    if (items.length === 0) {
+      showGlobalAlert("Geçerli satır yok. Ürün ve miktar girilmelidir.");
+      return;
+    }
+
+    const orderPayload = {
+      branchName,
+      documentNo: documentNo || null,
+      note: note || null,
+      status: "open",
+      createdAt: serverTimestamp(),
+      createdBy: currentUser?.uid || null,
+      createdByEmail: currentUser?.email || null,
+      assignedTo: null,
+      assignedToEmail: null,
+      source: "manual",
+    };
+
+    const orderRef = await addDoc(collection(db, "orders"), orderPayload);
+
+    for (const item of items) {
+      await addDoc(collection(db, "orders", orderRef.id, "items"), {
+        ...item,
+        createdAt: serverTimestamp(),
+      });
+    }
+
+    closeOrderModal();
+    showGlobalAlert("Sipariş kaydedildi.", "success");
+    await loadOrders();
+    await loadPickingOrders();
+  } catch (err) {
+    console.error("saveOrder hata:", err);
+    showGlobalAlert("Sipariş kaydedilemedi: " + err.message);
+  }
 }
 
 async function loadOrders() {
@@ -1100,13 +1270,77 @@ async function loadOrders() {
     showGlobalAlert("Siparişler okunamadı: " + err.message);
   }
 }
-$("openOrderModalBtn").addEventListener("click", async () => {
-  await prepareOrderModal();
-  openOrderModal();
-});
 
+async function assignOrderToPicker(orderId) {
+  if (
+    normalizeRole(currentUserProfile?.role) !== "manager" &&
+    normalizeRole(currentUserProfile?.role) !== "admin"
+  ) {
+    showGlobalAlert("Bu işlem için yetkin yok.");
+    return;
+  }
 
-  
+  try {
+    const orderRef = doc(db, "orders", orderId);
+    const orderSnap = await getDoc(orderRef);
+    const orderData = orderSnap.exists() ? orderSnap.data() : {};
+
+    const usersSnap = await getDocs(query(collection(db, "users"), where("role", "==", "picker")));
+    if (usersSnap.empty) {
+      showGlobalAlert("Kayıtlı toplayıcı yok.");
+      return;
+    }
+
+    const pickers = [];
+    usersSnap.forEach((docSnap) => pickers.push({ id: docSnap.id, ...docSnap.data() }));
+
+    const pickerEmailList = pickers
+      .map((p, idx) => `${idx + 1}) ${p.fullName || "-"} - ${p.email || "-"}`)
+      .join("\n");
+
+    const input = prompt("Toplayıcı seç (numara ile):\n" + pickerEmailList);
+    if (!input) return;
+
+    const index = Number(input) - 1;
+    if (index < 0 || index >= pickers.length) {
+      showGlobalAlert("Geçersiz seçim.");
+      return;
+    }
+
+    const picker = pickers[index];
+
+    await updateDoc(orderRef, {
+      assignedTo: picker.id,
+      assignedToEmail: picker.email || null,
+      status: "assigned",
+    });
+
+    await createNotification({
+      userId: picker.id,
+      type: "orderAssigned",
+      orderId,
+      title: "Yeni sipariş atandı",
+      message: `${orderId.slice(-6)} no'lu (${orderData.branchName || "-"}) siparişi sana atandı.`,
+    });
+
+    if (orderData.createdBy) {
+      await createNotification({
+        userId: orderData.createdBy,
+        type: "orderStatus",
+        orderId,
+        title: "Sipariş durumu güncellendi",
+        message: `${orderId.slice(-6)} no'lu sipariş toplayıcıya atandı.`,
+      });
+    }
+
+    showGlobalAlert("Sipariş toplayıcıya atandı.", "success");
+    await loadOrders();
+    await loadPickingOrders();
+  } catch (err) {
+    console.error("assignOrderToPicker hata:", err);
+    showGlobalAlert("Toplayıcı atanamadı: " + err.message);
+  }
+}
 
 // --------------------------------------------------------
 // 9. Picking (Toplayıcı Ekranı + Rota) – PROFESYONEL UI (FIXED)
@@ -1323,7 +1557,7 @@ async function loadPickingOrders() {
     const role = normalizeRole(currentUserProfile?.role || "");
     let qRef = query(collection(db, "orders"), orderBy("createdAt", "desc"));
 
-    // Picker ise sadece kendine atananlar öncelikli
+    // Picker ise sadece kendine atananlar
     if (role === "picker") {
       qRef = query(
         collection(db, "orders"),
@@ -1341,8 +1575,6 @@ async function loadPickingOrders() {
 
     snap.forEach((ds) => {
       const d = ds.data();
-
-      // Picking ekranında completed göstermeyelim (istersen gösteririz)
       if (d.status === "completed") return;
 
       const statusLabel =
@@ -1379,7 +1611,6 @@ async function completePicking() {
   }
 
   try {
-    // modal içindeki inputlardan pickedQty topla
     const inputs = $("pickingDetailContent")?.querySelectorAll("input[data-item]");
     const pickedMap = new Map();
     if (inputs) {
@@ -1390,12 +1621,10 @@ async function completePicking() {
       });
     }
 
-    // items yeniden çek
     const itemsSnap = await getDocs(collection(db, "orders", pickingDetailOrderId, "items"));
     const items = [];
     itemsSnap.forEach((ds) => items.push({ id: ds.id, ...ds.data() }));
 
-    // picked qty update + log için hesapla
     let totalLines = 0;
     let totalQty = 0;
 
@@ -1412,11 +1641,9 @@ async function completePicking() {
       it._pickedQty = picked;
     }
 
-    // locationStocks düş
     const itemsWithLoc = await enrichItemsWithLocation(items);
     await applyPickingToLocationStocks(pickingDetailOrderId, itemsWithLoc);
 
-    // order status completed
     await updateDoc(doc(db, "orders", pickingDetailOrderId), {
       status: "completed",
       completedAt: serverTimestamp(),
@@ -1424,7 +1651,6 @@ async function completePicking() {
       completedByEmail: currentUser?.email || null,
     });
 
-    // pickingLogs
     await addDoc(collection(db, "pickingLogs"), {
       orderId: pickingDetailOrderId,
       pickerId: currentUser?.uid || null,
@@ -1434,7 +1660,6 @@ async function completePicking() {
       completedAt: serverTimestamp(),
     });
 
-    // bildirim (siparişi açan şubeye)
     const orderData = pickingDetailOrderDoc.data();
     if (orderData?.createdBy) {
       await createNotification({
@@ -1798,7 +2023,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // Arka plan tıklayınca kapat (BU SAYEDE "AÇILIYOR AMA KAPATAMIYORUZ" BİTER)
+  // Arka plan tıklayınca kapat
   const pickingModal = $("pickingDetailModal");
   if (pickingModal) {
     pickingModal.addEventListener("click", (e) => {
