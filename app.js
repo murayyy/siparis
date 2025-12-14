@@ -1522,8 +1522,6 @@ function closePickingDetailModal() {
       completeBtn.classList.toggle("opacity-50", !fromPicking);
       completeBtn.classList.toggle("cursor-not-allowed", !fromPicking);
     }
-}
-
 // --------------------------------------------------------
 // 10. Dashboard & Reports
 // --------------------------------------------------------
