@@ -1019,15 +1019,6 @@ async function saveStockMovement(evt) {
   }
 }
 
-
-  <div class="flex flex-col md:flex-row gap-2 items-start md:items-center">
-    <input
-      id="orderExcelFile"
-      type="file"
-      accept=".xlsx,.xls"
-      class="block w-full md:w-auto text-[11px] text-slate-300"
-    />
-
     <button
       type="button"
       id="importOrderFromExcelBtn"
