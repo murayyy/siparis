@@ -383,6 +383,9 @@ async function markNotificationsAsRead() {
 
 // --------------------------------------------------------
 // 3.4 Excel Import (XLSX) -> Firestore Orders + Items
+// (GÜNCEL) Şube adı Excel’den zorunlu değil.
+// Şube adı: üstteki "Şube Adı" inputundan alınır.
+// Excel: sadece satırları (ürün kalemlerini) içeri aktarır.
 // --------------------------------------------------------
 function normKey(s) {
   return String(s || "")
@@ -422,50 +425,55 @@ async function readExcelFileToRows(file) {
   return json;
 }
 
-function mapExcelRowsToOrder(rows) {
+/**
+ * Excel satırlarını kalem listesine çevirir.
+ * Şube adı burada yok.
+ * Not: Senin beklediğin başlıklar: Ürün Kodu, Ürün Adı, Miktar, Açıklama, Reyon, Barkod
+ * Biz minimumda: kod + ad + miktar + açıklama alıyoruz.
+ */
+function mapExcelRowsToItems(rows) {
   const mapped = rows.map((r) => {
     const obj = {};
     for (const k of Object.keys(r)) obj[normKey(k)] = r[k];
     return obj;
   });
 
-  const first = mapped[0];
-
- 
-
-  const documentNo =
-    first["belge no"] ||
-    first["belgeno"] ||
-    first["documentno"] ||
-    first["evrak no"] ||
-    first["evrakno"] ||
-    "";
-
   const items = mapped
     .map((r, idx) => {
+      // Ürün Kodu
       const productCode =
+        r["urun kodu"] ||
+        r["ürün kodu"] ||
         r["stok kodu"] ||
         r["stokkodu"] ||
         r["productcode"] ||
         r["kod"] ||
-        r["urun kodu"] ||
         r["urunkodu"] ||
         "";
 
+      // Ürün Adı
       const productName =
+        r["urun adi"] ||
+        r["ürün adi"] ||
         r["stok adi"] ||
         r["stokadi"] ||
         r["productname"] ||
         r["urun"] ||
-        r["urun adi"] ||
         r["urunadi"] ||
         "";
 
+      // Miktar
       const qtyRaw = r["miktar"] || r["adet"] || r["qty"] || r["mikt"] || "";
       const qty = Number(qtyRaw || 0);
 
-      const note = r["aciklama"] || r["açiklama"] || r["not"] || r["note"] || r["acik"] || "";
+      // Açıklama
+      const note = r["aciklama"] || r["açiklama"] || r["acik"] || r["not"] || r["note"] || "";
 
+      // Ek kolonlar (istersen sonra kullanırız)
+      const shelf = r["reyon"] || r["raf"] || r["lokasyon"] || r["lokasyon kodu"] || "";
+      const barcode = r["barkod"] || r["barcode"] || "";
+
+      // Tamamen boş satır geç
       if (!productCode && !productName) return null;
 
       if (!qty || qty <= 0) {
@@ -477,11 +485,13 @@ function mapExcelRowsToOrder(rows) {
         productName: String(productName).trim(),
         qty,
         note: String(note || "").trim(),
+        shelf: String(shelf || "").trim(),
+        barcode: String(barcode || "").trim(),
       };
     })
     .filter(Boolean);
 
-  return { branchName: String(branchName || "").trim(), documentNo: String(documentNo || "").trim(), items };
+  return items;
 }
 
 async function importOrderFromExcel() {
@@ -489,13 +499,21 @@ async function importOrderFromExcel() {
     if (!currentUser) throw new Error("Giriş yapılmadı.");
 
     setExcelImportResult("");
+
+    // ✅ Şube adı inputtan alınacak (Excel’den değil)
+    const branchName = $("orderBranchName")?.value?.trim() || "";
+    const documentNo = $("orderDocumentNo")?.value?.trim() || null;
+    const generalNote = $("orderNote")?.value?.trim() || null;
+
+    if (!branchName) throw new Error("Şube adı zorunlu. Üstteki Şube Adı alanını doldur.");
+
     const file = $("orderExcelFile")?.files?.[0];
     if (!file) throw new Error("Excel dosyası seçmelisin.");
 
     setExcelImportResult("Excel okunuyor...", true);
 
     const rows = await readExcelFileToRows(file);
-    const { branchName, documentNo, items } = mapExcelRowsToOrder(rows);
+    const items = mapExcelRowsToItems(rows);
 
     const rowErrors = items.filter((x) => x && x._error);
     if (rowErrors.length > 0) {
@@ -506,9 +524,9 @@ async function importOrderFromExcel() {
       throw new Error("Excel’de hatalı satırlar var:<br/>" + msg);
     }
 
-    if (!branchName) throw new Error("Excel’de Şube adı yok (sube/şube/branchName kolonunu kontrol et).");
     if (!items.length) throw new Error("Excel’den hiç kalem alınamadı.");
 
+    // ürün kodundan ürün id / birim yakalama
     const productsSnap = await getDocs(collection(db, "products"));
     const codeToProduct = new Map();
     productsSnap.forEach((ds) => {
@@ -516,10 +534,11 @@ async function importOrderFromExcel() {
       if (p?.code) codeToProduct.set(String(p.code).trim(), { id: ds.id, ...p });
     });
 
+    // ✅ Order yarat
     const orderPayload = {
       branchName,
-      documentNo: documentNo || null,
-      note: $("orderNote")?.value?.trim() || null,
+      documentNo,
+      note: generalNote,
       status: "open",
       createdAt: serverTimestamp(),
       createdBy: currentUser.uid,
@@ -533,6 +552,7 @@ async function importOrderFromExcel() {
 
     const orderRef = await addDoc(collection(db, "orders"), orderPayload);
 
+    // ✅ Items yaz
     for (const it of items) {
       const hit = codeToProduct.get(String(it.productCode || "").trim());
 
@@ -543,6 +563,9 @@ async function importOrderFromExcel() {
         qty: Number(it.qty || 0),
         unit: hit?.unit || "",
         note: it.note || "",
+        // opsiyonel alanlar (ileride kullanırız)
+        shelf: it.shelf || hit?.shelf || "",
+        barcode: it.barcode || hit?.barcode || "",
         pickedQty: 0,
         pickedDone: false,
         missingFlag: false,
@@ -569,10 +592,11 @@ async function importOrderFromExcel() {
 }
 
 function downloadExcelTemplate() {
-  const headers = ["sube", "belgeNo", "stokKodu", "stokAdi", "miktar", "aciklama"];
+  // ✅ Şube Excel’de zorunlu değil. Şube adı UI’dan girilecek.
+  const headers = ["urunKodu", "urunAdi", "miktar", "aciklama", "reyon", "barkod"];
   const sample = [
-    ["Emek", "2025-001", "0003", "FINDIK İÇİ", 120, ""],
-    ["Emek", "2025-001", "0012", "SARI LEBLEBİ", 1100, ""],
+    ["0003", "FINDIK İÇİ", 120, "", "A1-01-01", "8690000000001"],
+    ["0012", "SARI LEBLEBİ", 1100, "", "A1-01-02", "8690000000002"],
   ];
   const lines = [headers.join("\t"), ...sample.map((r) => r.join("\t"))].join("\n");
 
