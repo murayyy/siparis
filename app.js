@@ -1,7 +1,10 @@
-// app.js (ESM module) — DepoOS (Firestore + Auth) TAM DOSYA
+// app.js (ESM module) — DepoOS (Firestore + Auth) TAM DOSYA (GÜNCEL)
 // ✅ Excel import: Şube adı artık Excel’den ZORUNLU DEĞİL. Modal’daki “Şube Adı” inputundan alınır.
 // ✅ Toplama: “Toplandı” işaretlenince pickedQty = qty olur (siparişteki miktar toplandı olarak gelir).
-// ✅ Eksik Depo: Eksik çıkan kalemler missing_depot koleksiyonuna düşer, yönetici “Tamamlandı” yapar.
+// ✅ YENİ AKIŞ (SENİN İSTEDİĞİN):
+//    1) Toplama bitti -> TOPLANANLAR "KONTROL" ekranına paket (batch) olarak düşer.
+//    2) Eksikler -> "EKSİK DEPO" ekranına ŞUBE/ORDER bazlı DOSYA (missing file) olarak düşer.
+//    3) Eksik depoda "Eksik Tamamlandı" yapılınca -> o dosyadaki tamamlananlar KONTROL'e yeni paket olarak düşer.
 // ✅ Rol bazlı menü, ürünler, siparişler, toplama, yükleme, bildirim UI hook’ları içerir.
 //
 // Kurulum:
@@ -11,7 +14,10 @@
 //    - products/{id} : { code, name, unit, shelf, stock, note, barcode }
 //    - orders/{id} : { branchName, documentNo, note, status, createdAt, createdBy, createdByEmail, assignedTo, assignedToEmail, ... }
 //    - orders/{orderId}/items/{itemId} : { productCode, productName, qty, unit, note, shelf, reyon, barcode, pickedQty, pickedDone, missingFlag, missingQty, status, createdAt }
-//    - missing_depot/{id} : { orderId, orderNo, branchName, itemId, productCode, productName, missingQty, status, createdAt, createdBy, resolvedAt, resolvedBy }
+//    - controlBatches/{id} : { orderId, orderNo, branchName, type, status, createdAt, createdByUid, createdByEmail, summary }
+//      - controlBatches/{id}/items/{itemId}: { productCode, productName, qty, unit, shelf, barcode, note, createdAt }
+//    - missingFiles/{id}: { orderId, orderNo, branchName, status, createdAt, createdByUid, createdByEmail, closedAt, closedByUid, closedByEmail, summary }
+//      - missingFiles/{id}/items/{itemId}: { productCode, productName, missingQty, filledQty, unit, shelf, barcode, note, isDone, createdAt, updatedAt }
 //    - pallets/{id} : (opsiyonel) { shipmentNo, branchName, palletNo, dock, status, loadedBy, loadedAt }
 //    - users/{uid}/notifications/{id} : { title, body, createdAt, read }
 //
@@ -49,7 +55,7 @@ import {
    0) Firebase Config
 ========================================================= */
 const firebaseConfig = {
-   apiKey: "AIzaSyDcLQB4UggXlYA9x8AKw-XybJjcF6U_KA4",
+  apiKey: "AIzaSyDcLQB4UggXlYA9x8AKw-XybJjcF6U_KA4",
   authDomain: "depo1-4668f.firebaseapp.com",
   projectId: "depo1-4668f",
   storageBucket: "depo1-4668f.firebasestorage.app",
@@ -113,6 +119,9 @@ function friendlyFirebaseError(err) {
   if (/auth\/email-already-in-use/i.test(msg)) {
     return "Bu e-posta zaten kayıtlı.";
   }
+  if (/auth\/api-key-not-valid/i.test(msg)) {
+    return "Firebase API Key geçersiz görünüyor (auth/api-key-not-valid). Firebase Console > Project Settings > Web App Config içinden apiKey’i doğru kopyala.";
+  }
   return msg;
 }
 
@@ -145,6 +154,10 @@ function normKey(s) {
     .replaceAll("ç", "c")
     .replace(/\s+/g, " ")
     .replace(/[^\w\s.-]/g, "");
+}
+
+function safeIdTail(id, n = 6) {
+  try { return String(id || "").slice(-n); } catch { return "-"; }
 }
 
 /* =========================================================
@@ -288,7 +301,10 @@ function initNavUI() {
       if (view === "loadingView") await loadLoadingTasks();
       if (view === "stockView") await loadStockMovements();
       if (view === "reportsView" || view === "dashboardView") await refreshDashboard();
+
+      // NEW views (varsa HTML’de)
       if (view === "missingView") await loadMissingDepot();
+      if (view === "controlView") await loadControlBatches();
     });
   });
 
@@ -309,7 +325,7 @@ function applyRoleToUI(role) {
     btn.classList.toggle("hidden", !can);
   });
 
-  // If current active view is not allowed -> go to dashboard
+  // If current active view is not allowed -> go to first visible
   const activeBtn = btns.find(b => b.classList.contains("bg-slate-900/70") && !b.classList.contains("hidden"));
   if (!activeBtn) {
     const firstVisible = btns.find(b => !b.classList.contains("hidden"));
@@ -827,7 +843,6 @@ function mapExcelRowsToOrder(rows) {
 
   const first = mapped[0] || {};
 
-  // Belge no Excel’de varsa al, yoksa modal inputtan alacağız (import sırasında)
   const documentNo =
     first["belge no"] ||
     first["belgeno"] ||
@@ -880,7 +895,6 @@ function mapExcelRowsToOrder(rows) {
     })
     .filter(Boolean);
 
-  // branchName burada DÖNMÜYOR -> importOrderFromExcel içinden alacağız
   return { documentNo: String(documentNo || "").trim(), items };
 }
 
@@ -981,7 +995,6 @@ async function importOrderFromExcel() {
 }
 
 function downloadExcelTemplate() {
-  // ✅ Şube ve belge excelde zorunlu değil; excel sadece satırları taşıyor.
   const headers = ["Ürün Kodu", "Ürün Adı", "Miktar", "Açıklama", "Reyon", "Barkod"];
   const sample = [
     ["0003", "FINDIK İÇİ", 120, "", "A1-01", "8690000000001"],
@@ -1014,12 +1027,9 @@ async function loadOrders() {
 
     tbody.innerHTML = "";
 
-    // Branch role: only own branchName? (Şimdilik: branch rolü tümünü görmesin -> sadece kendi adıyla)
     let qy = query(collection(db, "orders"), orderBy("createdAt", "desc"), limit(200));
     if (currentRole === "branch") {
       const branchName = (currentUserDoc?.name || $("currentUserInfo")?.textContent || "").trim();
-      // En doğru: kullanıcının user doc içine branchName alanı koymak.
-      // Şimdilik: orderBranchName alanına aynı isim girildiği varsayımıyla filtre:
       if (branchName) qy = query(collection(db, "orders"), where("branchName", "==", branchName), orderBy("createdAt", "desc"), limit(200));
     }
 
@@ -1034,7 +1044,7 @@ async function loadOrders() {
     if (empty) hide(empty);
 
     tbody.innerHTML = rows.map(o => {
-      const no = o.id.slice(-6);
+      const no = safeIdTail(o.id, 6);
       const status = o.status || "-";
       const assigned = o.assignedToEmail || "-";
       const canAssign = ["admin", "manager"].includes(currentRole);
@@ -1086,8 +1096,8 @@ async function openOrderDetailQuick(orderId) {
     itemsSnap.forEach(ds => items.push(ds.data() || {}));
 
     const txt =
-      `Sipariş: ${orderId.slice(-6)}\nŞube: ${data.branchName}\nDurum: ${data.status}\nKalem: ${items.length}\n\n` +
-      items.slice(0, 30).map(i => `- ${i.productCode} ${i.productName} | ${i.qty} | picked:${i.pickedQty || 0}`).join("\n") +
+      `Sipariş: ${safeIdTail(orderId)}\nŞube: ${data.branchName}\nDurum: ${data.status}\nKalem: ${items.length}\n\n` +
+      items.slice(0, 30).map(i => `- ${i.productCode} ${i.productName} | ${i.qty} | picked:${i.pickedQty || 0} | missing:${i.missingQty || 0}`).join("\n") +
       (items.length > 30 ? `\n... +${items.length - 30} satır` : "");
 
     alert(txt);
@@ -1130,7 +1140,7 @@ async function assignOrderToPicker(orderId) {
     if (p.uid) {
       await addDoc(collection(db, "users", p.uid, "notifications"), {
         title: "Yeni Sipariş Atandı",
-        body: `Sipariş #${orderId.slice(-6)} sana atandı.`,
+        body: `Sipariş #${safeIdTail(orderId)} sana atandı.`,
         read: false,
         createdAt: serverTimestamp()
       });
@@ -1187,7 +1197,7 @@ async function loadPickingOrders() {
 
     tbody.innerHTML = rows.map(o => `
       <tr>
-        <td class="px-3 py-2 font-mono text-slate-200">${escapeHtml(o.id.slice(-6))}</td>
+        <td class="px-3 py-2 font-mono text-slate-200">${escapeHtml(safeIdTail(o.id))}</td>
         <td class="px-3 py-2 text-slate-200">${escapeHtml(o.branchName || "-")}</td>
         <td class="px-3 py-2 text-slate-300">${escapeHtml(o.status || "-")}</td>
         <td class="px-3 py-2 text-slate-400">${escapeHtml(o.assignedToEmail || "-")}</td>
@@ -1249,10 +1259,13 @@ async function openPickingDetail(orderId) {
     content.innerHTML = `
       <div class="p-3 rounded-2xl bg-slate-950/40 border border-slate-800">
         <div class="flex items-center justify-between">
-          <p class="text-xs font-semibold text-slate-100">Sipariş #${escapeHtml(orderId.slice(-6))}</p>
+          <p class="text-xs font-semibold text-slate-100">Sipariş #${escapeHtml(safeIdTail(orderId))}</p>
           <span class="text-[11px] text-slate-400">Şube: <b class="text-slate-200">${escapeHtml(order.branchName || "-")}</b></span>
         </div>
         <p class="text-[11px] text-slate-500 mt-1">Not: ${escapeHtml(order.note || "-")}</p>
+        <p class="text-[11px] text-slate-400 mt-1">
+          Bu siparişi bitirince: <b>Toplananlar Kontrole</b> düşer, <b>Eksikler Eksik Depo Dosyası</b> olarak oluşur.
+        </p>
       </div>
 
       <div class="overflow-auto border border-slate-800 rounded-2xl">
@@ -1325,7 +1338,6 @@ async function openPickingDetail(orderId) {
           const qty = Number(it.qty || 0);
 
           if (pickedDoneCb.checked) {
-            // pickedQty => qty
             pickedQtyInput.value = String(qty);
             await updateDoc(itRef, {
               pickedDone: true,
@@ -1334,7 +1346,6 @@ async function openPickingDetail(orderId) {
               updatedAt: serverTimestamp()
             });
           } else {
-            // unchecked: sadece pickedDone false bırak; pickedQty manuel kalsın
             const val = clampNum(pickedQtyInput.value, 0);
             await updateDoc(itRef, {
               pickedDone: false,
@@ -1359,7 +1370,6 @@ async function openPickingDetail(orderId) {
           const qty = Number(it.qty || 0);
           const done = val >= qty && qty > 0;
 
-          // sync checkbox
           pickedDoneCb.checked = done;
 
           await updateDoc(itRef, {
@@ -1373,7 +1383,7 @@ async function openPickingDetail(orderId) {
         }
       });
 
-      // ✅ Eksik: missing_depot kaydı oluştur + item missingFlag
+      // ✅ Eksik: SADECE item üzerinde flag/qty tutuyoruz. (Dosya, TOPLAMA BİTİNCE oluşacak)
       missingBtn?.addEventListener("click", async () => {
         try {
           const itRef = doc(db, "orders", orderId, "items", itemId);
@@ -1396,21 +1406,8 @@ async function openPickingDetail(orderId) {
             updatedAt: serverTimestamp()
           });
 
-          // missing_depot
-          await addDoc(collection(db, "missing_depot"), {
-            orderId,
-            orderNo: orderId.slice(-6),
-            branchName: order.branchName || "",
-            itemId,
-            productCode: it.productCode || "",
-            productName: it.productName || "",
-            missingQty,
-            status: "waiting",
-            createdAt: serverTimestamp(),
-            createdBy: currentUser.uid
-          });
+          showGlobalAlert("Eksik işaretlendi. (Toplama bitince Eksik Depo DOSYASINA düşecek)", "success");
 
-          showGlobalAlert("Eksik depo kaydı oluşturuldu.", "success");
           // UI paint
           missingBtn.className = "px-2 py-1 rounded-full bg-rose-900/50 border border-rose-800 text-rose-100 text-[11px]";
         } catch (err) {
@@ -1428,37 +1425,176 @@ async function openPickingDetail(orderId) {
   }
 }
 
+/* =========================================================
+   10.1) NEW: Toplama Bitince -> Kontrol Paketi + Eksik Dosyası
+========================================================= */
+async function finalizePickingToControlAndMissing(orderId) {
+  const orderRef = doc(db, "orders", orderId);
+  const orderSnap = await getDoc(orderRef);
+  if (!orderSnap.exists()) throw new Error("Sipariş bulunamadı.");
+  const order = orderSnap.data() || {};
+  const branchName = order.branchName || "-";
+  const orderNo = safeIdTail(orderId);
+
+  const itemsSnap = await getDocs(query(collection(db, "orders", orderId, "items"), limit(2000)));
+  const items = [];
+  itemsSnap.forEach(ds => items.push({ id: ds.id, ...(ds.data() || {}) }));
+
+  // Toplananlar: pickedQty > 0
+  const pickedItems = items
+    .filter((it) => Number(it.pickedQty || 0) > 0)
+    .map((it) => ({
+      productCode: it.productCode || "",
+      productName: it.productName || "",
+      qty: Number(it.pickedQty || 0),
+      unit: it.unit || "",
+      shelf: it.shelf || it.reyon || "",
+      barcode: it.barcode || "",
+      note: it.note || ""
+    }));
+
+  // Eksikler: missingQty > 0 (missingFlag true olmasa bile hesapla: qty - pickedQty)
+  const missingItems = items
+    .map((it) => {
+      const need = Number(it.qty || 0);
+      const picked = Number(it.pickedQty || 0);
+      const miss = Math.max(0, need - picked);
+      if (miss <= 0) return null;
+      return {
+        productCode: it.productCode || "",
+        productName: it.productName || "",
+        missingQty: miss,
+        filledQty: 0,
+        unit: it.unit || "",
+        shelf: it.shelf || it.reyon || "",
+        barcode: it.barcode || "",
+        note: it.note || "",
+        isDone: false
+      };
+    })
+    .filter(Boolean);
+
+  // 1) Kontrol paketi (toplananlar)
+  let createdPickedBatchId = null;
+  if (pickedItems.length > 0) {
+    const batchRef = await addDoc(collection(db, "controlBatches"), {
+      orderId,
+      orderNo,
+      branchName,
+      type: "picked",
+      status: "waiting",
+      createdAt: serverTimestamp(),
+      createdByUid: currentUser.uid,
+      createdByEmail: currentUser.email,
+      summary: {
+        lines: pickedItems.length,
+        qty: pickedItems.reduce((s, x) => s + Number(x.qty || 0), 0)
+      }
+    });
+    createdPickedBatchId = batchRef.id;
+
+    for (const it of pickedItems) {
+      await addDoc(collection(db, "controlBatches", batchRef.id, "items"), {
+        ...it,
+        createdAt: serverTimestamp()
+      });
+    }
+  }
+
+  // 2) Eksik dosyası (şube/order bazlı tek dosya)
+  let createdMissingFileId = null;
+  if (missingItems.length > 0) {
+    const mfRef = await addDoc(collection(db, "missingFiles"), {
+      orderId,
+      orderNo,
+      branchName,
+      status: "open",
+      createdAt: serverTimestamp(),
+      createdByUid: currentUser.uid,
+      createdByEmail: currentUser.email,
+      closedAt: null,
+      closedByUid: null,
+      closedByEmail: null,
+      summary: {
+        lines: missingItems.length,
+        missingQtyTotal: missingItems.reduce((s, x) => s + Number(x.missingQty || 0), 0)
+      }
+    });
+    createdMissingFileId = mfRef.id;
+
+    for (const it of missingItems) {
+      await addDoc(collection(db, "missingFiles", mfRef.id, "items"), {
+        ...it,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+    }
+  }
+
+  // 3) Order status -> kontrol bekliyor
+  const missingLines = missingItems.length;
+  const missingQty = missingItems.reduce((s, x) => s + Number(x.missingQty || 0), 0);
+
+  await updateDoc(orderRef, {
+    status: "awaiting_control",
+    pickingFinishedAt: serverTimestamp(),
+    pickingFinishedBy: currentUser.uid,
+    pickingFinishedByEmail: currentUser.email,
+    missingSummary: { missingLines, missingQty },
+    controlBatchId: createdPickedBatchId || null,
+    missingFileId: createdMissingFileId || null
+  });
+
+  return { createdPickedBatchId, createdMissingFileId, missingLines, missingQty };
+}
+
 async function completePicking(orderId) {
   try {
     if (!currentUser) throw new Error("Giriş yapılmadı.");
     if (!["admin", "manager", "picker"].includes(currentRole)) throw new Error("Yetki yok.");
 
-    const itemsSnap = await getDocs(query(collection(db, "orders", orderId, "items"), limit(1000)));
+    const itemsSnap = await getDocs(query(collection(db, "orders", orderId, "items"), limit(2000)));
     const items = [];
     itemsSnap.forEach(ds => items.push({ id: ds.id, ...(ds.data() || {}) }));
 
-    const notDone = items.filter(i => !i.pickedDone && !i.missingFlag);
-    if (notDone.length > 0) {
-      const sample = notDone.slice(0, 5).map(i => `${i.productCode} ${i.productName}`).join(", ");
-      throw new Error(`Tamamlamak için tüm satırlar ya “Toplandı” olmalı ya da “Eksik”e alınmalı. Eksik kalan örnek: ${sample}`);
+    // Eski kural: her satır ya pickedDone ya missingFlag olmalı
+    // Yeni kural: bitirince eksikler otomatik hesaplanacak ama yine de "toplandı/eksik" disiplinini koruyalım.
+    const notTouched = items.filter(i => !i.pickedDone && !i.missingFlag && Number(i.pickedQty || 0) <= 0);
+    if (notTouched.length > 0) {
+      const sample = notTouched.slice(0, 5).map(i => `${i.productCode} ${i.productName}`).join(", ");
+      throw new Error(`Tamamlamak için satırlar en azından toplama miktarı girilmiş olmalı. Örnek boş kalan: ${sample}`);
     }
 
-    // missing summary
-    const missingLines = items.filter(i => i.missingFlag).length;
-    const missingQty = items.reduce((s, i) => s + (Number(i.missingQty || 0) || 0), 0);
+    // ✅ Asıl iş: Kontrol + Eksik Dosyası oluştur
+    const res = await finalizePickingToControlAndMissing(orderId);
 
-    await updateDoc(doc(db, "orders", orderId), {
-      status: "completed",
-      completedAt: serverTimestamp(),
-      completedBy: currentUser.uid,
-      missingSummary: { missingLines, missingQty }
-    });
+    showGlobalAlert(
+      `Toplama bitti. Kontrol'e gönderildi. Eksik dosyası: ${res.createdMissingFileId ? "VAR" : "YOK"} (Eksik satır: ${res.missingLines})`,
+      "success"
+    );
 
-    showGlobalAlert("Toplama tamamlandı.", "success");
     closePickingModal();
     await loadPickingOrders();
     await loadOrders();
     await refreshDashboard();
+
+    // Yöneticiye bildirim (opsiyonel)
+    try {
+      if (currentUserDoc?.role === "picker") {
+        const mgrSnap = await getDocs(query(collection(db, "users"), where("role", "in", ["manager", "admin"]), limit(25)));
+        const notifs = [];
+        mgrSnap.forEach(ds => {
+          const uid = ds.id;
+          notifs.push(addDoc(collection(db, "users", uid, "notifications"), {
+            title: "Toplama Bitti → Kontrol Bekliyor",
+            body: `Sipariş #${safeIdTail(orderId)} kontrol kuyruğuna düştü. Eksik satır: ${res.missingLines}`,
+            read: false,
+            createdAt: serverTimestamp()
+          }));
+        });
+        await Promise.all(notifs);
+      }
+    } catch { /* sessiz */ }
 
   } catch (err) {
     showGlobalAlert(friendlyFirebaseError(err), "error");
@@ -1466,11 +1602,22 @@ async function completePicking(orderId) {
 }
 
 /* =========================================================
-   11) Eksik Depo View
+   11) EKSİK DEPO (DOSYA BAZLI) — missingFiles
+   HTML’de varsa:
+   - missingStatusFilter (all/open/completed)
+   - reloadMissingBtn
+   - missingFilesTableBody / missingEmpty
 ========================================================= */
 function initMissingDepotUI() {
   $("reloadMissingBtn")?.addEventListener("click", loadMissingDepot);
   $("missingStatusFilter")?.addEventListener("change", loadMissingDepot);
+
+  // Missing file detail modal varsa
+  $("closeMissingDetailModalBtn")?.addEventListener("click", () => hide($("missingDetailModal")));
+  $("completeMissingFileBtn")?.addEventListener("click", async () => {
+    if (!window.__activeMissingFileId) return;
+    await completeMissingFile(window.__activeMissingFileId);
+  });
 }
 
 async function loadMissingDepot() {
@@ -1478,16 +1625,16 @@ async function loadMissingDepot() {
     if (!currentUser) return;
     if (!["admin", "manager"].includes(currentRole)) return;
 
-    const tbody = $("missingTableBody");
+    const tbody = $("missingTableBody") || $("missingFilesTableBody"); // iki id’den birini yakala
     const empty = $("missingEmpty");
     if (!tbody) return;
 
     tbody.innerHTML = "";
 
-    const filter = $("missingStatusFilter")?.value || "waiting";
-    let qy = query(collection(db, "missing_depot"), orderBy("createdAt", "desc"), limit(400));
+    const filter = ($("missingStatusFilter")?.value || "open").toLowerCase();
+    let qy = query(collection(db, "missingFiles"), orderBy("createdAt", "desc"), limit(400));
     if (filter !== "all") {
-      qy = query(collection(db, "missing_depot"), where("status", "==", filter), orderBy("createdAt", "desc"), limit(400));
+      qy = query(collection(db, "missingFiles"), where("status", "==", filter), orderBy("createdAt", "desc"), limit(400));
     }
 
     const snap = await getDocs(qy);
@@ -1497,26 +1644,42 @@ async function loadMissingDepot() {
     if (rows.length === 0) { if (empty) show(empty); return; }
     if (empty) hide(empty);
 
-    tbody.innerHTML = rows.map(r => `
-      <tr>
-        <td class="px-3 py-2 font-mono text-slate-200">#${escapeHtml(r.orderNo || (r.orderId || "").slice(-6))}</td>
-        <td class="px-3 py-2 text-slate-200">${escapeHtml(r.branchName || "-")}</td>
-        <td class="px-3 py-2 text-slate-200">${escapeHtml(r.productCode || "")} — ${escapeHtml(r.productName || "")}</td>
-        <td class="px-3 py-2 text-right text-rose-200 font-semibold">${escapeHtml(r.missingQty ?? 0)}</td>
-        <td class="px-3 py-2 text-slate-300">${escapeHtml(r.status || "-")}</td>
-        <td class="px-3 py-2 text-right">
-          ${r.status === "waiting" ? `
-            <button class="px-2 py-1 rounded-full bg-emerald-600 hover:bg-emerald-500 text-[11px] text-white"
-              data-action="resolve" data-id="${r.id}">Tamamlandı</button>
-          ` : `<span class="text-[11px] text-slate-500">-</span>`}
-        </td>
-      </tr>
-    `).join("");
+    tbody.innerHTML = rows.map(r => {
+      const status = r.status || "-";
+      const canOpen = true;
+      const canComplete = status === "open";
+      return `
+        <tr>
+          <td class="px-3 py-2 font-mono text-slate-200">#${escapeHtml(r.orderNo || safeIdTail(r.orderId))}</td>
+          <td class="px-3 py-2 text-slate-200">${escapeHtml(r.branchName || "-")}</td>
+          <td class="px-3 py-2 text-slate-300">${escapeHtml(status)}</td>
+          <td class="px-3 py-2 text-right text-rose-200 font-semibold">${escapeHtml(r.summary?.missingQtyTotal ?? 0)}</td>
+          <td class="px-3 py-2 text-slate-500">${escapeHtml(formatDate(r.createdAt))}</td>
+          <td class="px-3 py-2 text-right">
+            ${canOpen ? `
+              <button class="px-2 py-1 rounded-full bg-slate-800 hover:bg-slate-700 text-[11px]"
+                data-action="open" data-id="${r.id}">Aç</button>
+            ` : ""}
+            ${canComplete ? `
+              <button class="ml-1 px-2 py-1 rounded-full bg-emerald-600 hover:bg-emerald-500 text-[11px] text-white"
+                data-action="complete" data-id="${r.id}">Eksik Tamamlandı</button>
+            ` : `<span class="text-[11px] text-slate-500">-</span>`}
+          </td>
+        </tr>
+      `;
+    }).join("");
 
-    tbody.querySelectorAll("button[data-action='resolve']").forEach(btn => {
+    tbody.querySelectorAll("button[data-action='open']").forEach(btn => {
       btn.addEventListener("click", async () => {
         const id = btn.dataset.id;
-        await resolveMissing(id);
+        await openMissingFileDetail(id);
+      });
+    });
+
+    tbody.querySelectorAll("button[data-action='complete']").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const id = btn.dataset.id;
+        await completeMissingFile(id);
       });
     });
 
@@ -1525,22 +1688,367 @@ async function loadMissingDepot() {
   }
 }
 
-async function resolveMissing(missingId) {
+async function openMissingFileDetail(missingFileId) {
   try {
     if (!["admin", "manager"].includes(currentRole)) throw new Error("Yetki yok.");
 
-    const ref = doc(db, "missing_depot", missingId);
-    const snap = await getDoc(ref);
-    if (!snap.exists()) return;
+    const mfRef = doc(db, "missingFiles", missingFileId);
+    const mfSnap = await getDoc(mfRef);
+    if (!mfSnap.exists()) throw new Error("Eksik dosyası bulunamadı.");
+    const mf = mfSnap.data() || {};
 
-    await updateDoc(ref, {
-      status: "completed",
-      resolvedAt: serverTimestamp(),
-      resolvedBy: currentUser.uid
+    window.__activeMissingFileId = missingFileId;
+
+    const itemsSnap = await getDocs(query(collection(db, "missingFiles", missingFileId, "items"), orderBy("productCode", "asc"), limit(2000)));
+    const items = [];
+    itemsSnap.forEach(ds => items.push({ id: ds.id, ...(ds.data() || {}) }));
+
+    // Eğer HTML’de modal yoksa, en azından alert ile göster
+    const modal = $("missingDetailModal");
+    const container = $("missingDetailContent");
+
+    if (!modal || !container) {
+      const txt = [
+        `Eksik Dosyası: #${mf.orderNo || safeIdTail(mf.orderId)}`,
+        `Şube: ${mf.branchName}`,
+        `Durum: ${mf.status}`,
+        `Satır: ${items.length}`,
+        "",
+        ...items.slice(0, 40).map(i => `- ${i.productCode} ${i.productName} | eksik:${i.missingQty} | tamam:${i.filledQty || 0}`),
+        items.length > 40 ? `... +${items.length - 40} satır` : ""
+      ].join("\n");
+      alert(txt);
+      return;
+    }
+
+    container.innerHTML = `
+      <div class="p-3 rounded-2xl bg-slate-950/40 border border-slate-800">
+        <div class="flex items-center justify-between">
+          <p class="text-xs font-semibold text-slate-100">Eksik Dosyası #${escapeHtml(mf.orderNo || safeIdTail(mf.orderId))}</p>
+          <span class="text-[11px] text-slate-400">Şube: <b class="text-slate-200">${escapeHtml(mf.branchName || "-")}</b></span>
+        </div>
+        <p class="text-[11px] text-slate-500 mt-1">Durum: <b class="text-slate-200">${escapeHtml(mf.status || "-")}</b></p>
+        <p class="text-[11px] text-slate-400 mt-1">
+          Eksikler gelince <b>Tamamlanan Miktar</b> gir. Sonra <b>Eksik Tamamlandı</b> deyince Kontrol’e paket düşer.
+        </p>
+      </div>
+
+      <div class="overflow-auto border border-slate-800 rounded-2xl">
+        <table class="min-w-full text-[11px]">
+          <thead class="bg-slate-900/90 sticky top-0">
+            <tr>
+              <th class="px-3 py-2 text-left text-slate-400">Kod</th>
+              <th class="px-3 py-2 text-left text-slate-400">Ürün</th>
+              <th class="px-3 py-2 text-right text-slate-400">Eksik</th>
+              <th class="px-3 py-2 text-right text-slate-400">Tamamlanan</th>
+              <th class="px-3 py-2 text-left text-slate-400">Raf</th>
+              <th class="px-3 py-2 text-center text-slate-400">Durum</th>
+            </tr>
+          </thead>
+          <tbody id="missingItemsTbody" class="divide-y divide-slate-800"></tbody>
+        </table>
+      </div>
+    `;
+
+    const tbody = $("missingItemsTbody");
+    tbody.innerHTML = items.map(it => {
+      const done = (Number(it.filledQty || 0) >= Number(it.missingQty || 0)) && Number(it.missingQty || 0) > 0;
+      return `
+        <tr data-item-id="${it.id}">
+          <td class="px-3 py-2 font-mono text-slate-200">${escapeHtml(it.productCode || "")}</td>
+          <td class="px-3 py-2 text-slate-200">${escapeHtml(it.productName || "")}</td>
+          <td class="px-3 py-2 text-right text-rose-200 font-semibold">${escapeHtml(it.missingQty ?? 0)}</td>
+          <td class="px-3 py-2 text-right">
+            <input type="number" step="0.01" min="0"
+              class="w-24 text-right rounded-xl bg-slate-950 border border-slate-700 px-2 py-1 text-[11px] text-white"
+              data-k="filledQty" value="${escapeHtml(it.filledQty ?? 0)}">
+          </td>
+          <td class="px-3 py-2 text-slate-400">${escapeHtml(it.shelf || "-")}</td>
+          <td class="px-3 py-2 text-center">
+            <span class="text-[11px] ${done ? "text-emerald-300" : "text-slate-500"}">${done ? "Tamam" : "Bekliyor"}</span>
+          </td>
+        </tr>
+      `;
+    }).join("");
+
+    // change listeners (filledQty)
+    Array.from(tbody.querySelectorAll("tr[data-item-id]")).forEach(tr => {
+      const itemId = tr.dataset.itemId;
+      const inp = tr.querySelector("input[data-k='filledQty']");
+      inp?.addEventListener("change", async () => {
+        try {
+          const val = clampNum(inp.value, 0);
+          await updateMissingItemFilledQty(missingFileId, itemId, val);
+        } catch (err) {
+          showGlobalAlert(friendlyFirebaseError(err), "error");
+        }
+      });
     });
 
-    showGlobalAlert("Eksik depo kaydı tamamlandı yapıldı.", "success");
+    show(modal);
+
+  } catch (err) {
+    showGlobalAlert(friendlyFirebaseError(err), "error");
+  }
+}
+
+async function updateMissingItemFilledQty(missingFileId, itemId, filledQty) {
+  const ref = doc(db, "missingFiles", missingFileId, "items", itemId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) throw new Error("Eksik kalem bulunamadı.");
+
+  const it = snap.data() || {};
+  const max = Number(it.missingQty || 0);
+  const val = Math.max(0, Math.min(max, Number(filledQty || 0)));
+
+  await updateDoc(ref, {
+    filledQty: val,
+    isDone: max > 0 ? (val >= max) : false,
+    updatedAt: serverTimestamp()
+  });
+}
+
+async function completeMissingFile(missingFileId) {
+  try {
+    if (!["admin", "manager"].includes(currentRole)) throw new Error("Yetki yok.");
+
+    const mfRef = doc(db, "missingFiles", missingFileId);
+    const mfSnap = await getDoc(mfRef);
+    if (!mfSnap.exists()) throw new Error("Eksik dosyası bulunamadı.");
+    const mf = mfSnap.data() || {};
+    if (mf.status !== "open") throw new Error("Bu eksik dosyası zaten kapalı.");
+
+    const itemsSnap = await getDocs(query(collection(db, "missingFiles", missingFileId, "items"), limit(3000)));
+    const items = [];
+    itemsSnap.forEach(ds => items.push({ id: ds.id, ...(ds.data() || {}) }));
+
+    const toControl = items
+      .filter((it) => Number(it.filledQty || 0) > 0)
+      .map((it) => ({
+        productCode: it.productCode || "",
+        productName: it.productName || "",
+        qty: Number(it.filledQty || 0),
+        unit: it.unit || "",
+        shelf: it.shelf || "",
+        barcode: it.barcode || "",
+        note: it.note || ""
+      }));
+
+    // Kontrole paket oluştur (sonradan gelenler)
+    if (toControl.length > 0) {
+      const batchRef = await addDoc(collection(db, "controlBatches"), {
+        orderId: mf.orderId,
+        orderNo: mf.orderNo || safeIdTail(mf.orderId),
+        branchName: mf.branchName || "-",
+        type: "missingFill",
+        status: "waiting",
+        createdAt: serverTimestamp(),
+        createdByUid: currentUser.uid,
+        createdByEmail: currentUser.email,
+        summary: {
+          lines: toControl.length,
+          qty: toControl.reduce((s, x) => s + Number(x.qty || 0), 0)
+        }
+      });
+
+      for (const it of toControl) {
+        await addDoc(collection(db, "controlBatches", batchRef.id, "items"), {
+          ...it,
+          createdAt: serverTimestamp()
+        });
+      }
+    }
+
+    // Eksik dosyasını kapat
+    await updateDoc(mfRef, {
+      status: "completed",
+      closedAt: serverTimestamp(),
+      closedByUid: currentUser.uid,
+      closedByEmail: currentUser.email
+    });
+
+    hide($("missingDetailModal"));
+    showGlobalAlert("Eksik dosyası kapatıldı. Tamamlananlar Kontrol'e gönderildi.", "success");
     await loadMissingDepot();
+    await refreshDashboard();
+
+  } catch (err) {
+    showGlobalAlert(friendlyFirebaseError(err), "error");
+  }
+}
+
+/* =========================================================
+   11.1) KONTROL EKRANI (BATCH) — controlBatches
+   HTML’de varsa:
+   - controlStatusFilter (all/waiting/checking/done)
+   - reloadControlBtn
+   - controlTableBody / controlEmpty
+========================================================= */
+function initControlUI() {
+  $("reloadControlBtn")?.addEventListener("click", loadControlBatches);
+  $("controlStatusFilter")?.addEventListener("change", loadControlBatches);
+
+  $("closeControlDetailModalBtn")?.addEventListener("click", () => hide($("controlDetailModal")));
+  $("markControlDoneBtn")?.addEventListener("click", async () => {
+    if (!window.__activeControlBatchId) return;
+    await markControlBatchDone(window.__activeControlBatchId);
+  });
+}
+
+async function loadControlBatches() {
+  try {
+    if (!currentUser) return;
+    if (!["admin", "manager"].includes(currentRole)) return;
+
+    const tbody = $("controlTableBody");
+    const empty = $("controlEmpty");
+    if (!tbody) return;
+
+    tbody.innerHTML = "";
+
+    const filter = ($("controlStatusFilter")?.value || "waiting").toLowerCase();
+    let qy = query(collection(db, "controlBatches"), orderBy("createdAt", "desc"), limit(400));
+    if (filter !== "all") {
+      qy = query(collection(db, "controlBatches"), where("status", "==", filter), orderBy("createdAt", "desc"), limit(400));
+    }
+
+    const snap = await getDocs(qy);
+    const rows = [];
+    snap.forEach(ds => rows.push({ id: ds.id, ...(ds.data() || {}) }));
+
+    if (rows.length === 0) { if (empty) show(empty); return; }
+    if (empty) hide(empty);
+
+    tbody.innerHTML = rows.map(r => {
+      const typ = r.type === "missingFill" ? "Eksik Tamamlama" : "Toplama";
+      return `
+        <tr>
+          <td class="px-3 py-2 font-mono text-slate-200">#${escapeHtml(r.orderNo || safeIdTail(r.orderId))}</td>
+          <td class="px-3 py-2 text-slate-200">${escapeHtml(r.branchName || "-")}</td>
+          <td class="px-3 py-2 text-slate-300">${escapeHtml(typ)}</td>
+          <td class="px-3 py-2 text-slate-300">${escapeHtml(r.status || "-")}</td>
+          <td class="px-3 py-2 text-right text-slate-200">${escapeHtml(r.summary?.lines ?? 0)}</td>
+          <td class="px-3 py-2 text-right text-slate-200">${escapeHtml(r.summary?.qty ?? 0)}</td>
+          <td class="px-3 py-2 text-slate-500">${escapeHtml(formatDate(r.createdAt))}</td>
+          <td class="px-3 py-2 text-right">
+            <button class="px-2 py-1 rounded-full bg-slate-800 hover:bg-slate-700 text-[11px]"
+              data-action="open" data-id="${r.id}">Aç</button>
+            ${r.status !== "done" ? `
+              <button class="ml-1 px-2 py-1 rounded-full bg-emerald-600 hover:bg-emerald-500 text-[11px] text-white"
+                data-action="done" data-id="${r.id}">Kontrol Tamam</button>
+            ` : `<span class="text-[11px] text-slate-500 ml-1">-</span>`}
+          </td>
+        </tr>
+      `;
+    }).join("");
+
+    tbody.querySelectorAll("button[data-action='open']").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const id = btn.dataset.id;
+        await openControlBatchDetail(id);
+      });
+    });
+
+    tbody.querySelectorAll("button[data-action='done']").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const id = btn.dataset.id;
+        await markControlBatchDone(id);
+      });
+    });
+
+  } catch (err) {
+    showGlobalAlert(friendlyFirebaseError(err), "error");
+  }
+}
+
+async function openControlBatchDetail(batchId) {
+  try {
+    if (!["admin", "manager"].includes(currentRole)) throw new Error("Yetki yok.");
+
+    const bRef = doc(db, "controlBatches", batchId);
+    const bSnap = await getDoc(bRef);
+    if (!bSnap.exists()) throw new Error("Kontrol paketi bulunamadı.");
+    const b = bSnap.data() || {};
+
+    window.__activeControlBatchId = batchId;
+
+    const itemsSnap = await getDocs(query(collection(db, "controlBatches", batchId, "items"), orderBy("productCode", "asc"), limit(5000)));
+    const items = [];
+    itemsSnap.forEach(ds => items.push({ id: ds.id, ...(ds.data() || {}) }));
+
+    const modal = $("controlDetailModal");
+    const container = $("controlDetailContent");
+
+    if (!modal || !container) {
+      const txt = [
+        `Kontrol Paketi: #${b.orderNo || safeIdTail(b.orderId)}`,
+        `Şube: ${b.branchName}`,
+        `Tip: ${b.type}`,
+        `Durum: ${b.status}`,
+        `Satır: ${items.length}`,
+        "",
+        ...items.slice(0, 40).map(i => `- ${i.productCode} ${i.productName} | ${i.qty}`),
+        items.length > 40 ? `... +${items.length - 40} satır` : ""
+      ].join("\n");
+      alert(txt);
+      return;
+    }
+
+    container.innerHTML = `
+      <div class="p-3 rounded-2xl bg-slate-950/40 border border-slate-800">
+        <div class="flex items-center justify-between">
+          <p class="text-xs font-semibold text-slate-100">Kontrol Paketi #${escapeHtml(b.orderNo || safeIdTail(b.orderId))}</p>
+          <span class="text-[11px] text-slate-400">Şube: <b class="text-slate-200">${escapeHtml(b.branchName || "-")}</b></span>
+        </div>
+        <p class="text-[11px] text-slate-500 mt-1">Tip: <b class="text-slate-200">${escapeHtml(b.type === "missingFill" ? "Eksik Tamamlama" : "Toplama")}</b> • Durum: <b class="text-slate-200">${escapeHtml(b.status || "-")}</b></p>
+      </div>
+
+      <div class="overflow-auto border border-slate-800 rounded-2xl">
+        <table class="min-w-full text-[11px]">
+          <thead class="bg-slate-900/90 sticky top-0">
+            <tr>
+              <th class="px-3 py-2 text-left text-slate-400">Kod</th>
+              <th class="px-3 py-2 text-left text-slate-400">Ürün</th>
+              <th class="px-3 py-2 text-right text-slate-400">Miktar</th>
+              <th class="px-3 py-2 text-left text-slate-400">Raf</th>
+              <th class="px-3 py-2 text-left text-slate-400">Barkod</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-800">
+            ${items.map(it => `
+              <tr>
+                <td class="px-3 py-2 font-mono text-slate-200">${escapeHtml(it.productCode || "")}</td>
+                <td class="px-3 py-2 text-slate-200">${escapeHtml(it.productName || "")}</td>
+                <td class="px-3 py-2 text-right text-slate-200">${escapeHtml(it.qty ?? 0)}</td>
+                <td class="px-3 py-2 text-slate-400">${escapeHtml(it.shelf || "-")}</td>
+                <td class="px-3 py-2 text-slate-400">${escapeHtml(it.barcode || "-")}</td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      </div>
+    `;
+
+    show(modal);
+
+  } catch (err) {
+    showGlobalAlert(friendlyFirebaseError(err), "error");
+  }
+}
+
+async function markControlBatchDone(batchId) {
+  try {
+    if (!["admin", "manager"].includes(currentRole)) throw new Error("Yetki yok.");
+    await updateDoc(doc(db, "controlBatches", batchId), {
+      status: "done",
+      doneAt: serverTimestamp(),
+      doneByUid: currentUser.uid,
+      doneByEmail: currentUser.email
+    });
+    hide($("controlDetailModal"));
+    showGlobalAlert("Kontrol paketi tamamlandı.", "success");
+    await loadControlBatches();
+    await refreshDashboard();
   } catch (err) {
     showGlobalAlert(friendlyFirebaseError(err), "error");
   }
@@ -1580,7 +2088,7 @@ async function loadLoadingTasks() {
 
     tbody.innerHTML = rows.map(p => `
       <tr>
-        <td class="px-2 py-2 text-slate-200 font-mono">${escapeHtml(p.shipmentNo || p.id.slice(-6))}</td>
+        <td class="px-2 py-2 text-slate-200 font-mono">${escapeHtml(p.shipmentNo || safeIdTail(p.id))}</td>
         <td class="px-2 py-2 text-slate-200 hidden sm:table-cell">${escapeHtml(p.branchName || "-")}</td>
         <td class="px-2 py-2 text-slate-200">${escapeHtml(p.palletNo || "-")}</td>
         <td class="px-2 py-2 text-slate-400 hidden md:table-cell">${escapeHtml(p.dock || "-")}</td>
@@ -1616,6 +2124,7 @@ async function refreshDashboard() {
     const openCount = orders.filter(o => ["open", "assigned"].includes(o.status)).length;
     const pickingCount = orders.filter(o => o.status === "picking").length;
     const completedCount = orders.filter(o => o.status === "completed").length;
+    const awaitingControlCount = orders.filter(o => o.status === "awaiting_control").length;
 
     if ($("cardTotalProducts")) $("cardTotalProducts").textContent = String(prodCount);
     if ($("cardOpenOrders")) $("cardOpenOrders").textContent = String(openCount);
@@ -1650,7 +2159,9 @@ async function refreshDashboard() {
       if (currentRole === "picker") {
         pickerStats.textContent = "Toplama performansı: (demo) — Sipariş detaylarında satır satır takip ediliyor.";
       } else {
-        pickerStats.textContent = "Bugün henüz tamamlanan toplama yok. (demo)";
+        pickerStats.textContent = awaitingControlCount > 0
+          ? `Kontrol bekleyen sipariş var: ${awaitingControlCount}`
+          : "Bugün henüz kontrol bekleyen sipariş yok. (demo)";
       }
     }
 
@@ -1711,6 +2222,7 @@ function initAll() {
   initPickingUI();
   initLoadingUI();
   initMissingDepotUI();
+  initControlUI(); // NEW
 }
 
 initAll();
@@ -1753,15 +2265,15 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     function signedIn() { return request.auth != null; }
-    function isAdmin() { return signedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin"; }
-    function isManager() {
-      return signedIn() && (
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "manager" ||
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin"
-      );
+    function role() {
+      return signedIn()
+        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role
+        : null;
     }
-    function isPicker() { return signedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "picker"; }
-    function isBranch() { return signedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "branch"; }
+    function isAdmin() { return role() == "admin"; }
+    function isManager() { return role() == "manager" || role() == "admin"; }
+    function isPicker() { return role() == "picker"; }
+    function isBranch() { return role() == "branch"; }
 
     match /users/{uid} {
       allow read: if signedIn();
@@ -1784,7 +2296,7 @@ service cloud.firestore {
     match /orders/{orderId} {
       allow read: if signedIn();
       allow create: if signedIn();
-      allow update: if isManager() || (isPicker() && request.resource.data.assignedTo == request.auth.uid) || isAdmin();
+      allow update: if isManager() || isPicker() || isAdmin();
       allow delete: if isAdmin();
 
       match /items/{itemId} {
@@ -1795,11 +2307,34 @@ service cloud.firestore {
       }
     }
 
-    match /missing_depot/{id} {
+    // NEW: control batches
+    match /controlBatches/{id} {
       allow read: if isManager() || isAdmin();
       allow create: if isPicker() || isManager() || isAdmin();
       allow update: if isManager() || isAdmin();
       allow delete: if isAdmin();
+
+      match /items/{itemId} {
+        allow read: if isManager() || isAdmin();
+        allow create: if isPicker() || isManager() || isAdmin();
+        allow update: if isManager() || isAdmin();
+        allow delete: if isAdmin();
+      }
+    }
+
+    // NEW: missing files
+    match /missingFiles/{id} {
+      allow read: if isManager() || isAdmin();
+      allow create: if isPicker() || isManager() || isAdmin();
+      allow update: if isManager() || isAdmin();
+      allow delete: if isAdmin();
+
+      match /items/{itemId} {
+        allow read: if isManager() || isAdmin();
+        allow create: if isPicker() || isManager() || isAdmin();
+        allow update: if isManager() || isAdmin();
+        allow delete: if isAdmin();
+      }
     }
 
     match /pallets/{id} {
