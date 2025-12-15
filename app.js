@@ -1,10 +1,10 @@
 // app.js
-// DepoOS – Firebase + Firestore + Tek Sayfa Depo Otomasyonu (SON GÜNCEL / TEK PARÇA)
-// Not: "Yeni Sipariş" artık Excel'den yükleme + (istersen manuel ekleme da duruyor, eksiltmedim)
+// DepoOS – Firebase + Firestore + Tek Sayfa Depo Otomasyonu (GÜNCEL / TEK PARÇA)
+// - Orders: Excel import + manuel sipariş oluşturma (eksiltmedim)
+// - Picking: "Toplandı" checkbox (işaretlenince pickedQty = qty), "Eksik" checkbox (eksikse pickedQty=0)
+// - Eksik ürün özeti order içine yazılır (missingSummary)
+// - Manager/Admin: toplayıcı atama (basit seçim UI)
 
-// --------------------------------------------------------
-// 1. Firebase Config & Init
-// --------------------------------------------------------
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
 import {
   getAuth,
@@ -30,6 +30,9 @@ import {
   onSnapshot,
 } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
 
+// --------------------------------------------------------
+// 1. Firebase Config & Init
+// --------------------------------------------------------
 const firebaseConfig = {
   apiKey: "AIzaSyDcLQB4UggXlYA9x8AKw-XybJjcF6U_KA4",
   authDomain: "depo1-4668f.firebaseapp.com",
@@ -102,7 +105,6 @@ function showGlobalAlert(msg, type = "info") {
   setTimeout(() => el.classList.add("hidden"), 4000);
 }
 
-// Rolü Türkçe label ile gösterelim
 function getRoleLabel(role) {
   const r = (role || "").toLowerCase();
   if (r === "branch") return "şube";
@@ -126,15 +128,12 @@ function setCurrentUserInfo(user, profile) {
     el.textContent = "";
     return;
   }
-
   el.textContent = `${profile.fullName || user.email} • ${getRoleLabel(profile.role)}`;
 }
 
 // --------------------------------------------------------
 // 3.1 Toplama Rotası / Lokasyon Helpers
 // --------------------------------------------------------
-
-// "A1-01-01" → { zone: "A", aisle: 1, rack: 1, level: 1 }
 function parseLocationCode(code) {
   if (!code || typeof code !== "string") {
     return { zone: "", aisle: 0, rack: 0, level: 0 };
@@ -161,7 +160,6 @@ function parseLocationCode(code) {
   return { zone, aisle, rack, level };
 }
 
-// Lokasyon kodu sıralama (rota)
 function compareLocationCode(a, b) {
   const pa = parseLocationCode(a || "");
   const pb = parseLocationCode(b || "");
@@ -177,7 +175,6 @@ function compareLocationCode(a, b) {
   return 0;
 }
 
-// Sipariş kalemlerini locationStocks ile zenginleştirir (rota + stok kontrol)
 async function enrichItemsWithLocation(items) {
   const result = [];
 
@@ -220,7 +217,6 @@ async function enrichItemsWithLocation(items) {
   return result;
 }
 
-// Toplama tamamlandığında locationStocks qty güncelle
 async function applyPickingToLocationStocks(orderId, itemsWithPicked) {
   for (const it of itemsWithPicked) {
     if (!it.productId || !it.locationId) continue;
@@ -269,9 +265,7 @@ function applyRoleBasedMenu(role) {
 
   menuButtons.forEach((btn) => {
     const allowedRoles = btn.dataset.role
-      ? btn.dataset.role
-          .split(",")
-          .map((r) => r.trim().toLowerCase())
+      ? btn.dataset.role.split(",").map((r) => r.trim().toLowerCase())
       : [];
 
     if (!allowedRoles.includes(normRole)) btn.classList.add("hidden");
@@ -281,7 +275,6 @@ function applyRoleBasedMenu(role) {
 
 function setupRoleBasedUI(profile) {
   const role = normalizeRole(profile?.role || "");
-
   applyRoleBasedMenu(role);
 
   const newOrderBtn = $("openOrderModalBtn");
@@ -315,7 +308,6 @@ async function createNotification({ userId, type, title, message, orderId, extra
 function startNotificationListener() {
   const listEl = $("notificationsList");
   const badgeEl = $("notificationsUnread");
-
   if (!currentUser || !listEl) return;
 
   if (notificationsUnsub) {
@@ -343,19 +335,16 @@ function startNotificationListener() {
           if (!d.read) unread++;
 
           const li = document.createElement("li");
-          li.className = "flex justify-between items-start text-xs border-b border-slate-100 py-1";
+          li.className = "flex justify-between items-start text-xs border-b border-slate-800 py-1";
           li.innerHTML = `
             <div class="pr-2">
-              <p class="font-semibold text-slate-700">${d.title || "-"}</p>
-              <p class="text-[11px] text-slate-500">${d.message || ""}</p>
+              <p class="font-semibold text-slate-200">${d.title || "-"}</p>
+              <p class="text-[11px] text-slate-400">${d.message || ""}</p>
             </div>
-            <span class="text-[10px] text-slate-400">
+            <span class="text-[10px] text-slate-500">
               ${
                 d.createdAt?.toDate
-                  ? d.createdAt.toDate().toLocaleTimeString("tr-TR", {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })
+                  ? d.createdAt.toDate().toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })
                   : ""
               }
             </span>
@@ -373,9 +362,7 @@ function startNotificationListener() {
         }
       }
     },
-    (err) => {
-      console.error("Bildirim dinleyici hata:", err);
-    }
+    (err) => console.error("Bildirim dinleyici hata:", err)
   );
 }
 
@@ -383,18 +370,11 @@ async function markNotificationsAsRead() {
   if (!currentUser) return;
   try {
     const snap = await getDocs(
-      query(
-        collection(db, "notifications"),
-        where("userId", "==", currentUser.uid),
-        where("read", "==", false)
-      )
+      query(collection(db, "notifications"), where("userId", "==", currentUser.uid), where("read", "==", false))
     );
 
     const tasks = [];
-    snap.forEach((docSnap) => {
-      tasks.push(updateDoc(doc(db, "notifications", docSnap.id), { read: true }));
-    });
-
+    snap.forEach((docSnap) => tasks.push(updateDoc(doc(db, "notifications", docSnap.id), { read: true })));
     await Promise.all(tasks);
   } catch (err) {
     console.error("Bildirimler okunmuş işaretlenirken hata:", err);
@@ -403,8 +383,6 @@ async function markNotificationsAsRead() {
 
 // --------------------------------------------------------
 // 3.4 Excel Import (XLSX) -> Firestore Orders + Items
-// Başlıklar: Ürün Kodu, Ürün Adı, Miktar, Açıklama, Reyon, Barkod
-// Şube adı ve Belge No'yu siz formdan giriyorsunuz (Excel'de varsa alır, yoksa formdan alır)
 // --------------------------------------------------------
 function normKey(s) {
   return String(s || "")
@@ -431,7 +409,7 @@ async function readExcelFileToRows(file) {
   if (!file) throw new Error("Dosya seçilmedi.");
   if (typeof XLSX === "undefined") {
     throw new Error(
-      "XLSX kütüphanesi yok. index.html <head> içine SheetJS script ekle: <script src='https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js'></script>"
+      "XLSX yok. index.html <head> içine SheetJS ekli olmalı: https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"
     );
   }
 
@@ -440,7 +418,6 @@ async function readExcelFileToRows(file) {
   const sheetName = wb.SheetNames[0];
   const ws = wb.Sheets[sheetName];
   const json = XLSX.utils.sheet_to_json(ws, { defval: "" });
-
   if (!json || json.length === 0) throw new Error("Excel boş görünüyor.");
   return json;
 }
@@ -454,7 +431,6 @@ function mapExcelRowsToOrder(rows) {
 
   const first = mapped[0];
 
-  // Excel'de varsa alır, yoksa formdan gireceksiniz
   const branchName =
     first["sube"] ||
     first["şube"] ||
@@ -474,58 +450,33 @@ function mapExcelRowsToOrder(rows) {
 
   const items = mapped
     .map((r, idx) => {
-      // Yeni zorunlu başlıklar
       const productCode =
-        r["urun kodu"] ||
-        r["urunkodu"] ||
         r["stok kodu"] ||
         r["stokkodu"] ||
         r["productcode"] ||
         r["kod"] ||
+        r["urun kodu"] ||
+        r["urunkodu"] ||
         "";
 
       const productName =
-        r["urun adi"] ||
-        r["urunadi"] ||
         r["stok adi"] ||
         r["stokadi"] ||
         r["productname"] ||
         r["urun"] ||
+        r["urun adi"] ||
+        r["urunadi"] ||
         "";
 
       const qtyRaw = r["miktar"] || r["adet"] || r["qty"] || r["mikt"] || "";
       const qty = Number(qtyRaw || 0);
 
-      const note =
-        r["aciklama"] ||
-        r["açiklama"] ||
-        r["not"] ||
-        r["note"] ||
-        r["acik"] ||
-        "";
-
-      const shelf =
-        r["reyon"] ||
-        r["raf"] ||
-        r["lokasyon"] ||
-        r["lokasyon kodu"] ||
-        r["location"] ||
-        "";
-
-      const barcode =
-        r["barkod"] ||
-        r["barcode"] ||
-        "";
+      const note = r["aciklama"] || r["açiklama"] || r["not"] || r["note"] || r["acik"] || "";
 
       if (!productCode && !productName) return null;
 
       if (!qty || qty <= 0) {
-        return {
-          _row: idx + 2,
-          _error: "Miktar 0 veya boş",
-          productCode,
-          productName,
-        };
+        return { _row: idx + 2, _error: "Miktar (qty) 0 veya boş", productCode, productName };
       }
 
       return {
@@ -533,17 +484,11 @@ function mapExcelRowsToOrder(rows) {
         productName: String(productName).trim(),
         qty,
         note: String(note || "").trim(),
-        shelf: String(shelf || "").trim(),
-        barcode: String(barcode || "").trim(),
       };
     })
     .filter(Boolean);
 
-  return {
-    branchName: String(branchName || "").trim(),
-    documentNo: String(documentNo || "").trim(),
-    items,
-  };
+  return { branchName: String(branchName || "").trim(), documentNo: String(documentNo || "").trim(), items };
 }
 
 async function importOrderFromExcel() {
@@ -554,34 +499,23 @@ async function importOrderFromExcel() {
     const file = $("orderExcelFile")?.files?.[0];
     if (!file) throw new Error("Excel dosyası seçmelisin.");
 
-    // Şube ve belge no siz gireceksiniz (Excel'de yoksa buradan alınır)
-    const formBranchName = $("orderBranchName")?.value?.trim() || "";
-    const formDocumentNo = $("orderDocumentNo")?.value?.trim() || "";
-
-    if (!formBranchName) {
-      throw new Error("Şube adı zorunlu. (Excel’den yüklesen bile şube adını formdan gir)");
-    }
-
     setExcelImportResult("Excel okunuyor...", true);
 
     const rows = await readExcelFileToRows(file);
-    const { branchName: excelBranch, documentNo: excelDoc, items } = mapExcelRowsToOrder(rows);
+    const { branchName, documentNo, items } = mapExcelRowsToOrder(rows);
 
     const rowErrors = items.filter((x) => x && x._error);
     if (rowErrors.length > 0) {
       const msg = rowErrors
         .slice(0, 25)
-        .map(
-          (e) =>
-            `Satır ${e._row}: ${e._error} (${e.productCode || ""} ${e.productName || ""})`
-        )
+        .map((e) => `Satır ${e._row}: ${e._error} (${e.productCode || ""} ${e.productName || ""})`)
         .join("<br/>");
       throw new Error("Excel’de hatalı satırlar var:<br/>" + msg);
     }
 
+    if (!branchName) throw new Error("Excel’de Şube adı yok (sube/şube/branchName kolonunu kontrol et).");
     if (!items.length) throw new Error("Excel’den hiç kalem alınamadı.");
 
-    // products koleksiyonu ile eşleştir (kod -> product)
     const productsSnap = await getDocs(collection(db, "products"));
     const codeToProduct = new Map();
     productsSnap.forEach((ds) => {
@@ -590,9 +524,9 @@ async function importOrderFromExcel() {
     });
 
     const orderPayload = {
-      branchName: formBranchName || excelBranch || "",
-      documentNo: formDocumentNo || excelDoc || null,
-      note: null,
+      branchName,
+      documentNo: documentNo || null,
+      note: $("orderNote")?.value?.trim() || null,
       status: "open",
       createdAt: serverTimestamp(),
       createdBy: currentUser.uid,
@@ -601,6 +535,7 @@ async function importOrderFromExcel() {
       assignedToEmail: null,
       source: "excel",
       sourceFileName: file.name,
+      missingSummary: { missingLines: 0, missingQty: 0 },
     };
 
     const orderRef = await addDoc(collection(db, "orders"), orderPayload);
@@ -615,9 +550,10 @@ async function importOrderFromExcel() {
         qty: Number(it.qty || 0),
         unit: hit?.unit || "",
         note: it.note || "",
-        shelf: it.shelf || hit?.shelf || "",   // Reyon/Raf bilgisi
-        barcode: it.barcode || hit?.barcode || "",
         pickedQty: 0,
+        pickedDone: false,
+        missingFlag: false,
+        missingQty: 0,
         status: "open",
         createdAt: serverTimestamp(),
       });
@@ -639,12 +575,11 @@ async function importOrderFromExcel() {
   }
 }
 
-// Basit şablon indir (TSV) — Excel açar
 function downloadExcelTemplate() {
-  const headers = ["Ürün Kodu", "Ürün Adı", "Miktar", "Açıklama", "Reyon", "Barkod"];
+  const headers = ["sube", "belgeNo", "stokKodu", "stokAdi", "miktar", "aciklama"];
   const sample = [
-    ["0003", "FINDIK İÇİ", 120, "", "A1-01-01", "8690000000001"],
-    ["0012", "SARI LEBLEBİ", 1100, "", "A1-01-02", "8690000000002"],
+    ["Emek", "2025-001", "0003", "FINDIK İÇİ", 120, ""],
+    ["Emek", "2025-001", "0012", "SARI LEBLEBİ", 1100, ""],
   ];
   const lines = [headers.join("\t"), ...sample.map((r) => r.join("\t"))].join("\n");
 
@@ -668,7 +603,6 @@ function switchAuthTab(tab) {
   const registerTab = $("registerTab");
   const loginForm = $("loginForm");
   const registerForm = $("registerForm");
-
   if (!loginTab || !registerTab || !loginForm || !registerForm) return;
 
   if (tab === "login") {
@@ -696,34 +630,23 @@ const viewLoaders = {
     await loadLoadingTasks();
     await updatePickerDashboardStats();
   },
-  productsView: async () => {
-    await loadProducts();
-  },
+  productsView: async () => loadProducts(),
   stockView: async () => {
     await loadProducts();
     await loadStockMovements();
   },
-  ordersView: async () => {
-    await loadOrders();
-  },
+  ordersView: async () => loadOrders(),
   pickingView: async () => {
     await loadPickingOrders();
     await updatePickerDashboardStats();
   },
-  loadingView: async () => {
-    await loadLoadingTasks();
-  },
-  reportsView: async () => {
-    await updateReportSummary();
-  },
+  loadingView: async () => loadLoadingTasks(),
+  reportsView: async () => updateReportSummary(),
 };
 
 function showView(viewId) {
   const views = document.querySelectorAll(".view");
-  views.forEach((v) => {
-    if (v.id === viewId) v.classList.remove("hidden");
-    else v.classList.add("hidden");
-  });
+  views.forEach((v) => (v.id === viewId ? v.classList.remove("hidden") : v.classList.add("hidden")));
 
   const navBtns = document.querySelectorAll(".nav-btn");
   navBtns.forEach((btn) => {
@@ -751,8 +674,7 @@ async function loadProducts() {
   try {
     const snapshot = await getDocs(collection(db, "products"));
 
-    if (snapshot.empty) emptyMsg.classList.remove("hidden");
-    else emptyMsg.classList.add("hidden");
+    snapshot.empty ? emptyMsg.classList.remove("hidden") : emptyMsg.classList.add("hidden");
 
     snapshot.forEach((docSnap) => {
       const data = docSnap.data();
@@ -833,15 +755,7 @@ async function saveProduct(evt) {
   const stock = Number($("productStock").value || 0);
   const note = $("productNote").value.trim();
 
-  const payload = {
-    code,
-    name,
-    unit,
-    shelf,
-    stock,
-    note,
-    updatedAt: serverTimestamp(),
-  };
+  const payload = { code, name, unit, shelf, stock, note, updatedAt: serverTimestamp() };
 
   try {
     if (!id) {
@@ -891,20 +805,19 @@ async function loadStockMovements() {
     qSnap.forEach((docSnap) => {
       if (count >= 10) return;
       const d = docSnap.data();
-
       const typeLabel = d.type === "in" ? "Giriş" : d.type === "out" ? "Çıkış" : "Transfer";
 
       const div = document.createElement("div");
       div.className =
-        "border border-slate-100 rounded-xl px-3 py-2 flex justify-between items-center bg-white/70 backdrop-blur";
+        "border border-slate-800 rounded-xl px-3 py-2 flex justify-between items-center bg-slate-950/40";
       div.innerHTML = `
         <div>
-          <p class="font-semibold text-slate-800 text-xs">${d.productName || "-"}</p>
-          <p class="text-[11px] text-slate-500">
+          <p class="font-semibold text-slate-200 text-xs">${d.productName || "-"}</p>
+          <p class="text-[11px] text-slate-400">
             ${typeLabel} • ${d.qty} ${d.unit || ""} • ${d.sourceLocation || "-"} ➜ ${d.targetLocation || "-"}
           </p>
         </div>
-        <span class="text-[11px] text-slate-400">
+        <span class="text-[11px] text-slate-500">
           ${d.createdAt?.toDate ? d.createdAt.toDate().toLocaleString("tr-TR") : ""}
         </span>
       `;
@@ -912,8 +825,7 @@ async function loadStockMovements() {
       count++;
     });
 
-    if (count === 0) empty.classList.remove("hidden");
-    else empty.classList.add("hidden");
+    count === 0 ? empty.classList.remove("hidden") : empty.classList.add("hidden");
   } catch (err) {
     console.error("loadStockMovements hata:", err);
     showGlobalAlert("Stok hareketleri okunamadı: " + err.message);
@@ -960,10 +872,7 @@ async function adjustLocationStock({ productId, productData, locationCode, delta
     if (targetDocRef) {
       await updateDoc(targetDocRef, basePayload);
     } else {
-      await addDoc(collection(db, "locationStocks"), {
-        ...basePayload,
-        createdAt: serverTimestamp(),
-      });
+      await addDoc(collection(db, "locationStocks"), { ...basePayload, createdAt: serverTimestamp() });
     }
   } catch (err) {
     console.error("adjustLocationStock hata:", err);
@@ -1027,12 +936,8 @@ async function saveStockMovement(evt) {
     } else if (type === "out" && sourceLocation) {
       await adjustLocationStock({ ...commonArgs, locationCode: sourceLocation, deltaQty: -qty });
     } else if (type === "transfer") {
-      if (sourceLocation) {
-        await adjustLocationStock({ ...commonArgs, locationCode: sourceLocation, deltaQty: -qty });
-      }
-      if (targetLocation) {
-        await adjustLocationStock({ ...commonArgs, locationCode: targetLocation, deltaQty: qty });
-      }
+      if (sourceLocation) await adjustLocationStock({ ...commonArgs, locationCode: sourceLocation, deltaQty: -qty });
+      if (targetLocation) await adjustLocationStock({ ...commonArgs, locationCode: targetLocation, deltaQty: qty });
     }
 
     $("stockForm").reset();
@@ -1046,149 +951,118 @@ async function saveStockMovement(evt) {
 }
 
 // --------------------------------------------------------
-// 8. Orders (Şube Siparişleri) - EKSİKLER TAMAMLANDI
-// createOrderItemRow + saveOrder + assignOrderToPicker
+// 8. Orders (Manuel + Atama)
 // --------------------------------------------------------
 function openOrderModal() {
   $("orderModal")?.classList.remove("hidden");
 }
-
 function closeOrderModal() {
   $("orderModal")?.classList.add("hidden");
 }
 
 function createOrderItemRow(productsMap) {
-  const row = document.createElement("div");
-  row.className =
-    "grid grid-cols-5 gap-2 items-center border border-slate-200 rounded-xl px-2 py-1 bg-white/60";
+  // productsMap: id -> data
+  const wrapper = document.createElement("div");
+  wrapper.className = "grid md:grid-cols-12 gap-2 items-center border border-slate-800/80 bg-slate-950/40 rounded-2xl p-2";
 
-  const select = document.createElement("select");
-  select.className =
-    "col-span-2 rounded-lg border border-slate-300 px-2 py-1 text-xs bg-white";
-  select.required = true;
-  select.innerHTML = `<option value="">Ürün seç</option>`;
-  productsMap.forEach((p, id) => {
-    const opt = document.createElement("option");
-    opt.value = id;
-    opt.textContent = `${p.code} - ${p.name}`;
-    select.appendChild(opt);
-  });
+  const optionsHtml = Array.from(productsMap.entries())
+    .map(([id, p]) => `<option value="${id}">${(p.code || "").trim()} - ${(p.name || "").trim()}</option>`)
+    .join("");
 
-  const qtyInput = document.createElement("input");
-  qtyInput.type = "number";
-  qtyInput.min = "1";
-  qtyInput.value = "1";
-  qtyInput.className =
-    "col-span-1 rounded-lg border border-slate-300 px-2 py-1 text-xs bg-white";
-  qtyInput.required = true;
+  wrapper.innerHTML = `
+    <div class="md:col-span-5">
+      <select class="orderItemProduct w-full rounded-xl bg-slate-900 border border-slate-700 px-3 py-2 text-[11px] text-slate-100">
+        <option value="">Ürün seç...</option>
+        ${optionsHtml}
+      </select>
+    </div>
 
-  const noteInput = document.createElement("input");
-  noteInput.type = "text";
-  noteInput.placeholder = "Not";
-  noteInput.className =
-    "col-span-1 rounded-lg border border-slate-300 px-2 py-1 text-xs bg-white";
+    <div class="md:col-span-2">
+      <input type="number" min="0" step="0.01" placeholder="Miktar"
+        class="orderItemQty w-full rounded-xl bg-slate-900 border border-slate-700 px-3 py-2 text-[11px] text-slate-100" />
+    </div>
 
-  const removeBtn = document.createElement("button");
-  removeBtn.type = "button";
-  removeBtn.textContent = "Sil";
-  removeBtn.className =
-    "col-span-1 text-[11px] px-2 py-1 rounded-full bg-red-100 text-red-700 hover:bg-red-200";
+    <div class="md:col-span-4">
+      <input type="text" placeholder="Açıklama / Not"
+        class="orderItemNote w-full rounded-xl bg-slate-900 border border-slate-700 px-3 py-2 text-[11px] text-slate-100" />
+    </div>
 
-  removeBtn.addEventListener("click", () => {
-    row.remove();
-    const container = $("orderItemsContainer");
-    if (container && container.children.length === 0) {
-      $("orderItemsEmpty")?.classList.remove("hidden");
-    }
-  });
+    <div class="md:col-span-1 flex justify-end">
+      <button type="button"
+        class="orderItemRemove px-3 py-2 rounded-xl bg-red-500/10 border border-red-500/30 text-red-200 text-[11px] hover:bg-red-500/20">
+        Sil
+      </button>
+    </div>
+  `;
 
-  row.appendChild(select);
-  row.appendChild(qtyInput);
-  row.appendChild(noteInput);
-  row.appendChild(removeBtn);
-  return row;
+  wrapper.querySelector(".orderItemRemove").addEventListener("click", () => wrapper.remove());
+  return wrapper;
 }
 
 async function prepareOrderModal() {
-  // Form reset
   $("orderForm")?.reset();
 
-  // satırları temizle
   const container = $("orderItemsContainer");
   const empty = $("orderItemsEmpty");
   if (container) container.innerHTML = "";
   if (empty) empty.classList.remove("hidden");
 
-  // Excel alanını resetle
   if ($("orderExcelFile")) $("orderExcelFile").value = "";
   setExcelImportResult("");
 
-  // ürünleri çek (satır ekleme dropdown'u için)
   const productsSnap = await getDocs(collection(db, "products"));
   const productsMap = new Map();
   productsSnap.forEach((docSnap) => productsMap.set(docSnap.id, docSnap.data()));
 
-  $("addOrderItemBtn").onclick = () => {
-    const row = createOrderItemRow(productsMap);
-    container.appendChild(row);
-    empty.classList.add("hidden");
-  };
+  const addBtn = $("addOrderItemBtn");
+  if (addBtn) {
+    addBtn.onclick = () => {
+      const row = createOrderItemRow(productsMap);
+      container.appendChild(row);
+      empty.classList.add("hidden");
+    };
+  }
 }
 
-// Manuel sipariş kaydet (Excel'den yükleme ayrı)
 async function saveOrder(evt) {
   evt.preventDefault();
-
-  const branchName = $("orderBranchName")?.value?.trim() || "";
-  const documentNo = $("orderDocumentNo")?.value?.trim() || "";
-  const note = $("orderNote")?.value?.trim() || "";
-  const container = $("orderItemsContainer");
-
-  if (!branchName) {
-    showGlobalAlert("Şube adı zorunludur.");
-    return;
-  }
-  if (!container || container.children.length === 0) {
-    showGlobalAlert("En az bir ürün satırı eklemelisin.");
-    return;
-  }
-
   try {
+    if (!currentUser) throw new Error("Giriş yapılmadı.");
+
+    const branchName = $("orderBranchName")?.value?.trim() || "";
+    const documentNo = $("orderDocumentNo")?.value?.trim() || "";
+    const note = $("orderNote")?.value?.trim() || "";
+
+    if (!branchName) throw new Error("Şube adı zorunlu.");
+
+    const container = $("orderItemsContainer");
+    const rows = container ? Array.from(container.children) : [];
+
+    if (rows.length === 0) throw new Error("En az 1 satır eklemelisin (veya Excel yüklemelisin).");
+
     const items = [];
+    for (const r of rows) {
+      const productId = r.querySelector(".orderItemProduct")?.value || "";
+      const qty = Number(r.querySelector(".orderItemQty")?.value || 0);
+      const rowNote = r.querySelector(".orderItemNote")?.value?.trim() || "";
 
-    const productsMap = new Map();
-    const productsSnap = await getDocs(collection(db, "products"));
-    productsSnap.forEach((docSnap) => productsMap.set(docSnap.id, docSnap.data()));
+      if (!productId) continue;
+      if (!qty || qty <= 0) throw new Error("Manuel satırlarda miktar 0 olamaz.");
 
-    for (const row of container.children) {
-      const selects = row.getElementsByTagName("select");
-      const inputs = row.getElementsByTagName("input");
-      if (selects.length === 0 || inputs.length < 2) continue;
+      const pSnap = await getDoc(doc(db, "products", productId));
+      const p = pSnap.exists() ? pSnap.data() : {};
 
-      const productId = selects[0].value;
-      const qty = Number(inputs[0].value || 0);
-      const itemNote = inputs[1].value || "";
-      if (!productId || qty <= 0) continue;
-
-      const p = productsMap.get(productId);
       items.push({
         productId,
-        productCode: p?.code || "",
-        productName: p?.name || "",
+        productCode: p.code || "",
+        productName: p.name || "",
         qty,
-        unit: p?.unit || "",
-        note: itemNote,
-        shelf: p?.shelf || "",
-        barcode: p?.barcode || "",
-        pickedQty: 0,
-        status: "open",
+        unit: p.unit || "",
+        note: rowNote,
       });
     }
 
-    if (items.length === 0) {
-      showGlobalAlert("Geçerli satır yok. Ürün ve miktar girilmelidir.");
-      return;
-    }
+    if (items.length === 0) throw new Error("Geçerli satır bulunamadı.");
 
     const orderPayload = {
       branchName,
@@ -1196,29 +1070,35 @@ async function saveOrder(evt) {
       note: note || null,
       status: "open",
       createdAt: serverTimestamp(),
-      createdBy: currentUser?.uid || null,
-      createdByEmail: currentUser?.email || null,
+      createdBy: currentUser.uid,
+      createdByEmail: currentUser.email,
       assignedTo: null,
       assignedToEmail: null,
       source: "manual",
+      missingSummary: { missingLines: 0, missingQty: 0 },
     };
 
     const orderRef = await addDoc(collection(db, "orders"), orderPayload);
 
-    for (const item of items) {
+    for (const it of items) {
       await addDoc(collection(db, "orders", orderRef.id, "items"), {
-        ...item,
+        ...it,
+        pickedQty: 0,
+        pickedDone: false,
+        missingFlag: false,
+        missingQty: 0,
+        status: "open",
         createdAt: serverTimestamp(),
       });
     }
 
-    closeOrderModal();
     showGlobalAlert("Sipariş kaydedildi.", "success");
     await loadOrders();
     await loadPickingOrders();
+    closeOrderModal();
   } catch (err) {
     console.error("saveOrder hata:", err);
-    showGlobalAlert("Sipariş kaydedilemedi: " + err.message);
+    showGlobalAlert("Sipariş kaydedilemedi: " + (err.message || err));
   }
 }
 
@@ -1238,11 +1118,15 @@ async function loadOrders() {
       const d = docSnap.data();
 
       const statusLabel =
-        d.status === "open" ? "Açık"
-        : d.status === "assigned" ? "Atandı"
-        : d.status === "picking" ? "Toplanıyor"
-        : d.status === "completed" ? "Tamamlandı"
-        : (d.status || "-");
+        d.status === "open"
+          ? "Açık"
+          : d.status === "assigned"
+          ? "Atandı"
+          : d.status === "picking"
+          ? "Toplanıyor"
+          : d.status === "completed"
+          ? "Tamamlandı"
+          : d.status || "-";
 
       const tr = document.createElement("tr");
       tr.innerHTML = `
@@ -1252,10 +1136,10 @@ async function loadOrders() {
         <td class="px-3 py-2 text-[11px]">${d.assignedToEmail || "-"}</td>
         <td class="px-3 py-2 text-[11px]">${d.createdAt?.toDate ? d.createdAt.toDate().toLocaleString("tr-TR") : ""}</td>
         <td class="px-3 py-2 text-right space-x-1">
-          <button class="text-[11px] px-2 py-1 rounded-full bg-sky-100 text-sky-700 hover:bg-sky-200" data-detail="${docSnap.id}">Detay</button>
+          <button class="text-[11px] px-2 py-1 rounded-full bg-slate-900 text-slate-100 hover:bg-slate-800" data-detail="${docSnap.id}">Detay</button>
           ${
             normalizeRole(currentUserProfile?.role) === "manager" || normalizeRole(currentUserProfile?.role) === "admin"
-              ? `<button class="text-[11px] px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 hover:bg-emerald-200" data-assign="${docSnap.id}">Toplayıcı Ata</button>`
+              ? `<button class="text-[11px] px-2 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-200 hover:bg-emerald-500/20" data-assign="${docSnap.id}">Toplayıcı Ata</button>`
               : ""
           }
         </td>
@@ -1263,8 +1147,7 @@ async function loadOrders() {
       tbody.appendChild(tr);
     }
 
-    if (!hasAny) empty.classList.remove("hidden");
-    else empty.classList.add("hidden");
+    hasAny ? empty.classList.add("hidden") : empty.classList.remove("hidden");
   } catch (err) {
     console.error("loadOrders hata:", err);
     showGlobalAlert("Siparişler okunamadı: " + err.message);
@@ -1272,68 +1155,49 @@ async function loadOrders() {
 }
 
 async function assignOrderToPicker(orderId) {
-  if (
-    normalizeRole(currentUserProfile?.role) !== "manager" &&
-    normalizeRole(currentUserProfile?.role) !== "admin"
-  ) {
-    showGlobalAlert("Bu işlem için yetkin yok.");
-    return;
-  }
-
   try {
-    const orderRef = doc(db, "orders", orderId);
-    const orderSnap = await getDoc(orderRef);
-    const orderData = orderSnap.exists() ? orderSnap.data() : {};
-
-    const usersSnap = await getDocs(query(collection(db, "users"), where("role", "==", "picker")));
-    if (usersSnap.empty) {
-      showGlobalAlert("Kayıtlı toplayıcı yok.");
+    const role = normalizeRole(currentUserProfile?.role || "");
+    if (!(role === "manager" || role === "admin")) {
+      showGlobalAlert("Bu işlem için yetkin yok.");
       return;
     }
 
+    // picker listesi
+    const snap = await getDocs(query(collection(db, "users"), where("role", "==", "picker")));
     const pickers = [];
-    usersSnap.forEach((docSnap) => pickers.push({ id: docSnap.id, ...docSnap.data() }));
+    snap.forEach((ds) => pickers.push({ id: ds.id, ...ds.data() }));
 
-    const pickerEmailList = pickers
-      .map((p, idx) => `${idx + 1}) ${p.fullName || "-"} - ${p.email || "-"}`)
-      .join("\n");
-
-    const input = prompt("Toplayıcı seç (numara ile):\n" + pickerEmailList);
-    if (!input) return;
-
-    const index = Number(input) - 1;
-    if (index < 0 || index >= pickers.length) {
-      showGlobalAlert("Geçersiz seçim.");
+    if (pickers.length === 0) {
+      showGlobalAlert("Toplayıcı bulunamadı. Önce picker kullanıcı ekle.");
       return;
     }
 
-    const picker = pickers[index];
+    const menu = pickers.map((p, i) => `${i + 1}) ${p.fullName || p.email} (${p.email})`).join("\n");
+    const ans = prompt("Toplayıcı seç (numara yaz):\n\n" + menu);
+    const idx = Number(ans || 0) - 1;
+    if (idx < 0 || idx >= pickers.length) return;
 
-    await updateDoc(orderRef, {
-      assignedTo: picker.id,
-      assignedToEmail: picker.email || null,
+    const chosen = pickers[idx];
+
+    await updateDoc(doc(db, "orders", orderId), {
+      assignedTo: chosen.id,
+      assignedToEmail: chosen.email || null,
       status: "assigned",
+      assignedAt: serverTimestamp(),
+      assignedBy: currentUser?.uid || null,
+      assignedByEmail: currentUser?.email || null,
     });
 
+    // picker'a bildirim
     await createNotification({
-      userId: picker.id,
+      userId: chosen.id,
       type: "orderAssigned",
       orderId,
-      title: "Yeni sipariş atandı",
-      message: `${orderId.slice(-6)} no'lu (${orderData.branchName || "-"}) siparişi sana atandı.`,
+      title: "Yeni toplama görevi",
+      message: `${orderId.slice(-6)} no'lu sipariş sana atandı.`,
     });
 
-    if (orderData.createdBy) {
-      await createNotification({
-        userId: orderData.createdBy,
-        type: "orderStatus",
-        orderId,
-        title: "Sipariş durumu güncellendi",
-        message: `${orderId.slice(-6)} no'lu sipariş toplayıcıya atandı.`,
-      });
-    }
-
-    showGlobalAlert("Sipariş toplayıcıya atandı.", "success");
+    showGlobalAlert("Toplayıcı atandı.", "success");
     await loadOrders();
     await loadPickingOrders();
   } catch (err) {
@@ -1343,7 +1207,7 @@ async function assignOrderToPicker(orderId) {
 }
 
 // --------------------------------------------------------
-// 9. Picking (Toplayıcı Ekranı + Rota) – PROFESYONEL UI (FIXED)
+// 9. Picking (Toplayıcı Ekranı + Rota) – "Toplandı" + "Eksik"
 // --------------------------------------------------------
 async function openPickingDetailModal(orderId, fromPicking) {
   pickingDetailOrderId = orderId;
@@ -1366,7 +1230,6 @@ async function openPickingDetailModal(orderId, fromPicking) {
     pickingDetailOrderDoc = orderSnap;
     const orderData = orderSnap.data();
 
-    // Toplayıcı ekranından açıldıysa statüyü "picking" yap
     if (fromPicking && orderData.status !== "completed" && orderData.status !== "picking") {
       try {
         await updateDoc(orderRef, {
@@ -1381,12 +1244,10 @@ async function openPickingDetailModal(orderId, fromPicking) {
       }
     }
 
-    // Kalemler
     const itemsSnap = await getDocs(collection(db, "orders", orderId, "items"));
     const items = [];
     itemsSnap.forEach((docSnap) => items.push({ id: docSnap.id, ...docSnap.data() }));
 
-    // Lokasyon ve rota
     const itemsWithLoc = await enrichItemsWithLocation(items);
     itemsWithLoc.sort((a, b) => compareLocationCode(a.locationCode || "", b.locationCode || ""));
     pickingDetailItems = itemsWithLoc;
@@ -1395,7 +1256,6 @@ async function openPickingDetailModal(orderId, fromPicking) {
     const totalQty = itemsWithLoc.reduce((sum, it) => sum + Number(it.qty || 0), 0);
     const uniqueLocations = new Set(itemsWithLoc.map((it) => it.locationCode || "Lokasyon yok")).size;
 
-    // Durum badge class
     const statusClass =
       orderData.status === "completed"
         ? "bg-emerald-500/10 text-emerald-300 border border-emerald-500/40"
@@ -1438,8 +1298,7 @@ async function openPickingDetailModal(orderId, fromPicking) {
             itemsWithLoc.some((it) => it.locationShortage)
               ? `<p class="text-[11px] text-amber-300 flex items-center gap-1">
                   <span>⚠</span>
-                  Bazı lokasyonlarda istenen miktardan az stok var
-                  <span class="hidden sm:inline">(kırmızı satırlar).</span>
+                  Bazı lokasyonlarda istenen miktardan az stok var (kırmızı satırlar).
                 </p>`
               : `<p class="text-[11px] text-emerald-300 flex items-center gap-1">
                   <span>✅</span>
@@ -1454,13 +1313,12 @@ async function openPickingDetailModal(orderId, fromPicking) {
       .map((it, index) => {
         const shortage = it.locationShortage;
 
-        const shortageBadge = shortage
-          ? `<span class="ml-2 inline-flex items-center px-2 py-[2px] rounded-full text-[10px] font-semibold bg-red-500/10 text-red-200 border border-red-500/40">Eksik</span>`
-          : "";
-
         const rowClass = shortage
-          ? "bg-red-950/50 text-red-50 hover:bg-red-900/50"
+          ? "bg-red-950/40 text-red-50 hover:bg-red-900/40"
           : "bg-slate-950/20 text-slate-100 hover:bg-slate-900/60";
+
+        const defaultPicked = Number(it.pickedQty ?? it.qty ?? 0);
+        const pickedDone = !!it.pickedDone;
 
         return `
           <tr class="border-b border-slate-800/80 ${rowClass}">
@@ -1468,24 +1326,51 @@ async function openPickingDetailModal(orderId, fromPicking) {
             <td class="px-3 py-2 text-[11px] font-mono">${it.locationCode || "-"}</td>
             <td class="px-3 py-2 text-[11px] font-mono">${it.productCode || ""}</td>
             <td class="px-3 py-2 text-[11px]">${it.productName || ""}</td>
+
             <td class="px-3 py-2 text-[11px]">
               <span class="font-semibold">${it.qty}</span> ${it.unit || ""}
               <span class="ml-2 text-[10px] text-slate-400">(Lokasyondaki: ${it.locationAvailableQty ?? "-"})</span>
-              ${shortageBadge}
             </td>
+
+            <!-- TOPLANDI -->
+            <td class="px-3 py-2 text-[11px]">
+              ${
+                fromPicking
+                  ? `<label class="inline-flex items-center gap-2">
+                      <input type="checkbox" class="pickDoneChk" data-item="${it.id}" ${pickedDone ? "checked" : ""} />
+                      <span class="text-[11px]">Toplandı</span>
+                    </label>`
+                  : `<span class="text-[11px]">${pickedDone ? "✅" : "-"}</span>`
+              }
+            </td>
+
+            <!-- EKSİK -->
+            <td class="px-3 py-2 text-[11px]">
+              ${
+                fromPicking
+                  ? `<label class="inline-flex items-center gap-2">
+                      <input type="checkbox" class="missingChk" data-item="${it.id}" ${it.missingFlag ? "checked" : ""} />
+                      <span class="text-[11px]">Eksik</span>
+                    </label>`
+                  : `<span class="text-[11px]">${it.missingFlag ? "⚠" : "-"}</span>`
+              }
+            </td>
+
+            <!-- TOPLANAN MİKTAR -->
             <td class="px-3 py-2 text-[11px]">
               ${
                 fromPicking
                   ? `<input
                       type="number"
                       min="0"
-                      value="${it.pickedQty ?? it.qty}"
+                      value="${defaultPicked}"
                       data-item="${it.id}"
-                      class="w-20 rounded-lg border border-slate-600 bg-slate-900/70 px-2 py-1 text-[11px] text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                      class="pickedQtyInput w-24 rounded-lg border border-slate-600 bg-slate-900/70 px-2 py-1 text-[11px] text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
                     />`
-                  : `<span class="text-[11px]">${it.pickedQty ?? 0}</span>`
+                  : `<span class="text-[11px]">${Number(it.pickedQty ?? 0)}</span>`
               }
             </td>
+
             <td class="px-3 py-2 text-[11px] text-slate-300">${it.note || ""}</td>
           </tr>
         `;
@@ -1502,6 +1387,8 @@ async function openPickingDetailModal(orderId, fromPicking) {
               <th class="px-3 py-2 text-left text-[11px] font-semibold text-slate-300 uppercase tracking-wide">Kod</th>
               <th class="px-3 py-2 text-left text-[11px] font-semibold text-slate-300 uppercase tracking-wide">Ürün</th>
               <th class="px-3 py-2 text-left text-[11px] font-semibold text-slate-300 uppercase tracking-wide">İstenen</th>
+              <th class="px-3 py-2 text-left text-[11px] font-semibold text-slate-300 uppercase tracking-wide">Toplandı</th>
+              <th class="px-3 py-2 text-left text-[11px] font-semibold text-slate-300 uppercase tracking-wide">Eksik</th>
               <th class="px-3 py-2 text-left text-[11px] font-semibold text-slate-300 uppercase tracking-wide">Toplanan</th>
               <th class="px-3 py-2 text-left text-[11px] font-semibold text-slate-300 uppercase tracking-wide">Not</th>
             </tr>
@@ -1509,7 +1396,7 @@ async function openPickingDetailModal(orderId, fromPicking) {
           <tbody>
             ${
               rowsHtml ||
-              `<tr><td colspan="7" class="px-3 py-3 text-center text-[11px] text-slate-400">Kalem yok.</td></tr>`
+              `<tr><td colspan="9" class="px-3 py-3 text-center text-[11px] text-slate-400">Kalem yok.</td></tr>`
             }
           </tbody>
         </table>
@@ -1518,10 +1405,70 @@ async function openPickingDetailModal(orderId, fromPicking) {
 
     container.innerHTML = headerHtml + tableHtml;
 
-    // MODALI AÇ
+    // Modal aç
     modal.classList.remove("hidden");
 
-    // Buton durumu
+    // Toplandı checkbox davranışı:
+    // - işaretlenince: pickedQty = qty ve input disable
+    // - kaldırınca: input enable
+    const content = $("pickingDetailContent");
+    if (fromPicking && content) {
+      const qtyInputs = content.querySelectorAll(".pickedQtyInput");
+      const doneChks = content.querySelectorAll(".pickDoneChk");
+      const missChks = content.querySelectorAll(".missingChk");
+
+      function setInputState(itemId) {
+        const item = itemsWithLoc.find((x) => x.id === itemId);
+        const inp = content.querySelector(`.pickedQtyInput[data-item="${itemId}"]`);
+        const done = content.querySelector(`.pickDoneChk[data-item="${itemId}"]`);
+        const miss = content.querySelector(`.missingChk[data-item="${itemId}"]`);
+        if (!inp || !item) return;
+
+        // Eksik seçilirse: picked=0 ve disable
+        if (miss && miss.checked) {
+          inp.value = "0";
+          inp.disabled = true;
+          if (done) done.checked = false;
+          return;
+        }
+
+        // Toplandı seçilirse: picked=qty ve disable
+        if (done && done.checked) {
+          inp.value = String(Number(item.qty || 0));
+          inp.disabled = true;
+          if (miss) miss.checked = false;
+          return;
+        }
+
+        // hiçbiri değilse: enable
+        inp.disabled = false;
+      }
+
+      doneChks.forEach((c) => {
+        const id = c.getAttribute("data-item");
+        setInputState(id);
+        c.addEventListener("change", () => setInputState(id));
+      });
+
+      missChks.forEach((c) => {
+        const id = c.getAttribute("data-item");
+        setInputState(id);
+        c.addEventListener("change", () => setInputState(id));
+      });
+
+      // inputlara manuel girince topandı/exik flaglerini kapat
+      qtyInputs.forEach((inp) => {
+        const id = inp.getAttribute("data-item");
+        inp.addEventListener("input", () => {
+          const done = content.querySelector(`.pickDoneChk[data-item="${id}"]`);
+          const miss = content.querySelector(`.missingChk[data-item="${id}"]`);
+          if (done) done.checked = false;
+          if (miss) miss.checked = false;
+          inp.disabled = false;
+        });
+      });
+    }
+
     const completeBtn = $("completePickingBtn");
     if (completeBtn) {
       completeBtn.disabled = !fromPicking;
@@ -1537,15 +1484,11 @@ async function openPickingDetailModal(orderId, fromPicking) {
 function closePickingDetailModal() {
   const modal = $("pickingDetailModal");
   if (modal) modal.classList.add("hidden");
-
   pickingDetailOrderId = null;
   pickingDetailItems = [];
   pickingDetailOrderDoc = null;
 }
 
-// --------------------------------------------------------
-// 9.1 Picking List (Toplayıcı ekranı listesi)
-// --------------------------------------------------------
 async function loadPickingOrders() {
   const tbody = $("pickingTableBody");
   const empty = $("pickingEmpty");
@@ -1557,13 +1500,8 @@ async function loadPickingOrders() {
     const role = normalizeRole(currentUserProfile?.role || "");
     let qRef = query(collection(db, "orders"), orderBy("createdAt", "desc"));
 
-    // Picker ise sadece kendine atananlar
     if (role === "picker") {
-      qRef = query(
-        collection(db, "orders"),
-        where("assignedTo", "==", currentUser.uid),
-        orderBy("createdAt", "desc")
-      );
+      qRef = query(collection(db, "orders"), where("assignedTo", "==", currentUser.uid), orderBy("createdAt", "desc"));
     }
 
     const snap = await getDocs(qRef);
@@ -1577,8 +1515,7 @@ async function loadPickingOrders() {
       const d = ds.data();
       if (d.status === "completed") return;
 
-      const statusLabel =
-        d.status === "assigned" ? "Atandı" : d.status === "picking" ? "Toplanıyor" : "Açık";
+      const statusLabel = d.status === "assigned" ? "Atandı" : d.status === "picking" ? "Toplanıyor" : "Açık";
 
       const tr = document.createElement("tr");
       tr.innerHTML = `
@@ -1601,9 +1538,6 @@ async function loadPickingOrders() {
   }
 }
 
-// --------------------------------------------------------
-// 9.2 Picking Complete (Toplamayı bitir)
-// --------------------------------------------------------
 async function completePicking() {
   if (!pickingDetailOrderId || !pickingDetailOrderDoc) {
     showGlobalAlert("Sipariş seçili değil.");
@@ -1611,30 +1545,64 @@ async function completePicking() {
   }
 
   try {
-    const inputs = $("pickingDetailContent")?.querySelectorAll("input[data-item]");
+    const content = $("pickingDetailContent");
+    const qtyInputs = content ? content.querySelectorAll(".pickedQtyInput[data-item]") : [];
+    const doneChks = content ? content.querySelectorAll(".pickDoneChk[data-item]") : [];
+    const missChks = content ? content.querySelectorAll(".missingChk[data-item]") : [];
+
     const pickedMap = new Map();
-    if (inputs) {
-      inputs.forEach((inp) => {
-        const itemId = inp.getAttribute("data-item");
-        const val = Number(inp.value || 0);
-        if (itemId) pickedMap.set(itemId, val);
-      });
-    }
+    const doneMap = new Map();
+    const missMap = new Map();
+
+    qtyInputs.forEach((inp) => {
+      const itemId = inp.getAttribute("data-item");
+      const val = Number(inp.value || 0);
+      if (itemId) pickedMap.set(itemId, val);
+    });
+    doneChks.forEach((c) => {
+      const id = c.getAttribute("data-item");
+      if (id) doneMap.set(id, !!c.checked);
+    });
+    missChks.forEach((c) => {
+      const id = c.getAttribute("data-item");
+      if (id) missMap.set(id, !!c.checked);
+    });
 
     const itemsSnap = await getDocs(collection(db, "orders", pickingDetailOrderId, "items"));
     const items = [];
     itemsSnap.forEach((ds) => items.push({ id: ds.id, ...ds.data() }));
 
     let totalLines = 0;
-    let totalQty = 0;
+    let totalPickedQty = 0;
+
+    let missingLines = 0;
+    let missingQtySum = 0;
 
     for (const it of items) {
-      const picked = Number(pickedMap.get(it.id) ?? it.qty ?? 0);
+      const requested = Number(it.qty || 0);
+      let picked = Number(pickedMap.get(it.id) ?? it.pickedQty ?? requested);
+
+      const done = !!doneMap.get(it.id);
+      const missingFlag = !!missMap.get(it.id);
+
+      if (missingFlag) picked = 0; // eksik seçilince 0 (istersen kısmi toplayı da serbest bırakırız)
+      if (done) picked = requested; // toplandı seçilince full
+
+      const missingQty = Math.max(0, requested - picked);
+      if (missingQty > 0) {
+        missingLines++;
+        missingQtySum += missingQty;
+      }
+
       totalLines++;
-      totalQty += picked;
+      totalPickedQty += picked;
 
       await updateDoc(doc(db, "orders", pickingDetailOrderId, "items", it.id), {
         pickedQty: picked,
+        pickedDone: done,
+        missingFlag,
+        missingQty,
+        status: missingQty > 0 ? "missing" : "picked",
         updatedAt: serverTimestamp(),
       });
 
@@ -1649,6 +1617,7 @@ async function completePicking() {
       completedAt: serverTimestamp(),
       completedBy: currentUser?.uid || null,
       completedByEmail: currentUser?.email || null,
+      missingSummary: { missingLines, missingQty: missingQtySum },
     });
 
     await addDoc(collection(db, "pickingLogs"), {
@@ -1656,7 +1625,9 @@ async function completePicking() {
       pickerId: currentUser?.uid || null,
       pickerEmail: currentUser?.email || null,
       totalLines,
-      totalQty,
+      totalQty: totalPickedQty,
+      missingLines,
+      missingQty: missingQtySum,
       completedAt: serverTimestamp(),
     });
 
@@ -1667,7 +1638,10 @@ async function completePicking() {
         type: "orderCompleted",
         orderId: pickingDetailOrderId,
         title: "Sipariş tamamlandı",
-        message: `${pickingDetailOrderId.slice(-6)} no'lu sipariş tamamlandı.`,
+        message:
+          missingQtySum > 0
+            ? `${pickingDetailOrderId.slice(-6)} tamamlandı. Eksik: ${missingLines} kalem / ${missingQtySum} adet.`
+            : `${pickingDetailOrderId.slice(-6)} no'lu sipariş eksiksiz tamamlandı.`,
       });
     }
 
@@ -1728,8 +1702,7 @@ async function updateReportSummary() {
 
     if ($("reportTotalProducts")) $("reportTotalProducts").textContent = `Toplam ürün: ${totalProducts}`;
     if ($("reportTotalOrders")) $("reportTotalOrders").textContent = `Toplam sipariş: ${totalOrders}`;
-    if ($("reportCompletedOrders"))
-      $("reportCompletedOrders").textContent = `Tamamlanan sipariş: ${completedOrders}`;
+    if ($("reportCompletedOrders")) $("reportCompletedOrders").textContent = `Tamamlanan sipariş: ${completedOrders}`;
   } catch (err) {
     console.error("updateReportSummary hata:", err);
   }
@@ -1764,15 +1737,17 @@ async function updatePickerDashboardStats() {
       }
     });
 
-    if (totalOrders === 0) el.textContent = "Bugün henüz tamamlanan toplama yok.";
-    else el.textContent = `Bugün ${totalOrders} siparişte, ${totalLines} kalem, toplam ${totalQty} birim toplandı.`;
+    el.textContent =
+      totalOrders === 0
+        ? "Bugün henüz tamamlanan toplama yok."
+        : `Bugün ${totalOrders} siparişte, ${totalLines} kalem, toplam ${totalQty} birim toplandı.`;
   } catch (err) {
     console.error("Picker dashboard stats hata:", err);
   }
 }
 
 // --------------------------------------------------------
-// 10.2 Loading Tasks (Sevk / Yükleme basit modül)
+// 10.2 Loading Tasks (Sevk / Yükleme)
 // --------------------------------------------------------
 async function loadLoadingTasks() {
   const tbody = $("loadingTasksTableBody");
@@ -1783,8 +1758,7 @@ async function loadLoadingTasks() {
   tbody.innerHTML = "";
 
   try {
-    let qRef = query(collection(db, "loadingTasks"), orderBy("createdAt", "desc"));
-    const snap = await getDocs(qRef);
+    const snap = await getDocs(query(collection(db, "loadingTasks"), orderBy("createdAt", "desc")));
 
     if (snap.empty) {
       empty.classList.remove("hidden");
@@ -1805,8 +1779,8 @@ async function loadLoadingTasks() {
         <td class="px-3 py-2 text-xs">${d.status || "-"}</td>
         <td class="px-3 py-2 text-[11px]">${d.createdAt?.toDate ? d.createdAt.toDate().toLocaleString("tr-TR") : ""}</td>
         <td class="px-3 py-2 text-right space-x-1">
-          <button class="text-[11px] px-2 py-1 rounded-full bg-sky-100 text-sky-700 hover:bg-sky-200" data-loading-start="${ds.id}">Başlat</button>
-          <button class="text-[11px] px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 hover:bg-emerald-200" data-loading-complete="${ds.id}">Tamamla</button>
+          <button class="text-[11px] px-2 py-1 rounded-full bg-sky-500/10 border border-sky-500/30 text-sky-200 hover:bg-sky-500/20" data-loading-start="${ds.id}">Başlat</button>
+          <button class="text-[11px] px-2 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-200 hover:bg-emerald-500/20" data-loading-complete="${ds.id}">Tamamla</button>
         </td>
       `;
       tbody.appendChild(tr);
@@ -1847,12 +1821,7 @@ async function handleRegister(evt) {
     const cred = await createUserWithEmailAndPassword(auth, email, password);
     const uid = cred.user.uid;
     const normRole = normalizeRole(role) || "branch";
-    await setDoc(doc(db, "users", uid), {
-      fullName,
-      role: normRole,
-      email,
-      createdAt: serverTimestamp(),
-    });
+    await setDoc(doc(db, "users", uid), { fullName, role: normRole, email, createdAt: serverTimestamp() });
     showAuthMessage("Kayıt başarılı, giriş yapıldı.", false);
   } catch (err) {
     console.error("handleRegister hata:", err);
@@ -1911,18 +1880,11 @@ onAuthStateChanged(auth, async (user) => {
       const data = snap.data();
       const rawRole = data.role || "branch";
       const normRole = normalizeRole(rawRole) || "branch";
-
       currentUserProfile = { ...data, role: normRole };
-
       if (normRole !== rawRole) await updateDoc(userRef, { role: normRole });
     } else {
       const normRole = "branch";
-      currentUserProfile = {
-        fullName: user.email,
-        role: normRole,
-        email: user.email,
-        createdAt: serverTimestamp(),
-      };
+      currentUserProfile = { fullName: user.email, role: normRole, email: user.email, createdAt: serverTimestamp() };
       await setDoc(userRef, currentUserProfile);
     }
 
@@ -1983,6 +1945,9 @@ document.addEventListener("DOMContentLoaded", () => {
   $("importOrderFromExcelBtn")?.addEventListener("click", importOrderFromExcel);
   $("downloadExcelTemplateBtn")?.addEventListener("click", downloadExcelTemplate);
 
+  // Notifications
+  $("notificationsMarkReadBtn")?.addEventListener("click", markNotificationsAsRead);
+
   // Orders table delegation
   const ordersTableBody = $("ordersTableBody");
   if (ordersTableBody) {
@@ -2014,16 +1979,12 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // Picking detail modal – KAPATMA (X butonu)
-  const closePickingBtn = $("closePickingDetailModalBtn");
-  if (closePickingBtn) {
-    closePickingBtn.addEventListener("click", (e) => {
-      e.preventDefault();
-      closePickingDetailModal();
-    });
-  }
+  // Picking detail modal close
+  $("closePickingDetailModalBtn")?.addEventListener("click", (e) => {
+    e.preventDefault();
+    closePickingDetailModal();
+  });
 
-  // Arka plan tıklayınca kapat
   const pickingModal = $("pickingDetailModal");
   if (pickingModal) {
     pickingModal.addEventListener("click", (e) => {
