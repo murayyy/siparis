@@ -431,14 +431,7 @@ function mapExcelRowsToOrder(rows) {
 
   const first = mapped[0];
 
-  const branchName =
-    first["sube"] ||
-    first["şube"] ||
-    first["branch"] ||
-    first["branchname"] ||
-    first["sube adi"] ||
-    first["subeadi"] ||
-    "";
+ 
 
   const documentNo =
     first["belge no"] ||
