@@ -302,7 +302,7 @@
           Toplama
         </button>
 
-        <!-- ✅ YENİ: Eksik Depo -->
+        <!-- ✅ Eksik Depo -->
         <button
           type="button"
           class="nav-btn text-xs md:text-sm px-4 py-1.5 rounded-full bg-slate-900/30 text-slate-300 border border-slate-700/60"
@@ -1028,7 +1028,7 @@
 <script type="module" src="app.js"></script>
 
 <!-- =========================================================
-     MINI UI SCRIPT (Sadece HTML tarafı: Bildirim paneli aç/kapat)
+     MINI UI SCRIPT (Sadece HTML tarafı: Bildirim paneli aç/kapat + Modal ESC/Dışarı click iyileştirmesi)
 ========================================================= -->
 <script>
   (function () {
@@ -1061,10 +1061,53 @@
       if (!within) hidePanel();
     });
 
-    // Escape ile kapat
+    // Escape ile kapat (panel + modallar)
     document.addEventListener("keydown", (e) => {
-      if (e.key === "Escape") hidePanel();
+      if (e.key !== "Escape") return;
+
+      // notifications
+      hidePanel();
+
+      // modals
+      const modals = ["productModal", "orderModal", "pickingDetailModal"]
+        .map(id => document.getElementById(id))
+        .filter(Boolean);
+
+      modals.forEach(m => {
+        if (!m.classList.contains("hidden")) m.classList.add("hidden");
+      });
+
+      // Eğer picking modal kapandıysa app.js'deki close fonksiyonuna da saygı duyalım (varsa)
+      if (window.closeOrderModal && document.getElementById("orderModal")?.classList.contains("hidden")) {
+        // no-op (app.js zaten state'i yönetiyor)
+      }
     });
+
+    // Modal backdrop click ile kapatma (UX)
+    function wireBackdropClose(modalId, closeBtnId) {
+      const modal = document.getElementById(modalId);
+      if (!modal) return;
+      modal.addEventListener("click", (e) => {
+        if (e.target === modal) {
+          modal.classList.add("hidden");
+          // order modal için app.js close hook varsa çağır (state temizliği için)
+          if (modalId === "orderModal" && typeof window.closeOrderModal === "function") {
+            try { window.closeOrderModal(); } catch (_) {}
+          }
+        }
+      });
+      const closeBtn = document.getElementById(closeBtnId);
+      closeBtn?.addEventListener("click", () => {
+        modal.classList.add("hidden");
+        if (modalId === "orderModal" && typeof window.closeOrderModal === "function") {
+          try { window.closeOrderModal(); } catch (_) {}
+        }
+      });
+    }
+
+    wireBackdropClose("productModal", "closeProductModalBtn");
+    wireBackdropClose("orderModal", "closeOrderModalBtn");
+    wireBackdropClose("pickingDetailModal", "closePickingDetailModalBtn");
   })();
 </script>
 
