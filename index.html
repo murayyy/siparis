@@ -302,6 +302,16 @@
           Toplama
         </button>
 
+        <!-- ✅ YENİ: Kontrol -->
+        <button
+          type="button"
+          class="nav-btn text-xs md:text-sm px-4 py-1.5 rounded-full bg-slate-900/30 text-slate-300 border border-slate-700/60"
+          data-view="controlView"
+          data-role="admin,manager"
+        >
+          Kontrol
+        </button>
+
         <!-- ✅ Eksik Depo -->
         <button
           type="button"
@@ -640,6 +650,58 @@
                 Şu anda atanmış sipariş bulunmuyor.
               </p>
             </div>
+          </div>
+        </section>
+
+        <!-- =====================================================
+             ✅ CONTROL VIEW (Kontrol / QC)
+        ====================================================== -->
+        <section id="controlView" class="view hidden">
+          <div class="flex items-center justify-between mb-3">
+            <div>
+              <h2 class="text-sm font-semibold text-slate-100">Kontrol (QC)</h2>
+              <p class="text-[11px] text-slate-400">
+                Toplama tamamlandıktan sonra siparişler burada kontrol edilir. Barkodla/kalem kalem doğrulama için detay açılır.
+              </p>
+            </div>
+            <div class="flex items-center gap-2">
+              <select
+                id="controlStatusFilter"
+                class="rounded-full bg-slate-900 border border-slate-700 px-3 py-1.5 text-[11px] text-slate-200"
+              >
+                <option value="waiting_control">Kontrol Bekleyen</option>
+                <option value="controlled">Kontrol Edilen</option>
+                <option value="all">Tümü</option>
+              </select>
+              <button
+                id="reloadControlBtn"
+                type="button"
+                class="rounded-full bg-slate-900 border border-slate-700 px-3 py-1.5 text-[11px] text-slate-200 hover:bg-slate-800"
+              >
+                Yenile
+              </button>
+            </div>
+          </div>
+
+          <div class="bg-slate-900/70 border border-slate-800 rounded-3xl p-3 overflow-hidden">
+            <div class="overflow-auto max-h-[65vh]">
+              <table class="min-w-full text-xs">
+                <thead class="bg-slate-900/90 sticky top-0">
+                  <tr>
+                    <th class="px-3 py-2 text-left text-[11px] text-slate-400">No</th>
+                    <th class="px-3 py-2 text-left text-[11px] text-slate-400">Şube</th>
+                    <th class="px-3 py-2 text-left text-[11px] text-slate-400">Durum</th>
+                    <th class="px-3 py-2 text-left text-[11px] text-slate-400">Toplayıcı</th>
+                    <th class="px-3 py-2 text-left text-[11px] text-slate-400">Tarih</th>
+                    <th class="px-3 py-2 text-right text-[11px] text-slate-400">İşlemler</th>
+                  </tr>
+                </thead>
+                <tbody id="controlTableBody" class="divide-y divide-slate-800"></tbody>
+              </table>
+            </div>
+            <p id="controlEmpty" class="text-[11px] text-slate-500 mt-2">
+              Kontrol kuyruğunda sipariş yok.
+            </p>
           </div>
         </section>
 
@@ -1022,6 +1084,63 @@
   </div>
 </div>
 
+<!-- ✅ KONTROL DETAY MODALI -->
+<div
+  id="controlDetailModal"
+  class="hidden fixed inset-0 z-40 flex items-center justify-center bg-slate-950/80 backdrop-blur"
+>
+  <div class="w-full max-w-5xl bg-slate-900 border border-slate-800 rounded-3xl p-4 md:p-5 max-h-[90vh] overflow-y-auto">
+    <div class="flex items-center justify-between mb-3">
+      <div>
+        <h3 class="text-sm font-semibold text-slate-100">Kontrol Detayı</h3>
+        <p id="controlDetailSubtitle" class="text-[11px] text-slate-400 mt-0.5">
+          Barkodla doğrulama / kalem kontrolü
+        </p>
+      </div>
+      <button id="closeControlDetailModalBtn" type="button" class="text-slate-400 hover:text-slate-100 text-lg">✕</button>
+    </div>
+
+    <!-- Barkod giriş alanı (JS isterse kullanır) -->
+    <div class="bg-slate-950/40 border border-slate-800 rounded-2xl p-3 mb-3">
+      <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+        <div>
+          <p class="text-[11px] font-semibold text-slate-200">Barkod ile kontrol</p>
+          <p class="text-[11px] text-slate-400">Barkodu okut/yapıştır, JS tarafı satırları işaretleyebilir.</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <input
+            id="controlBarcodeInput"
+            type="text"
+            placeholder="Barkod..."
+            class="w-full md:w-72 rounded-2xl bg-slate-950 border border-slate-700 px-3 py-1.5 text-xs text-white"
+          />
+          <button
+            type="button"
+            id="controlBarcodeApplyBtn"
+            class="rounded-full bg-sky-500 hover:bg-sky-400 text-[11px] font-semibold text-white px-3 py-1.5"
+          >
+            Uygula
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div id="controlDetailContent" class="space-y-2 text-[11px]">
+      <!-- JS tarafından doldurulacak -->
+    </div>
+
+    <div class="flex justify-end gap-2 pt-4">
+      <button
+        type="button"
+        id="completeControlBtn"
+        class="px-3 py-1.5 rounded-full bg-emerald-500 hover:bg-emerald-400 text-[11px] font-semibold text-white"
+      >
+        Kontrolü Tamamla
+      </button>
+    </div>
+  </div>
+</div>
+
 <!-- =========================================================
      APP SCRIPT
 ========================================================= -->
@@ -1069,7 +1188,7 @@
       hidePanel();
 
       // modals
-      const modals = ["productModal", "orderModal", "pickingDetailModal"]
+      const modals = ["productModal", "orderModal", "pickingDetailModal", "controlDetailModal"]
         .map(id => document.getElementById(id))
         .filter(Boolean);
 
@@ -1077,7 +1196,7 @@
         if (!m.classList.contains("hidden")) m.classList.add("hidden");
       });
 
-      // Eğer picking modal kapandıysa app.js'deki close fonksiyonuna da saygı duyalım (varsa)
+      // Eğer order modal kapandıysa app.js'deki close fonksiyonuna da saygı duyalım (varsa)
       if (window.closeOrderModal && document.getElementById("orderModal")?.classList.contains("hidden")) {
         // no-op (app.js zaten state'i yönetiyor)
       }
@@ -1108,6 +1227,7 @@
     wireBackdropClose("productModal", "closeProductModalBtn");
     wireBackdropClose("orderModal", "closeOrderModalBtn");
     wireBackdropClose("pickingDetailModal", "closePickingDetailModalBtn");
+    wireBackdropClose("controlDetailModal", "closeControlDetailModalBtn");
   })();
 </script>
 
