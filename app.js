@@ -13,11 +13,26 @@
 //    - Doğrulanan X/Y progress.
 //    - Kontrol Tamam -> tüm satırlar verified olmadan izin vermez.
 //
-// ✅ BU TURDA YAPILAN KRİTİK DÜZELTME (KOPMAMASI İÇİN):
-//    - initAll artık DOMContentLoaded ile çalışıyor (bazı butonlar/ID’ler DOM yüklenmeden null oluyordu)
-//    - closePickingDetailModalBtn listener’ı initPickingUI içine alındı (null yakalama sorunu fix)
-//    - applyRoleToUI: data-role yoksa buton HER ROLE görünür (eski davranış bazı menüleri gizleyebiliyordu)
-//    - Branch sipariş filtrelemede currentUserDoc.branchName desteği + fallback mantığı güçlendirildi
+// ✅ BU TUR GÜNCELLEME (EKLENDİ, EKSİLTME YOK):
+//    - Kontrol paketi "done" olunca: ilgili orderId için TÜM kontrol paketleri done + eksik dosyası completed ise,
+//      orders/{orderId}.status otomatik "completed" olur.
+//    - Eksik dosyası kapatılınca da aynı completion kontrolü yapılır.
+//
+// Kurulum:
+// 1) Firebase Console -> Project settings -> Web app config -> aşağıdaki firebaseConfig içine yapıştır
+// 2) Firestore Collections:
+//    - users/{uid} : { name, email, role }
+//    - products/{id} : { code, name, unit, shelf, stock, note, barcode }
+//    - orders/{id} : { branchName, documentNo, note, status, createdAt, createdBy, createdByEmail, assignedTo, assignedToEmail, ... }
+//    - orders/{orderId}/items/{itemId} : { productCode, productName, qty, unit, note, shelf, reyon, barcode, pickedQty, pickedDone, missingFlag, missingQty, status, createdAt }
+//    - controlBatches/{id} : { orderId, orderNo, branchName, type, status, createdAt, createdByUid, createdByEmail, summary }
+//      - controlBatches/{id}/items/{itemId}: { productCode, productName, qty, unit, shelf, barcode, note, createdAt, verified, verifiedAt, verifiedByUid, verifiedByEmail }
+//    - missingFiles/{id}: { orderId, orderNo, branchName, status, createdAt, createdByUid, createdByEmail, closedAt, closedByUid, closedByEmail, summary }
+//      - missingFiles/{id}/items/{itemId}: { productCode, productName, missingQty, filledQty, unit, shelf, barcode, note, isDone, createdAt, updatedAt }
+//    - pallets/{id} : (opsiyonel) { shipmentNo, branchName, palletNo, dock, status, loadedBy, loadedAt }
+//    - users/{uid}/notifications/{id} : { title, body, createdAt, read }
+//
+// 3) Firestore Rules yoksa “Missing or insufficient permissions” alırsın. En altta örnek rules var.
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
 import {
@@ -161,6 +176,64 @@ function normalizeBarcode(v) {
   // Barkod okuyucular bazen boşluk/enter ekler: temizle.
   // İstersen sadece rakam bırak: .replace(/\D/g, "")
   return String(v ?? "").trim();
+}
+
+/* =========================================================
+   ✅ NEW: Order completion controller
+   - Bir order "completed" olsun:
+     1) order'ın tüm controlBatches kayıtları status=done
+     2) order.missingFileId varsa missingFiles/{id}.status = completed
+========================================================= */
+async function updateOrderCompletionIfReady(orderId) {
+  if (!orderId) return;
+
+  const orderRef = doc(db, "orders", orderId);
+  const orderSnap = await getDoc(orderRef);
+  if (!orderSnap.exists()) return;
+
+  const order = orderSnap.data() || {};
+  const missingFileId = order.missingFileId || null;
+
+  // 1) Tüm kontrol paketleri done mı?
+  // Not: where+orderBy index istemesin diye orderBy kullanmıyoruz.
+  const batchesSnap = await getDocs(query(
+    collection(db, "controlBatches"),
+    where("orderId", "==", orderId),
+    limit(1000)
+  ));
+
+  let allBatchesDone = true;
+  let batchCount = 0;
+  batchesSnap.forEach(ds => {
+    batchCount++;
+    const b = ds.data() || {};
+    if ((b.status || "") !== "done") allBatchesDone = false;
+  });
+
+  // Eğer hiç batch yoksa completed yapma (güvenlik)
+  if (batchCount === 0) return;
+
+  // 2) Eksik dosyası varsa completed mi?
+  let missingOk = true;
+  if (missingFileId) {
+    const mfSnap = await getDoc(doc(db, "missingFiles", missingFileId));
+    if (!mfSnap.exists()) {
+      missingOk = false;
+    } else {
+      const mf = mfSnap.data() || {};
+      missingOk = (mf.status === "completed");
+    }
+  }
+
+  // ✅ Şartlar sağlanıyorsa order completed
+  if (allBatchesDone && missingOk && order.status !== "completed") {
+    await updateDoc(orderRef, {
+      status: "completed",
+      completedAt: serverTimestamp(),
+      completedByUid: currentUser?.uid || null,
+      completedByEmail: currentUser?.email || null
+    });
+  }
 }
 
 /* =========================================================
@@ -321,15 +394,9 @@ function applyRoleToUI(role) {
   if (badge) badge.textContent = `Rol: ${currentRole}`;
 
   // Show/hide nav buttons by data-role
-  // ✅ FIX: data-role yoksa HER ROLE göster (eski halde yanlışlıkla gizlenebiliyordu)
   const btns = Array.from(document.querySelectorAll(".nav-btn"));
   btns.forEach(btn => {
-    const roleAttr = (btn.dataset.role || "").trim();
-    if (!roleAttr) {
-      btn.classList.remove("hidden");
-      return;
-    }
-    const allowed = roleAttr.split(",").map(s => s.trim()).filter(Boolean);
+    const allowed = (btn.dataset.role || "").split(",").map(s => s.trim()).filter(Boolean);
     const can = allowed.includes(currentRole);
     btn.classList.toggle("hidden", !can);
   });
@@ -1037,23 +1104,9 @@ async function loadOrders() {
     tbody.innerHTML = "";
 
     let qy = query(collection(db, "orders"), orderBy("createdAt", "desc"), limit(200));
-
-    // ✅ Branch filtre fix: branchName için daha sağlam fallback
     if (currentRole === "branch") {
-      const branchName =
-        String(currentUserDoc?.branchName || currentUserDoc?.name || currentUser?.displayName || "").trim();
-
-      if (branchName) {
-        qy = query(
-          collection(db, "orders"),
-          where("branchName", "==", branchName),
-          orderBy("createdAt", "desc"),
-          limit(200)
-        );
-      } else {
-        // branchName boşsa hiç filtreleme yapma (boş listeye düşmesin)
-        qy = query(collection(db, "orders"), orderBy("createdAt", "desc"), limit(200));
-      }
+      const branchName = (currentUserDoc?.name || $("currentUserInfo")?.textContent || "").trim();
+      if (branchName) qy = query(collection(db, "orders"), where("branchName", "==", branchName), orderBy("createdAt", "desc"), limit(200));
     }
 
     const snap = await getDocs(qy);
@@ -1182,9 +1235,6 @@ function initPickingUI() {
     if (!window.__activePickingOrderId) return;
     await completePicking(window.__activePickingOrderId);
   });
-
-  // ✅ FIX: Bu listener DOM hazır olmadan bağlanınca null oluyordu
-  $("closePickingDetailModalBtn")?.addEventListener("click", closePickingModal);
 }
 
 async function loadPickingOrders() {
@@ -1251,6 +1301,8 @@ async function loadPickingOrders() {
 function openPickingModal() { show($("pickingDetailModal")); }
 function closePickingModal() { hide($("pickingDetailModal")); }
 
+$("closePickingDetailModalBtn")?.addEventListener("click", closePickingModal);
+
 async function openPickingDetail(orderId) {
   try {
     if (!currentUser) throw new Error("Giriş yapılmadı.");
@@ -1288,7 +1340,7 @@ async function openPickingDetail(orderId) {
         </div>
         <p class="text-[11px] text-slate-500 mt-1">Not: ${escapeHtml(order.note || "-")}</p>
         <p class="text-[11px] text-slate-400 mt-1">
-          Bu siparişi bitirince: <b>Toplananlar Kontrole</b> düşer, <b>Eksikler Eksik Depo Dosyası</b> olarak oluşur.
+          Bu siparişi bitirince: <b>Toplananlar Kontrole</b> düşer, <b>Eksikler Eksik Depo DOSYASI</b> olarak oluşur.
         </p>
       </div>
 
@@ -1586,7 +1638,6 @@ async function completePicking(orderId) {
     const items = [];
     itemsSnap.forEach(ds => items.push({ id: ds.id, ...(ds.data() || {}) }));
 
-    // Eski kural: her satır ya pickedDone ya missingFlag olmalı
     // Yeni kural: bitirince eksikler otomatik hesaplanacak ama yine de "toplandı/eksik" disiplinini koruyalım.
     const notTouched = items.filter(i => !i.pickedDone && !i.missingFlag && Number(i.pickedQty || 0) <= 0);
     if (notTouched.length > 0) {
@@ -1896,6 +1947,11 @@ async function completeMissingFile(missingFileId) {
       closedByEmail: currentUser.email
     });
 
+    // ✅ NEW: Order tamamlanma kontrolü (tüm batchler done mu?)
+    try {
+      await updateOrderCompletionIfReady(mf.orderId);
+    } catch { /* sessiz */ }
+
     hide($("missingDetailModal"));
     showGlobalAlert("Eksik dosyası kapatıldı. Tamamlananlar Kontrol'e gönderildi.", "success");
     await loadMissingDepot();
@@ -2201,6 +2257,11 @@ async function markControlBatchDone(batchId) {
   try {
     if (!["admin", "manager"].includes(currentRole)) throw new Error("Yetki yok.");
 
+    // ✅ batch doc (orderId lazım)
+    const bSnap = await getDoc(doc(db, "controlBatches", batchId));
+    if (!bSnap.exists()) throw new Error("Kontrol paketi bulunamadı.");
+    const b = bSnap.data() || {};
+
     // ✅ önce item doğrulama kontrolü
     const itemsSnap = await getDocs(query(collection(db, "controlBatches", batchId, "items"), limit(5000)));
     const items = [];
@@ -2219,9 +2280,15 @@ async function markControlBatchDone(batchId) {
       doneByEmail: currentUser.email
     });
 
+    // ✅ NEW: Order tamamlanma kontrolü (tüm batchler done mu + eksik dosyası tamam mı?)
+    try {
+      await updateOrderCompletionIfReady(b.orderId);
+    } catch { /* sessiz */ }
+
     hide($("controlDetailModal"));
     showGlobalAlert("Kontrol paketi tamamlandı.", "success");
     await loadControlBatches();
+    await loadOrders();
     await refreshDashboard();
   } catch (err) {
     showGlobalAlert(friendlyFirebaseError(err), "error");
@@ -2399,12 +2466,7 @@ function initAll() {
   initControlUI(); // NEW
 }
 
-// ✅ FIX: DOM hazır olmadan initAll çalışmasın
-if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", initAll);
-} else {
-  initAll();
-}
+initAll();
 
 onAuthStateChanged(auth, async (user) => {
   currentUser = user || null;
