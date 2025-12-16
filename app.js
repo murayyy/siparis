@@ -7,27 +7,17 @@
 //    3) Eksik depoda "Eksik Tamamlandı" yapılınca -> o dosyadaki tamamlananlar KONTROL'e yeni paket olarak düşer.
 // ✅ Rol bazlı menü, ürünler, siparişler, toplama, yükleme, bildirim UI hook’ları içerir.
 //
-// ✅ KONTROL EKRANI GÜNCEL (BU TURDA EKLENDİ):
+// ✅ KONTROL EKRANI GÜNCEL:
 //    - Kontrol Detayı modalında "Barkod ile kontrol" alanı aktif.
 //    - Barkod okut/yapıştır + Uygula -> satırı bulur, işaretler, Firestore’a verified=true yazar.
 //    - Doğrulanan X/Y progress.
 //    - Kontrol Tamam -> tüm satırlar verified olmadan izin vermez.
 //
-// Kurulum:
-// 1) Firebase Console -> Project settings -> Web app config -> aşağıdaki firebaseConfig içine yapıştır
-// 2) Firestore Collections:
-//    - users/{uid} : { name, email, role }
-//    - products/{id} : { code, name, unit, shelf, stock, note, barcode }
-//    - orders/{id} : { branchName, documentNo, note, status, createdAt, createdBy, createdByEmail, assignedTo, assignedToEmail, ... }
-//    - orders/{orderId}/items/{itemId} : { productCode, productName, qty, unit, note, shelf, reyon, barcode, pickedQty, pickedDone, missingFlag, missingQty, status, createdAt }
-//    - controlBatches/{id} : { orderId, orderNo, branchName, type, status, createdAt, createdByUid, createdByEmail, summary }
-//      - controlBatches/{id}/items/{itemId}: { productCode, productName, qty, unit, shelf, barcode, note, createdAt, verified, verifiedAt, verifiedByUid, verifiedByEmail }
-//    - missingFiles/{id}: { orderId, orderNo, branchName, status, createdAt, createdByUid, createdByEmail, closedAt, closedByUid, closedByEmail, summary }
-//      - missingFiles/{id}/items/{itemId}: { productCode, productName, missingQty, filledQty, unit, shelf, barcode, note, isDone, createdAt, updatedAt }
-//    - pallets/{id} : (opsiyonel) { shipmentNo, branchName, palletNo, dock, status, loadedBy, loadedAt }
-//    - users/{uid}/notifications/{id} : { title, body, createdAt, read }
-//
-// 3) Firestore Rules yoksa “Missing or insufficient permissions” alırsın. En altta örnek rules var.
+// ✅ BU TURDA YAPILAN KRİTİK DÜZELTME (KOPMAMASI İÇİN):
+//    - initAll artık DOMContentLoaded ile çalışıyor (bazı butonlar/ID’ler DOM yüklenmeden null oluyordu)
+//    - closePickingDetailModalBtn listener’ı initPickingUI içine alındı (null yakalama sorunu fix)
+//    - applyRoleToUI: data-role yoksa buton HER ROLE görünür (eski davranış bazı menüleri gizleyebiliyordu)
+//    - Branch sipariş filtrelemede currentUserDoc.branchName desteği + fallback mantığı güçlendirildi
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
 import {
@@ -331,9 +321,15 @@ function applyRoleToUI(role) {
   if (badge) badge.textContent = `Rol: ${currentRole}`;
 
   // Show/hide nav buttons by data-role
+  // ✅ FIX: data-role yoksa HER ROLE göster (eski halde yanlışlıkla gizlenebiliyordu)
   const btns = Array.from(document.querySelectorAll(".nav-btn"));
   btns.forEach(btn => {
-    const allowed = (btn.dataset.role || "").split(",").map(s => s.trim()).filter(Boolean);
+    const roleAttr = (btn.dataset.role || "").trim();
+    if (!roleAttr) {
+      btn.classList.remove("hidden");
+      return;
+    }
+    const allowed = roleAttr.split(",").map(s => s.trim()).filter(Boolean);
     const can = allowed.includes(currentRole);
     btn.classList.toggle("hidden", !can);
   });
@@ -1041,9 +1037,23 @@ async function loadOrders() {
     tbody.innerHTML = "";
 
     let qy = query(collection(db, "orders"), orderBy("createdAt", "desc"), limit(200));
+
+    // ✅ Branch filtre fix: branchName için daha sağlam fallback
     if (currentRole === "branch") {
-      const branchName = (currentUserDoc?.name || $("currentUserInfo")?.textContent || "").trim();
-      if (branchName) qy = query(collection(db, "orders"), where("branchName", "==", branchName), orderBy("createdAt", "desc"), limit(200));
+      const branchName =
+        String(currentUserDoc?.branchName || currentUserDoc?.name || currentUser?.displayName || "").trim();
+
+      if (branchName) {
+        qy = query(
+          collection(db, "orders"),
+          where("branchName", "==", branchName),
+          orderBy("createdAt", "desc"),
+          limit(200)
+        );
+      } else {
+        // branchName boşsa hiç filtreleme yapma (boş listeye düşmesin)
+        qy = query(collection(db, "orders"), orderBy("createdAt", "desc"), limit(200));
+      }
     }
 
     const snap = await getDocs(qy);
@@ -1172,6 +1182,9 @@ function initPickingUI() {
     if (!window.__activePickingOrderId) return;
     await completePicking(window.__activePickingOrderId);
   });
+
+  // ✅ FIX: Bu listener DOM hazır olmadan bağlanınca null oluyordu
+  $("closePickingDetailModalBtn")?.addEventListener("click", closePickingModal);
 }
 
 async function loadPickingOrders() {
@@ -1237,8 +1250,6 @@ async function loadPickingOrders() {
 
 function openPickingModal() { show($("pickingDetailModal")); }
 function closePickingModal() { hide($("pickingDetailModal")); }
-
-$("closePickingDetailModalBtn")?.addEventListener("click", closePickingModal);
 
 async function openPickingDetail(orderId) {
   try {
@@ -2388,7 +2399,12 @@ function initAll() {
   initControlUI(); // NEW
 }
 
-initAll();
+// ✅ FIX: DOM hazır olmadan initAll çalışmasın
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", initAll);
+} else {
+  initAll();
+}
 
 onAuthStateChanged(auth, async (user) => {
   currentUser = user || null;
