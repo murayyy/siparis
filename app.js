@@ -7,6 +7,12 @@
 //    3) Eksik depoda "Eksik Tamamlandı" yapılınca -> o dosyadaki tamamlananlar KONTROL'e yeni paket olarak düşer.
 // ✅ Rol bazlı menü, ürünler, siparişler, toplama, yükleme, bildirim UI hook’ları içerir.
 //
+// ✅ KONTROL EKRANI GÜNCEL (BU TURDA EKLENDİ):
+//    - Kontrol Detayı modalında "Barkod ile kontrol" alanı aktif.
+//    - Barkod okut/yapıştır + Uygula -> satırı bulur, işaretler, Firestore’a verified=true yazar.
+//    - Doğrulanan X/Y progress.
+//    - Kontrol Tamam -> tüm satırlar verified olmadan izin vermez.
+//
 // Kurulum:
 // 1) Firebase Console -> Project settings -> Web app config -> aşağıdaki firebaseConfig içine yapıştır
 // 2) Firestore Collections:
@@ -15,7 +21,7 @@
 //    - orders/{id} : { branchName, documentNo, note, status, createdAt, createdBy, createdByEmail, assignedTo, assignedToEmail, ... }
 //    - orders/{orderId}/items/{itemId} : { productCode, productName, qty, unit, note, shelf, reyon, barcode, pickedQty, pickedDone, missingFlag, missingQty, status, createdAt }
 //    - controlBatches/{id} : { orderId, orderNo, branchName, type, status, createdAt, createdByUid, createdByEmail, summary }
-//      - controlBatches/{id}/items/{itemId}: { productCode, productName, qty, unit, shelf, barcode, note, createdAt }
+//      - controlBatches/{id}/items/{itemId}: { productCode, productName, qty, unit, shelf, barcode, note, createdAt, verified, verifiedAt, verifiedByUid, verifiedByEmail }
 //    - missingFiles/{id}: { orderId, orderNo, branchName, status, createdAt, createdByUid, createdByEmail, closedAt, closedByUid, closedByEmail, summary }
 //      - missingFiles/{id}/items/{itemId}: { productCode, productName, missingQty, filledQty, unit, shelf, barcode, note, isDone, createdAt, updatedAt }
 //    - pallets/{id} : (opsiyonel) { shipmentNo, branchName, palletNo, dock, status, loadedBy, loadedAt }
@@ -158,6 +164,13 @@ function normKey(s) {
 
 function safeIdTail(id, n = 6) {
   try { return String(id || "").slice(-n); } catch { return "-"; }
+}
+
+/* ✅ NEW: barcode normalize helper (kontrol ekranı) */
+function normalizeBarcode(v) {
+  // Barkod okuyucular bazen boşluk/enter ekler: temizle.
+  // İstersen sadece rakam bırak: .replace(/\D/g, "")
+  return String(v ?? "").trim();
 }
 
 /* =========================================================
@@ -1450,7 +1463,12 @@ async function finalizePickingToControlAndMissing(orderId) {
       unit: it.unit || "",
       shelf: it.shelf || it.reyon || "",
       barcode: it.barcode || "",
-      note: it.note || ""
+      note: it.note || "",
+      // ✅ kontrol doğrulama alanları (başlangıç)
+      verified: false,
+      verifiedAt: null,
+      verifiedByUid: null,
+      verifiedByEmail: null
     }));
 
   // Eksikler: missingQty > 0 (missingFlag true olmasa bile hesapla: qty - pickedQty)
@@ -1603,10 +1621,6 @@ async function completePicking(orderId) {
 
 /* =========================================================
    11) EKSİK DEPO (DOSYA BAZLI) — missingFiles
-   HTML’de varsa:
-   - missingStatusFilter (all/open/completed)
-   - reloadMissingBtn
-   - missingFilesTableBody / missingEmpty
 ========================================================= */
 function initMissingDepotUI() {
   $("reloadMissingBtn")?.addEventListener("click", loadMissingDepot);
@@ -1625,7 +1639,7 @@ async function loadMissingDepot() {
     if (!currentUser) return;
     if (!["admin", "manager"].includes(currentRole)) return;
 
-    const tbody = $("missingTableBody") || $("missingFilesTableBody"); // iki id’den birini yakala
+    const tbody = $("missingTableBody") || $("missingFilesTableBody");
     const empty = $("missingEmpty");
     if (!tbody) return;
 
@@ -1703,7 +1717,6 @@ async function openMissingFileDetail(missingFileId) {
     const items = [];
     itemsSnap.forEach(ds => items.push({ id: ds.id, ...(ds.data() || {}) }));
 
-    // Eğer HTML’de modal yoksa, en azından alert ile göster
     const modal = $("missingDetailModal");
     const container = $("missingDetailContent");
 
@@ -1831,7 +1844,12 @@ async function completeMissingFile(missingFileId) {
         unit: it.unit || "",
         shelf: it.shelf || "",
         barcode: it.barcode || "",
-        note: it.note || ""
+        note: it.note || "",
+        // ✅ kontrol doğrulama alanları (başlangıç)
+        verified: false,
+        verifiedAt: null,
+        verifiedByUid: null,
+        verifiedByEmail: null
       }));
 
     // Kontrole paket oluştur (sonradan gelenler)
@@ -1879,10 +1897,6 @@ async function completeMissingFile(missingFileId) {
 
 /* =========================================================
    11.1) KONTROL EKRANI (BATCH) — controlBatches
-   HTML’de varsa:
-   - controlStatusFilter (all/waiting/checking/done)
-   - reloadControlBtn
-   - controlTableBody / controlEmpty
 ========================================================= */
 function initControlUI() {
   $("reloadControlBtn")?.addEventListener("click", loadControlBatches);
@@ -1961,6 +1975,7 @@ async function loadControlBatches() {
   }
 }
 
+/* ✅ NEW: Kontrol detayı — barkodla doğrulama + progress + Firestore verified */
 async function openControlBatchDetail(batchId) {
   try {
     if (!["admin", "manager"].includes(currentRole)) throw new Error("Yetki yok.");
@@ -1987,23 +2002,47 @@ async function openControlBatchDetail(batchId) {
         `Durum: ${b.status}`,
         `Satır: ${items.length}`,
         "",
-        ...items.slice(0, 40).map(i => `- ${i.productCode} ${i.productName} | ${i.qty}`),
+        ...items.slice(0, 40).map(i => `- ${i.productCode} ${i.productName} | ${i.qty} | barkod:${i.barcode || "-"}`),
         items.length > 40 ? `... +${items.length - 40} satır` : ""
       ].join("\n");
       alert(txt);
       return;
     }
 
+    const verifiedCount = items.filter(x => x.verified === true).length;
+    const totalCount = items.length;
+
     container.innerHTML = `
       <div class="p-3 rounded-2xl bg-slate-950/40 border border-slate-800">
-        <div class="flex items-center justify-between">
-          <p class="text-xs font-semibold text-slate-100">Kontrol Paketi #${escapeHtml(b.orderNo || safeIdTail(b.orderId))}</p>
-          <span class="text-[11px] text-slate-400">Şube: <b class="text-slate-200">${escapeHtml(b.branchName || "-")}</b></span>
+        <div class="flex items-center justify-between gap-2">
+          <div>
+            <p class="text-xs font-semibold text-slate-100">Kontrol Paketi #${escapeHtml(b.orderNo || safeIdTail(b.orderId))}</p>
+            <p class="text-[11px] text-slate-500 mt-1">
+              Tip: <b class="text-slate-200">${escapeHtml(b.type === "missingFill" ? "Eksik Tamamlama" : "Toplama")}</b>
+              • Durum: <b class="text-slate-200">${escapeHtml(b.status || "-")}</b>
+              • Şube: <b class="text-slate-200">${escapeHtml(b.branchName || "-")}</b>
+            </p>
+          </div>
+
+          <div class="text-right">
+            <p id="controlProgressText" class="text-[11px] text-slate-300">
+              Doğrulanan: <b class="text-emerald-300">${verifiedCount}</b> / <b class="text-slate-200">${totalCount}</b>
+            </p>
+            <p class="text-[10px] text-slate-500">Barkod okut/yapıştır → Uygula</p>
+          </div>
         </div>
-        <p class="text-[11px] text-slate-500 mt-1">Tip: <b class="text-slate-200">${escapeHtml(b.type === "missingFill" ? "Eksik Tamamlama" : "Toplama")}</b> • Durum: <b class="text-slate-200">${escapeHtml(b.status || "-")}</b></p>
+
+        <div class="mt-3 flex items-center gap-2">
+          <input id="controlBarcodeInput" class="flex-1 rounded-2xl bg-slate-950 border border-slate-700 px-3 py-2 text-[12px] text-white"
+            placeholder="Barkod okut / yapıştır (Enter)"
+            autocomplete="off" />
+          <button id="controlBarcodeApplyBtn" class="px-4 py-2 rounded-2xl bg-sky-600 hover:bg-sky-500 text-[12px] text-white">
+            Uygula
+          </button>
+        </div>
       </div>
 
-      <div class="overflow-auto border border-slate-800 rounded-2xl">
+      <div class="overflow-auto border border-slate-800 rounded-2xl mt-3">
         <table class="min-w-full text-[11px]">
           <thead class="bg-slate-900/90 sticky top-0">
             <tr>
@@ -2012,39 +2051,163 @@ async function openControlBatchDetail(batchId) {
               <th class="px-3 py-2 text-right text-slate-400">Miktar</th>
               <th class="px-3 py-2 text-left text-slate-400">Raf</th>
               <th class="px-3 py-2 text-left text-slate-400">Barkod</th>
+              <th class="px-3 py-2 text-center text-slate-400">Durum</th>
             </tr>
           </thead>
-          <tbody class="divide-y divide-slate-800">
-            ${items.map(it => `
-              <tr>
-                <td class="px-3 py-2 font-mono text-slate-200">${escapeHtml(it.productCode || "")}</td>
-                <td class="px-3 py-2 text-slate-200">${escapeHtml(it.productName || "")}</td>
-                <td class="px-3 py-2 text-right text-slate-200">${escapeHtml(it.qty ?? 0)}</td>
-                <td class="px-3 py-2 text-slate-400">${escapeHtml(it.shelf || "-")}</td>
-                <td class="px-3 py-2 text-slate-400">${escapeHtml(it.barcode || "-")}</td>
-              </tr>
-            `).join("")}
-          </tbody>
+          <tbody id="controlItemsTbody" class="divide-y divide-slate-800"></tbody>
         </table>
       </div>
     `;
 
+    const tbody = $("controlItemsTbody");
+    tbody.innerHTML = items.map(it => {
+      const bc = normalizeBarcode(it.barcode || "");
+      const ok = it.verified === true;
+      return `
+        <tr class="control-row ${ok ? "bg-emerald-500/5" : ""}" data-item-id="${it.id}" data-barcode="${escapeHtml(bc)}" data-verified="${ok ? "true" : "false"}">
+          <td class="px-3 py-2 font-mono text-slate-200">${escapeHtml(it.productCode || "")}</td>
+          <td class="px-3 py-2 text-slate-200">${escapeHtml(it.productName || "")}</td>
+          <td class="px-3 py-2 text-right text-slate-200">${escapeHtml(it.qty ?? 0)}</td>
+          <td class="px-3 py-2 text-slate-400">${escapeHtml(it.shelf || "-")}</td>
+          <td class="px-3 py-2 text-slate-400">${escapeHtml(bc || "-")}</td>
+          <td class="px-3 py-2 text-center">
+            <span class="verified-badge ${ok ? "" : "hidden"} text-[10px] px-2 py-[2px] rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+              Doğrulandı
+            </span>
+            <span class="not-verified-badge ${ok ? "hidden" : ""} text-[10px] px-2 py-[2px] rounded-full bg-slate-800/60 text-slate-300 border border-slate-700/60">
+              Bekliyor
+            </span>
+          </td>
+        </tr>
+      `;
+    }).join("");
+
+    function updateProgressUI() {
+      const rows = Array.from(tbody.querySelectorAll("tr.control-row"));
+      const okCount = rows.filter(r => r.dataset.verified === "true").length;
+      const total = rows.length;
+      const p = $("controlProgressText");
+      if (p) {
+        p.innerHTML = `Doğrulanan: <b class="text-emerald-300">${okCount}</b> / <b class="text-slate-200">${total}</b>`;
+      }
+
+      // (opsiyonel) modal içinde Kontrol Tamam butonunu pasifleştirmek istersen:
+      const doneBtn = $("markControlDoneBtn");
+      if (doneBtn) {
+        const can = total > 0 && okCount === total;
+        doneBtn.disabled = !can;
+        doneBtn.classList.toggle("opacity-50", !can);
+        doneBtn.classList.toggle("cursor-not-allowed", !can);
+      }
+    }
+
+    async function verifyRowByBarcode(barcode) {
+      const bc = normalizeBarcode(barcode);
+      if (!bc) return;
+
+      const rows = Array.from(tbody.querySelectorAll("tr.control-row"));
+      const row = rows.find(r => normalizeBarcode(r.dataset.barcode) === bc);
+
+      if (!row) {
+        showGlobalAlert(`Barkod bulunamadı: ${bc} (Listede yok)`, "error");
+        return;
+      }
+
+      // zaten verified ise sadece scroll
+      if (row.dataset.verified === "true") {
+        row.scrollIntoView({ behavior: "smooth", block: "center" });
+        showGlobalAlert(`Zaten doğrulanmış: ${bc}`, "info");
+        return;
+      }
+
+      // UI mark
+      row.dataset.verified = "true";
+      row.classList.add("bg-emerald-500/5", "ring-1", "ring-emerald-500/30");
+      row.querySelector(".verified-badge")?.classList.remove("hidden");
+      row.querySelector(".not-verified-badge")?.classList.add("hidden");
+      row.scrollIntoView({ behavior: "smooth", block: "center" });
+
+      // Firestore write
+      try {
+        const itemId = row.dataset.itemId;
+        if (itemId) {
+          await updateDoc(doc(db, "controlBatches", batchId, "items", itemId), {
+            verified: true,
+            verifiedAt: serverTimestamp(),
+            verifiedByUid: currentUser.uid,
+            verifiedByEmail: currentUser.email
+          });
+        }
+      } catch (err) {
+        // UI işaretlendi ama yazamadıysa geri al (tutarlılık)
+        row.dataset.verified = "false";
+        row.classList.remove("bg-emerald-500/5", "ring-1", "ring-emerald-500/30");
+        row.querySelector(".verified-badge")?.classList.add("hidden");
+        row.querySelector(".not-verified-badge")?.classList.remove("hidden");
+        updateProgressUI();
+        throw err;
+      }
+
+      updateProgressUI();
+      showGlobalAlert(`OK ✅ Barkod doğrulandı: ${bc}`, "success");
+    }
+
+    const input = $("controlBarcodeInput");
+    const applyBtn = $("controlBarcodeApplyBtn");
+
+    applyBtn?.addEventListener("click", async () => {
+      try {
+        const val = input?.value || "";
+        await verifyRowByBarcode(val);
+        if (input) input.value = "";
+        input?.focus();
+      } catch (err) {
+        showGlobalAlert(friendlyFirebaseError(err), "error");
+      }
+    });
+
+    input?.addEventListener("keydown", async (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        applyBtn?.click();
+      }
+    });
+
+    // first paint
+    updateProgressUI();
+
     show(modal);
+    // input focus
+    setTimeout(() => input?.focus(), 50);
 
   } catch (err) {
     showGlobalAlert(friendlyFirebaseError(err), "error");
   }
 }
 
+/* ✅ UPDATED: Kontrol tamamla artık tüm satırlar verified olmadan kapanmaz */
 async function markControlBatchDone(batchId) {
   try {
     if (!["admin", "manager"].includes(currentRole)) throw new Error("Yetki yok.");
+
+    // ✅ önce item doğrulama kontrolü
+    const itemsSnap = await getDocs(query(collection(db, "controlBatches", batchId, "items"), limit(5000)));
+    const items = [];
+    itemsSnap.forEach(ds => items.push({ id: ds.id, ...(ds.data() || {}) }));
+
+    const notVerified = items.filter(x => x.verified !== true);
+    if (notVerified.length > 0) {
+      const sample = notVerified.slice(0, 6).map(x => `${x.productCode || ""} ${x.productName || ""}`.trim()).join(", ");
+      throw new Error(`Kontrol tamamlanamaz: ${notVerified.length} satır doğrulanmamış. Örnek: ${sample}`);
+    }
+
     await updateDoc(doc(db, "controlBatches", batchId), {
       status: "done",
       doneAt: serverTimestamp(),
       doneByUid: currentUser.uid,
       doneByEmail: currentUser.email
     });
+
     hide($("controlDetailModal"));
     showGlobalAlert("Kontrol paketi tamamlandı.", "success");
     await loadControlBatches();
@@ -2256,8 +2419,6 @@ onAuthStateChanged(auth, async (user) => {
 
 /* =========================================================
    ✅ FIRESTORE RULES (ÖRNEK) — Missing or insufficient permissions fix
-   Firebase Console > Firestore Database > Rules içine koyup publish edebilirsin.
-   (Bu örnek: giriş yapan herkes okuyabilir, yazma rol bazlı)
 ========================================================= */
 /*
 rules_version = '2';
