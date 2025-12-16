@@ -352,7 +352,7 @@
     <!-- Views Container -->
     <main class="flex-1 px-3 md:px-6 py-3 md:py-4">
       <div class="max-w-7xl mx-auto space-y-4">
-        
+
 <span class="verified-badge hidden text-[10px] px-2 py-[2px] rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
   Doğrulandı
 </span>
@@ -1070,6 +1070,36 @@
     <div class="flex items-center justify-between mb-3">
       <h3 class="text-sm font-semibold text-slate-100">Toplama Detayı</h3>
       <button id="closePickingDetailModalBtn" type="button" class="text-slate-400 hover:text-slate-100 text-lg">✕</button>
+    </div>
+
+    <!-- ✅ YENİ: Renk Efsanesi + Ürün Ekle Alanı (app.js bunu kullanacak) -->
+    <div class="space-y-2 mb-3 text-[11px]">
+      <div class="flex flex-wrap gap-2 items-center">
+        <span class="px-2 py-1 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">Toplandı (Yeşil)</span>
+        <span class="px-2 py-1 rounded-full bg-rose-500/15 text-rose-300 border border-rose-500/30">Eksik (Kırmızı)</span>
+        <span class="px-2 py-1 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30">Miktar Değişti (Sarı)</span>
+        <span class="text-slate-400 ml-auto">Not: Raf koduna göre sıralama app.js tarafında yapılacak.</span>
+      </div>
+
+      <div class="p-3 rounded-2xl bg-slate-950/40 border border-slate-800">
+        <p class="text-[11px] font-semibold text-slate-200 mb-2">Ürün Ekle</p>
+        <div class="grid md:grid-cols-12 gap-2 items-center">
+          <select id="addPickProductSelect" class="md:col-span-6 rounded-2xl bg-slate-950 border border-slate-700 px-3 py-2 text-[12px] text-white">
+            <!-- app.js dolduracak -->
+          </select>
+          <input id="addPickQty" type="number" min="0" step="0.01"
+            class="md:col-span-3 rounded-2xl bg-slate-950 border border-slate-700 px-3 py-2 text-[12px] text-white"
+            placeholder="İstenen miktar">
+          <button id="addPickItemBtn"
+            type="button"
+            class="md:col-span-3 px-4 py-2 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-[12px] text-white">
+            Ekle
+          </button>
+        </div>
+        <p class="text-[11px] text-slate-400 mt-2">
+          Ürün ekleme ile satırın <span class="font-mono text-slate-200">Raf/Lokasyon</span> bilgisi ürün kartından gelir.
+        </p>
+      </div>
     </div>
 
     <div id="pickingDetailContent" class="space-y-2 text-[11px]">
