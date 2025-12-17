@@ -417,6 +417,7 @@ function initNavUI() {
   // Default view dashboard
   if (buttons[0]) buttons[0].click();
 }
+}
 
 function applyRoleToUI(role) {
   currentRole = role || "branch";
