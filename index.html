@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <title>DepoOS – Gerçek Zamanlı Depo ve Sipariş Yönetimi</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="dark" />
 
   <!-- Tailwind (geliştirme için CDN) -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -21,6 +22,12 @@
   </style>
 </head>
 <body class="min-h-screen bg-slate-950 text-slate-50">
+
+<noscript>
+  <div class="p-4 text-sm bg-rose-900/40 border-b border-rose-700 text-rose-100">
+    Bu uygulama JavaScript olmadan çalışmaz. Lütfen tarayıcıda JavaScript'i açın.
+  </div>
+</noscript>
 
 <!-- =========================================================
      AUTH SECTION
@@ -62,6 +69,7 @@
     <p
       id="authMessage"
       class="text-xs md:text-sm text-red-500 mb-4 h-4 flex items-center"
+      aria-live="polite"
     ></p>
 
     <!-- Login Form -->
@@ -76,6 +84,7 @@
             type="email"
             autocomplete="email"
             class="w-full rounded-2xl bg-slate-900/70 border border-slate-700 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-sky-500/80"
+            required
           />
         </div>
         <div>
@@ -87,6 +96,7 @@
             type="password"
             autocomplete="current-password"
             class="w-full rounded-2xl bg-slate-900/70 border border-slate-700 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-sky-500/80"
+            required
           />
         </div>
       </div>
@@ -114,6 +124,7 @@
             id="registerName"
             type="text"
             class="w-full rounded-2xl bg-slate-900/70 border border-slate-700 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/80"
+            required
           />
         </div>
         <div>
@@ -125,6 +136,7 @@
             type="email"
             autocomplete="email"
             class="w-full rounded-2xl bg-slate-900/70 border border-slate-700 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/80"
+            required
           />
         </div>
         <div>
@@ -136,6 +148,7 @@
             type="password"
             autocomplete="new-password"
             class="w-full rounded-2xl bg-slate-900/70 border border-slate-700 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/80"
+            required
           />
         </div>
         <div class="md:col-span-2">
@@ -145,6 +158,7 @@
           <select
             id="registerRole"
             class="w-full rounded-2xl bg-slate-900/70 border border-slate-700 px-3 py-2 text-xs text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/80"
+            required
           >
             <option value="branch">Şube</option>
             <option value="picker">Toplayıcı</option>
@@ -346,6 +360,7 @@
       <div
         id="globalAlert"
         class="hidden border rounded-2xl px-3 py-2 text-[11px] md:text-xs"
+        aria-live="polite"
       ></div>
     </div>
 
@@ -353,9 +368,9 @@
     <main class="flex-1 px-3 md:px-6 py-3 md:py-4">
       <div class="max-w-7xl mx-auto space-y-4">
 
-<span class="verified-badge hidden text-[10px] px-2 py-[2px] rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
-  Doğrulandı
-</span>
+        <span class="verified-badge hidden text-[10px] px-2 py-[2px] rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+          Doğrulandı
+        </span>
 
         <!-- =====================================================
              DASHBOARD VIEW
@@ -860,11 +875,14 @@
 <div
   id="productModal"
   class="hidden fixed inset-0 z-40 flex items-center justify-center bg-slate-950/80 backdrop-blur"
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby="productModalTitle"
 >
   <div class="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-3xl p-4 md:p-5">
     <div class="flex items-center justify-between mb-3">
       <h3 id="productModalTitle" class="text-sm font-semibold text-slate-100">Yeni Ürün</h3>
-      <button id="closeProductModalBtn" type="button" class="text-slate-400 hover:text-slate-100 text-lg">✕</button>
+      <button id="closeProductModalBtn" type="button" class="text-slate-400 hover:text-slate-100 text-lg" aria-label="Kapat">✕</button>
     </div>
 
     <form id="productForm" class="space-y-3 text-[11px]">
@@ -914,6 +932,7 @@
             id="productStock"
             type="number"
             min="0"
+            step="0.01"
             class="w-full rounded-2xl bg-slate-950 border border-slate-700 px-3 py-1.5 text-xs text-white"
           />
         </div>
@@ -943,11 +962,13 @@
 <div
   id="orderModal"
   class="hidden fixed inset-0 z-40 flex items-center justify-center bg-slate-950/80 backdrop-blur"
+  role="dialog"
+  aria-modal="true"
 >
   <div class="w-full max-w-3xl bg-slate-900 border border-slate-800 rounded-3xl p-4 md:p-5">
     <div class="flex items-center justify-between mb-3">
       <h3 class="text-sm font-semibold text-slate-100">Yeni Şube Siparişi</h3>
-      <button id="closeOrderModalBtn" type="button" class="text-slate-400 hover:text-slate-100 text-lg">✕</button>
+      <button id="closeOrderModalBtn" type="button" class="text-slate-400 hover:text-slate-100 text-lg" aria-label="Kapat">✕</button>
     </div>
 
     <form id="orderForm" class="space-y-3 text-[11px]">
@@ -1002,9 +1023,9 @@
               type="button"
               id="importOrderFromExcelBtn"
               class="text-[11px] px-3 py-1.5 rounded-full bg-emerald-600 text-white hover:bg-emerald-500"
-              title="Excel'i içe aktar"
+              title="Excel'i seç"
             >
-              Excel Yükle
+              Excel Seç
             </button>
           </div>
         </div>
@@ -1065,11 +1086,13 @@
 <div
   id="pickingDetailModal"
   class="hidden fixed inset-0 z-40 flex items-center justify-center bg-slate-950/80 backdrop-blur"
+  role="dialog"
+  aria-modal="true"
 >
   <div class="w-full max-w-5xl bg-slate-900 border border-slate-800 rounded-3xl p-4 md:p-5 max-h-[90vh] overflow-y-auto">
     <div class="flex items-center justify-between mb-3">
       <h3 class="text-sm font-semibold text-slate-100">Toplama Detayı</h3>
-      <button id="closePickingDetailModalBtn" type="button" class="text-slate-400 hover:text-slate-100 text-lg">✕</button>
+      <button id="closePickingDetailModalBtn" type="button" class="text-slate-400 hover:text-slate-100 text-lg" aria-label="Kapat">✕</button>
     </div>
 
     <!-- ✅ YENİ: Renk Efsanesi + Ürün Ekle Alanı (app.js bunu kullanacak) -->
@@ -1122,6 +1145,8 @@
 <div
   id="controlDetailModal"
   class="hidden fixed inset-0 z-40 flex items-center justify-center bg-slate-950/80 backdrop-blur"
+  role="dialog"
+  aria-modal="true"
 >
   <div class="w-full max-w-5xl bg-slate-900 border border-slate-800 rounded-3xl p-4 md:p-5 max-h-[90vh] overflow-y-auto">
     <div class="flex items-center justify-between mb-3">
@@ -1131,7 +1156,7 @@
           Barkodla doğrulama / kalem kontrolü
         </p>
       </div>
-      <button id="closeControlDetailModalBtn" type="button" class="text-slate-400 hover:text-slate-100 text-lg">✕</button>
+      <button id="closeControlDetailModalBtn" type="button" class="text-slate-400 hover:text-slate-100 text-lg" aria-label="Kapat">✕</button>
     </div>
 
     <!-- Barkod giriş alanı (JS isterse kullanır) -->
@@ -1147,6 +1172,7 @@
             type="text"
             placeholder="Barkod..."
             class="w-full md:w-72 rounded-2xl bg-slate-950 border border-slate-700 px-3 py-1.5 text-xs text-white"
+            inputmode="numeric"
           />
           <button
             type="button"
@@ -1181,7 +1207,10 @@
 <script type="module" src="app.js"></script>
 
 <!-- =========================================================
-     MINI UI SCRIPT (Sadece HTML tarafı: Bildirim paneli aç/kapat + Modal ESC/Dışarı click iyileştirmesi)
+     MINI UI SCRIPT
+     - Bildirim paneli aç/kapat
+     - ESC / backdrop click ile modal kapatma
+     - Excel Seç butonu file picker tetikleme + dosya adı gösterme
 ========================================================= -->
 <script>
   (function () {
@@ -1230,9 +1259,9 @@
         if (!m.classList.contains("hidden")) m.classList.add("hidden");
       });
 
-      // Eğer order modal kapandıysa app.js'deki close fonksiyonuna da saygı duyalım (varsa)
+      // order modal kapandıysa app.js close hook varsa çağır (state temizliği)
       if (window.closeOrderModal && document.getElementById("orderModal")?.classList.contains("hidden")) {
-        // no-op (app.js zaten state'i yönetiyor)
+        try { window.closeOrderModal(); } catch (_) {}
       }
     });
 
@@ -1243,7 +1272,6 @@
       modal.addEventListener("click", (e) => {
         if (e.target === modal) {
           modal.classList.add("hidden");
-          // order modal için app.js close hook varsa çağır (state temizliği için)
           if (modalId === "orderModal" && typeof window.closeOrderModal === "function") {
             try { window.closeOrderModal(); } catch (_) {}
           }
@@ -1262,6 +1290,21 @@
     wireBackdropClose("orderModal", "closeOrderModalBtn");
     wireBackdropClose("pickingDetailModal", "closePickingDetailModalBtn");
     wireBackdropClose("controlDetailModal", "closeControlDetailModalBtn");
+
+    // ✅ Excel Seç butonu -> file input tetikleme + seçilen dosyayı yazdırma
+    const importBtn = document.getElementById("importOrderFromExcelBtn");
+    const fileInput = document.getElementById("orderExcelFile");
+    const importResult = document.getElementById("orderExcelImportResult");
+
+    if (importBtn && fileInput) {
+      importBtn.addEventListener("click", () => fileInput.click());
+      fileInput.addEventListener("change", () => {
+        const f = fileInput.files && fileInput.files[0];
+        if (importResult) {
+          importResult.textContent = f ? `Seçildi: ${f.name}` : "";
+        }
+      });
+    }
   })();
 </script>
 
