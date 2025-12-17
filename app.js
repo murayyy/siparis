@@ -18,21 +18,10 @@
 //      orders/{orderId}.status otomatik "completed" olur.
 //    - Eksik dosyası kapatılınca da aynı completion kontrolü yapılır.
 //
-// Kurulum:
-// 1) Firebase Console -> Project settings -> Web app config -> aşağıdaki firebaseConfig içine yapıştır
-// 2) Firestore Collections:
-//    - users/{uid} : { name, email, role }
-//    - products/{id} : { code, name, unit, shelf, stock, note, barcode }
-//    - orders/{id} : { branchName, documentNo, note, status, createdAt, createdBy, createdByEmail, assignedTo, assignedToEmail, ... }
-//    - orders/{orderId}/items/{itemId} : { productCode, productName, qty, unit, note, shelf, reyon, barcode, pickedQty, pickedDone, missingFlag, missingQty, status, createdAt }
-//    - controlBatches/{id} : { orderId, orderNo, branchName, type, status, createdAt, createdByUid, createdByEmail, summary }
-//      - controlBatches/{id}/items/{itemId}: { productCode, productName, qty, unit, shelf, barcode, note, createdAt, verified, verifiedAt, verifiedByUid, verifiedByEmail }
-//    - missingFiles/{id}: { orderId, orderNo, branchName, status, createdAt, createdByUid, createdByEmail, closedAt, closedByUid, closedByEmail, summary }
-//      - missingFiles/{id}/items/{itemId}: { productCode, productName, missingQty, filledQty, unit, shelf, barcode, note, isDone, createdAt, updatedAt }
-//    - pallets/{id} : (opsiyonel) { shipmentNo, branchName, palletNo, dock, status, loadedBy, loadedAt }
-//    - users/{uid}/notifications/{id} : { title, body, createdAt, read }
-//
-// 3) Firestore Rules yoksa “Missing or insufficient permissions” alırsın. En altta örnek rules var.
+// ✅ BU TUR GÜNCELLEME (EKLENDİ, EKSİLTME YOK):
+//    - Toplama Detayı: Ürün Ekle dropdown’u Firestore products’tan doldurulur (tıklayınca boş kalmaz)
+//    - Toplama Detayı: Satırlar renklenir (Toplandı=Yeşil / Eksik=Kırmızı / Miktar Değişti=Sar)
+//    - Renkler her change/click sonrası anında UI’da güncellenir.
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
 import {
@@ -178,6 +167,47 @@ function normalizeBarcode(v) {
   return String(v ?? "").trim();
 }
 
+/* ✅ NEW: element finder (birden fazla id destek) */
+function pickEl(...ids) {
+  for (const id of ids) {
+    const el = document.getElementById(id);
+    if (el) return el;
+  }
+  return null;
+}
+
+/* ✅ NEW: picking ürün listesi cache */
+let __productsCache = null;
+async function ensureProductsCache(force = false) {
+  if (__productsCache && !force) return __productsCache;
+
+  const snap = await getDocs(query(collection(db, "products"), orderBy("code", "asc"), limit(2000)));
+  const rows = [];
+  snap.forEach(ds => rows.push({ id: ds.id, ...(ds.data() || {}) }));
+  __productsCache = rows;
+  return rows;
+}
+
+/* ✅ NEW: satır renk sınıfları */
+function getPickingRowClass({ pickedDone, missingFlag, qtyChanged } = {}) {
+  // Öncelik: Eksik (kırmızı) > Toplandı (yeşil) > Miktar Değişti (sarı)
+  if (missingFlag) return "bg-rose-500/10 border-rose-500/30";
+  if (pickedDone) return "bg-emerald-500/10 border-emerald-500/30";
+  if (qtyChanged) return "bg-amber-500/10 border-amber-500/30";
+  return "bg-transparent border-slate-800";
+}
+
+function applyPickingRowPaint(tr, state) {
+  if (!tr) return;
+  tr.classList.remove(
+    "bg-rose-500/10", "border-rose-500/30",
+    "bg-emerald-500/10", "border-emerald-500/30",
+    "bg-amber-500/10", "border-amber-500/30"
+  );
+  const cls = getPickingRowClass(state).split(" ");
+  cls.forEach(c => c && tr.classList.add(c));
+}
+
 /* =========================================================
    ✅ NEW: Order completion controller
    - Bir order "completed" olsun:
@@ -195,7 +225,6 @@ async function updateOrderCompletionIfReady(orderId) {
   const missingFileId = order.missingFileId || null;
 
   // 1) Tüm kontrol paketleri done mı?
-  // Not: where+orderBy index istemesin diye orderBy kullanmıyoruz.
   const batchesSnap = await getDocs(query(
     collection(db, "controlBatches"),
     where("orderId", "==", orderId),
@@ -345,7 +374,7 @@ function initAuthUI() {
    4) App UI: Nav + Views
 ========================================================= */
 function initNavUI() {
-  const buttons = Array.from(document.querySelectorAll(".nav-btn"));
+  const buttons = Array ensureProductsCache.from(document.querySelectorAll(".nav-btn"));
 
   function setActive(btn) {
     buttons.forEach(b => {
@@ -626,6 +655,9 @@ async function loadProducts() {
 
     // fill stock product select
     fillStockProductSelect(rows);
+
+    // ✅ NEW: ürün cache yenile (Toplama modal dropdown için)
+    __productsCache = rows;
 
   } catch (err) {
     showGlobalAlert(friendlyFirebaseError(err), "error");
@@ -1235,6 +1267,85 @@ function initPickingUI() {
     if (!window.__activePickingOrderId) return;
     await completePicking(window.__activePickingOrderId);
   });
+
+  // ✅ NEW: Toplama modalında "Ürün Ekle" alanı (select + qty + ekle)
+  const productSelect = pickEl("pickingAddProductSelect", "pickingProductSelect", "addProductSelect");
+  const qtyInput = pickEl("pickingAddQty", "pickingAddQtyInput", "addProductQty");
+  const addBtn = pickEl("pickingAddBtn", "pickingAddProductBtn", "addProductBtn");
+
+  async function fillPickingProductSelect() {
+    if (!productSelect) return;
+
+    const products = await ensureProductsCache(false);
+
+    productSelect.innerHTML = "";
+    const opt0 = document.createElement("option");
+    opt0.value = "";
+    opt0.textContent = "Ürün seç...";
+    productSelect.appendChild(opt0);
+
+    products.forEach(p => {
+      const opt = document.createElement("option");
+      opt.value = p.id;
+      opt.textContent = `${p.code || "-"} — ${p.name || "-"}`.trim();
+      opt.dataset.code = p.code || "";
+      opt.dataset.name = p.name || "";
+      opt.dataset.unit = p.unit || "";
+      opt.dataset.shelf = p.shelf || "";
+      opt.dataset.barcode = p.barcode || "";
+      productSelect.appendChild(opt);
+    });
+  }
+
+  // modal açılınca doldurmak için global expose (openPickingDetail içinde çağıracağız)
+  window.__fillPickingProductSelect = fillPickingProductSelect;
+
+  addBtn?.addEventListener("click", async () => {
+    try {
+      if (!window.__activePickingOrderId) throw new Error("Aktif sipariş yok.");
+      if (!productSelect?.value) throw new Error("Ürün seç.");
+      const qty = clampNum(qtyInput?.value, 0);
+      if (!qty || qty <= 0) throw new Error("İstenen miktar > 0 olmalı.");
+
+      const selOpt = productSelect.options[productSelect.selectedIndex];
+      const productId = productSelect.value;
+
+      const productCode = selOpt?.dataset.code || "";
+      const productName = selOpt?.dataset.name || "";
+      const unit = selOpt?.dataset.unit || "";
+      const shelf = selOpt?.dataset.shelf || "";
+      const barcode = selOpt?.dataset.barcode || "";
+
+      const orderId = window.__activePickingOrderId;
+
+      await addDoc(collection(db, "orders", orderId, "items"), {
+        productId,
+        productCode,
+        productName,
+        qty,
+        unit,
+        shelf,
+        reyon: shelf,
+        barcode,
+        note: "",
+        pickedQty: 0,
+        pickedDone: false,
+        missingFlag: false,
+        missingQty: 0,
+        status: "open",
+        createdAt: serverTimestamp()
+      });
+
+      showGlobalAlert("Ürün eklendi.", "success");
+
+      if (qtyInput) qtyInput.value = "";
+      if (productSelect) productSelect.value = "";
+
+      await openPickingDetail(orderId);
+    } catch (err) {
+      showGlobalAlert(friendlyFirebaseError(err), "error");
+    }
+  });
 }
 
 async function loadPickingOrders() {
@@ -1372,8 +1483,11 @@ async function openPickingDetail(orderId) {
       const done = !!it.pickedDone;
       const missingFlag = !!it.missingFlag;
 
+      const qtyChanged = !done && !missingFlag && picked > 0 && picked < qty;
+      const rowCls = getPickingRowClass({ pickedDone: done, missingFlag, qtyChanged });
+
       return `
-        <tr data-item-id="${it.id}">
+        <tr data-item-id="${it.id}" class="border ${rowCls}">
           <td class="px-3 py-2 text-slate-300">${escapeHtml(loc)}</td>
           <td class="px-3 py-2 font-mono text-slate-200">${escapeHtml(it.productCode || "")}</td>
           <td class="px-3 py-2 text-slate-200">${escapeHtml(it.productName || "")}</td>
@@ -1397,6 +1511,9 @@ async function openPickingDetail(orderId) {
       `;
     }).join("");
 
+    // ✅ NEW: modal içindeki ürün dropdown'u doldur (varsa)
+    try { await window.__fillPickingProductSelect?.(); } catch {}
+
     // listeners
     Array.from(tbody.querySelectorAll("tr[data-item-id]")).forEach(tr => {
       const itemId = tr.dataset.itemId;
@@ -1412,6 +1529,7 @@ async function openPickingDetail(orderId) {
           if (!itSnap.exists()) return;
           const it = itSnap.data() || {};
           const qty = Number(it.qty || 0);
+          const missingFlag = !!it.missingFlag;
 
           if (pickedDoneCb.checked) {
             pickedQtyInput.value = String(qty);
@@ -1421,6 +1539,10 @@ async function openPickingDetail(orderId) {
               status: "picked",
               updatedAt: serverTimestamp()
             });
+
+            // ✅ UI paint (yeşil)
+            applyPickingRowPaint(tr, { pickedDone: true, missingFlag: false, qtyChanged: false });
+
           } else {
             const val = clampNum(pickedQtyInput.value, 0);
             await updateDoc(itRef, {
@@ -1429,6 +1551,10 @@ async function openPickingDetail(orderId) {
               status: val > 0 ? "picking" : "open",
               updatedAt: serverTimestamp()
             });
+
+            // ✅ UI paint (kırmızı/sarı/normal)
+            const qtyChanged = !missingFlag && val > 0 && val < qty;
+            applyPickingRowPaint(tr, { pickedDone: false, missingFlag, qtyChanged });
           }
         } catch (err) {
           showGlobalAlert(friendlyFirebaseError(err), "error");
@@ -1444,8 +1570,9 @@ async function openPickingDetail(orderId) {
           if (!itSnap.exists()) return;
           const it = itSnap.data() || {};
           const qty = Number(it.qty || 0);
-          const done = val >= qty && qty > 0;
+          const missingFlag = !!it.missingFlag;
 
+          const done = val >= qty && qty > 0;
           pickedDoneCb.checked = done;
 
           await updateDoc(itRef, {
@@ -1454,6 +1581,11 @@ async function openPickingDetail(orderId) {
             status: done ? "picked" : (val > 0 ? "picking" : "open"),
             updatedAt: serverTimestamp()
           });
+
+          // ✅ UI paint (kırmızı öncelik)
+          const qtyChanged = !done && !missingFlag && val > 0 && val < qty;
+          applyPickingRowPaint(tr, { pickedDone: done, missingFlag, qtyChanged });
+
         } catch (err) {
           showGlobalAlert(friendlyFirebaseError(err), "error");
         }
@@ -1484,8 +1616,10 @@ async function openPickingDetail(orderId) {
 
           showGlobalAlert("Eksik işaretlendi. (Toplama bitince Eksik Depo DOSYASINA düşecek)", "success");
 
-          // UI paint
+          // UI
           missingBtn.className = "px-2 py-1 rounded-full bg-rose-900/50 border border-rose-800 text-rose-100 text-[11px]";
+          applyPickingRowPaint(tr, { pickedDone: false, missingFlag: true, qtyChanged: false });
+
         } catch (err) {
           showGlobalAlert(friendlyFirebaseError(err), "error");
         }
@@ -2158,7 +2292,6 @@ async function openControlBatchDetail(batchId) {
         p.innerHTML = `Doğrulanan: <b class="text-emerald-300">${okCount}</b> / <b class="text-slate-200">${total}</b>`;
       }
 
-      // (opsiyonel) modal içinde Kontrol Tamam butonunu pasifleştirmek istersen:
       const doneBtn = $("markControlDoneBtn");
       if (doneBtn) {
         const can = total > 0 && okCount === total;
@@ -2180,21 +2313,18 @@ async function openControlBatchDetail(batchId) {
         return;
       }
 
-      // zaten verified ise sadece scroll
       if (row.dataset.verified === "true") {
         row.scrollIntoView({ behavior: "smooth", block: "center" });
         showGlobalAlert(`Zaten doğrulanmış: ${bc}`, "info");
         return;
       }
 
-      // UI mark
       row.dataset.verified = "true";
       row.classList.add("bg-emerald-500/5", "ring-1", "ring-emerald-500/30");
       row.querySelector(".verified-badge")?.classList.remove("hidden");
       row.querySelector(".not-verified-badge")?.classList.add("hidden");
       row.scrollIntoView({ behavior: "smooth", block: "center" });
 
-      // Firestore write
       try {
         const itemId = row.dataset.itemId;
         if (itemId) {
@@ -2206,7 +2336,6 @@ async function openControlBatchDetail(batchId) {
           });
         }
       } catch (err) {
-        // UI işaretlendi ama yazamadıysa geri al (tutarlılık)
         row.dataset.verified = "false";
         row.classList.remove("bg-emerald-500/5", "ring-1", "ring-emerald-500/30");
         row.querySelector(".verified-badge")?.classList.add("hidden");
@@ -2240,11 +2369,9 @@ async function openControlBatchDetail(batchId) {
       }
     });
 
-    // first paint
     updateProgressUI();
 
     show(modal);
-    // input focus
     setTimeout(() => input?.focus(), 50);
 
   } catch (err) {
@@ -2257,12 +2384,10 @@ async function markControlBatchDone(batchId) {
   try {
     if (!["admin", "manager"].includes(currentRole)) throw new Error("Yetki yok.");
 
-    // ✅ batch doc (orderId lazım)
     const bSnap = await getDoc(doc(db, "controlBatches", batchId));
     if (!bSnap.exists()) throw new Error("Kontrol paketi bulunamadı.");
     const b = bSnap.data() || {};
 
-    // ✅ önce item doğrulama kontrolü
     const itemsSnap = await getDocs(query(collection(db, "controlBatches", batchId, "items"), limit(5000)));
     const items = [];
     itemsSnap.forEach(ds => items.push({ id: ds.id, ...(ds.data() || {}) }));
@@ -2280,7 +2405,6 @@ async function markControlBatchDone(batchId) {
       doneByEmail: currentUser.email
     });
 
-    // ✅ NEW: Order tamamlanma kontrolü (tüm batchler done mu + eksik dosyası tamam mı?)
     try {
       await updateOrderCompletionIfReady(b.orderId);
     } catch { /* sessiz */ }
@@ -2352,12 +2476,10 @@ async function refreshDashboard() {
   try {
     if (!currentUser) return;
 
-    // total products
     const prodSnap = await getDocs(query(collection(db, "products"), limit(1000)));
     let prodCount = 0;
     prodSnap.forEach(() => prodCount++);
 
-    // orders quick stats (last 400)
     const ordersSnap = await getDocs(query(collection(db, "orders"), orderBy("createdAt", "desc"), limit(400)));
     const orders = [];
     ordersSnap.forEach(ds => orders.push(ds.data() || {}));
@@ -2372,12 +2494,10 @@ async function refreshDashboard() {
     if ($("cardPickingOrders")) $("cardPickingOrders").textContent = String(pickingCount);
     if ($("cardCompletedOrders")) $("cardCompletedOrders").textContent = String(completedCount);
 
-    // reports
     if ($("reportTotalProducts")) $("reportTotalProducts").textContent = `Toplam ürün: ${prodCount}`;
     if ($("reportTotalOrders")) $("reportTotalOrders").textContent = `Toplam sipariş: ${orders.length}`;
     if ($("reportCompletedOrders")) $("reportCompletedOrders").textContent = `Tamamlanan sipariş: ${completedCount}`;
 
-    // loading summary
     if (["admin", "manager"].includes(currentRole)) {
       const palletsSnap = await getDocs(query(collection(db, "pallets"), orderBy("createdAt", "desc"), limit(200)));
       const pallets = [];
@@ -2394,7 +2514,6 @@ async function refreshDashboard() {
       if ($("loadingTodaySummary")) $("loadingTodaySummary").textContent = `Bugün ${loadedToday} palet yüklendi.`;
     }
 
-    // picker today stats (simple)
     const pickerStats = $("pickerStatsToday");
     if (pickerStats) {
       if (currentRole === "picker") {
@@ -2431,7 +2550,6 @@ async function loadCurrentUserProfile(user) {
   const snap = await getDoc(ref);
   if (snap.exists()) return { uid: user.uid, ...(snap.data() || {}) };
 
-  // If no user doc, create default
   const payload = {
     name: user.displayName || "",
     email: user.email || "",
@@ -2487,7 +2605,6 @@ onAuthStateChanged(auth, async (user) => {
     renderCurrentUserInfo();
     startNotificationsListener();
 
-    // initial data refresh
     await refreshDashboard();
 
   } catch (err) {
@@ -2546,7 +2663,6 @@ service cloud.firestore {
       }
     }
 
-    // NEW: control batches
     match /controlBatches/{id} {
       allow read: if isManager() || isAdmin();
       allow create: if isPicker() || isManager() || isAdmin();
@@ -2561,7 +2677,6 @@ service cloud.firestore {
       }
     }
 
-    // NEW: missing files
     match /missingFiles/{id} {
       allow read: if isManager() || isAdmin();
       allow create: if isPicker() || isManager() || isAdmin();
