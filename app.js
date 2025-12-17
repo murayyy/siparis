@@ -372,7 +372,7 @@ function initAuthUI() {
 
 /* =========================================================
    4) App UI: Nav + Views
-========================================================= */
+========================================================= 
 function initNavUI() {
   const buttons = Array ensureProductsCache.from(document.querySelectorAll(".nav-btn"));
 
