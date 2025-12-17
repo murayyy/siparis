@@ -369,6 +369,50 @@ function initAuthUI() {
     }
   });
 }
+/* =========================================================
+   ROLE-BASED UI (applyRoleToUI)  ✅ EKLE
+========================================================= */
+function applyRoleToUI(role) {
+  // role: "admin" | "manager" | "picker" | "branch"
+  const navButtons = Array.from(document.querySelectorAll(".nav-btn"));
+
+  // 1) Butonları role göre göster/gizle
+  navButtons.forEach((btn) => {
+    const allowed = (btn.dataset.role || "")
+      .split(",")
+      .map((x) => x.trim())
+      .filter(Boolean);
+
+    const canSee = allowed.length === 0 ? true : allowed.includes(role);
+
+    btn.classList.toggle("hidden", !canSee);
+  });
+
+  // 2) Görünen ilk sekmeyi aktif yap (ve view'ı aç)
+  const firstVisible = navButtons.find((b) => !b.classList.contains("hidden"));
+  if (firstVisible) {
+    // aktif classlarını ayarla
+    navButtons.forEach((b) => {
+      b.classList.remove("bg-slate-900/70", "text-white", "border-slate-700");
+      b.classList.add("bg-slate-900/30", "text-slate-300", "border-slate-700/60");
+    });
+
+    firstVisible.classList.add("bg-slate-900/70", "text-white", "border-slate-700");
+    firstVisible.classList.remove("bg-slate-900/30", "text-slate-300", "border-slate-700/60");
+
+    // view aç
+    const viewId = firstVisible.dataset.view;
+    if (viewId) {
+      Array.from(document.querySelectorAll(".view")).forEach((v) => v.classList.add("hidden"));
+      const target = document.getElementById(viewId);
+      if (target) target.classList.remove("hidden");
+    }
+  }
+
+  // 3) Rol badge güncelle (varsa)
+  const roleBadge = document.getElementById("roleBadge");
+  if (roleBadge) roleBadge.textContent = `Rol: ${role}`;
+}
 
 /* =========================================================
    4) App UI: Nav + Views
