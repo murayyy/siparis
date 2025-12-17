@@ -374,7 +374,7 @@ function initAuthUI() {
    4) App UI: Nav + Views
 ========================================================= 
 function initNavUI() {
-  const buttons = Array ensureProductsCache.from(document.querySelectorAll(".nav-btn"));
+  const buttons = Array.from(document.querySelectorAll(".nav-btn"));
 
   function setActive(btn) {
     buttons.forEach(b => {
@@ -391,6 +391,7 @@ function initNavUI() {
     const target = $(viewId);
     if (target) target.classList.remove("hidden");
   }
+}
 
   buttons.forEach(btn => {
     btn.addEventListener("click", async () => {
