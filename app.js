@@ -372,7 +372,7 @@ function initAuthUI() {
 
 /* =========================================================
    4) App UI: Nav + Views
-=========================================================*/
+========================================================= */
 function initNavUI() {
   const buttons = Array.from(document.querySelectorAll(".nav-btn"));
 
@@ -388,55 +388,46 @@ function initNavUI() {
   function showView(viewId) {
     const views = Array.from(document.querySelectorAll(".view"));
     views.forEach(v => v.classList.add("hidden"));
-    const target = $(viewId);
+
+    const target = document.getElementById(viewId);
     if (target) target.classList.remove("hidden");
   }
-}
 
+  function canUserSeeBtn(btn) {
+    const roles = (btn.getAttribute("data-role") || "")
+      .split(",")
+      .map(r => r.trim());
+
+    if (!roles.length) return true;
+    return roles.includes(currentRole) || roles.includes("admin");
+  }
+
+  // Role bazlı görünürlük
   buttons.forEach(btn => {
-    btn.addEventListener("click", async () => {
-      const view = btn.dataset.view;
-      if (!view) return;
+    if (!canUserSeeBtn(btn)) {
+      btn.classList.add("hidden");
+    } else {
+      btn.classList.remove("hidden");
+    }
+  });
+
+  // Click bağlama
+  buttons.forEach(btn => {
+    btn.addEventListener("click", () => {
+      if (btn.classList.contains("hidden")) return;
+
       setActive(btn);
-      showView(view);
-
-      // view enter hooks
-      if (view === "productsView") await loadProducts();
-      if (view === "ordersView") await loadOrders();
-      if (view === "pickingView") await loadPickingOrders();
-      if (view === "loadingView") await loadLoadingTasks();
-      if (view === "stockView") await loadStockMovements();
-      if (view === "reportsView" || view === "dashboardView") await refreshDashboard();
-
-      // NEW views (varsa HTML’de)
-      if (view === "missingView") await loadMissingDepot();
-      if (view === "controlView") await loadControlBatches();
+      const viewId = btn.getAttribute("data-view");
+      if (viewId) showView(viewId);
     });
   });
 
-  // Default view dashboard
-  if (buttons[0]) buttons[0].click();
-}
-}
-
-function applyRoleToUI(role) {
-  currentRole = role || "branch";
-  const badge = $("roleBadge");
-  if (badge) badge.textContent = `Rol: ${currentRole}`;
-
-  // Show/hide nav buttons by data-role
-  const btns = Array.from(document.querySelectorAll(".nav-btn"));
-  btns.forEach(btn => {
-    const allowed = (btn.dataset.role || "").split(",").map(s => s.trim()).filter(Boolean);
-    const can = allowed.includes(currentRole);
-    btn.classList.toggle("hidden", !can);
-  });
-
-  // If current active view is not allowed -> go to first visible
-  const activeBtn = btns.find(b => b.classList.contains("bg-slate-900/70") && !b.classList.contains("hidden"));
-  if (!activeBtn) {
-    const firstVisible = btns.find(b => !b.classList.contains("hidden"));
-    firstVisible?.click();
+  // İlk aktif sekme
+  const firstVisible = buttons.find(b => !b.classList.contains("hidden"));
+  if (firstVisible) {
+    setActive(firstVisible);
+    const viewId = firstVisible.getAttribute("data-view");
+    if (viewId) showView(viewId);
   }
 }
 
