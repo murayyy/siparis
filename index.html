@@ -6,6 +6,17 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="color-scheme" content="dark" />
 
+  <!-- ✅ SEO / PWA küçük dokunuşlar -->
+  <meta name="description" content="DepoOS – Gerçek zamanlı depo ve sipariş yönetimi (şube siparişleri, toplama, kontrol, eksik depo, araç yükleme ve raporlar)." />
+  <meta name="theme-color" content="#020617" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="application-name" content="DepoOS" />
+
+  <!-- ✅ favicon 404'ü bitirir (inline svg) -->
+  <link rel="icon" type="image/svg+xml"
+    href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%230ea5e9'/%3E%3Ctext x='32' y='41' text-anchor='middle' font-family='system-ui,Segoe UI,Arial' font-size='28' fill='white'%3ED%3C/text%3E%3C/svg%3E" />
+
   <!-- Tailwind (geliştirme için CDN) -->
   <script src="https://cdn.tailwindcss.com"></script>
 
@@ -49,7 +60,7 @@
     </div>
 
     <!-- Sekmeli Login / Kayıt -->
-    <div class="flex mb-4 rounded-full bg-slate-900/80 border border-slate-800 p-1">
+    <div class="flex mb-4 rounded-full bg-slate-900/80 border border-slate-800 p-1" aria-label="Giriş veya kayıt sekmeleri">
       <button
         id="loginTab"
         class="flex-1 text-xs md:text-sm px-4 py-2 rounded-full bg-white shadow text-slate-900 font-medium transition"
@@ -123,6 +134,7 @@
           <input
             id="registerName"
             type="text"
+            autocomplete="name"
             class="w-full rounded-2xl bg-slate-900/70 border border-slate-700 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/80"
             required
           />
@@ -273,6 +285,7 @@
     <!-- Navigation Tabs -->
     <nav
       class="w-full border-b border-slate-800 bg-slate-950/90 backdrop-blur px-3 md:px-6 py-2"
+      aria-label="Uygulama menüsü"
     >
       <div class="flex flex-wrap gap-2">
         <button
